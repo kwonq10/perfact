@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スキマ</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4f8ef7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="スキマ">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; }
+
+    #searchView {
+      min-height: 100vh; display: flex; align-items: stretch;
+      justify-content: center; padding: 0;
+    }
+    .card {
+      background: white; border-radius: 0;
+      padding: 48px 24px 32px;
+      width: 100%; min-height: 100vh;
+      box-shadow: none; flex: 1;
+    }
+    @media (min-width: 480px) {
+      #searchView { align-items: center; padding: 20px; }
+      .card { border-radius: 16px; min-height: auto; max-width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); flex: none; }
+    }
+    h1 { font-size: 26px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; text-align: center; }
+    .subtitle { text-align: left; color: #555; font-size: 14px; margin-bottom: 32px; line-height: 1.6; }
+    .app-footer {
+      text-align: center; padding: 40px 20px; background: #e8eef3;
+      border-top: 1px solid #d1dbe5; width: 100%; margin-top: auto;
+    }
+    .app-footer-text { margin-bottom: 12px; font-size: 14px; color: #555; font-weight: 600; }
+    .app-footer-link {
+      color: #4f8ef7; font-size: 15px; font-weight: bold; text-decoration: underline;
+    }
+    .app-footer-copy { margin-top: 16px; font-size: 12px; color: #888; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    input[type="date"], select {
+      width: 100%; padding: 10px 14px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 15px; color: #333; background: #fafafa; outline: none;
+    }
+    input[type="date"]:focus, select:focus { border-color: #4f8ef7; background: white; }
+    .btn {
+      width: 100%; padding: 14px; background: #4f8ef7; color: white;
+      border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+      cursor: pointer; margin-top: 8px;
+    }
+    .btn:hover { background: #3a7de8; }
+    .btn:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-sub {
+      width: 100%; padding: 10px; background: none; color: #aaa;
+      border: 1px solid #ddd; border-radius: 8px; font-size: 13px;
+      cursor: pointer; margin-top: 12px;
+    }
+    .status { text-align: center; margin-top: 16px; font-size: 14px; color: #666; min-height: 20px; }
+    .login-info { text-align: center; font-size: 13px; color: #4f8ef7; margin-top: 12px; font-weight: 600; }
+
+    #resultView { display: none; min-height: 100vh; background: #f0f4f8; }
+    #resultHeader {
+      background: white; padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10;
+    }
+    #backBtn {
+      background: none; border: none; color: #4f8ef7;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    #resultTitle { font-size: 16px; font-weight: 600; color: #1a1a2e; }
+    #copyAllBtn {
+      background: none; border: 1px solid #4f8ef7; color: #4f8ef7;
+      padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    #copyAllBtn:active { background: #eef3ff; }
+    #resultContent { padding: 20px; }
+
+    .slot-card {
+      background: white; border-radius: 14px; padding: 20px 24px;
+      margin-bottom: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .slot-date { font-size: 13px; font-weight: 600; color: #4f8ef7; margin-bottom: 4px; }
+    .slot-time {
+      font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+      color: #1a1a2e; margin-bottom: 14px;
+    }
+    .slot-time span { color: #aaa; margin: 0 8px; font-weight: 400; }
+    .slot-actions { display: flex; gap: 8px; }
+    .btn-copy, .btn-calendar {
+      flex: 1; padding: 8px; border-radius: 8px; font-size: 13px;
+      font-weight: 600; cursor: pointer; border: none; text-align: center;
+    }
+    .btn-copy { background: #f0f4f8; color: #555; }
+    .btn-copy:active { background: #e0e8f0; }
+    .btn-calendar { background: #4f8ef7; color: white; }
+    .btn-calendar:active { background: #3a7de8; }
+
+    #installBanner {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 0.5px solid #ddd;
+      padding: 16px 20px;
+      z-index: 200;
+      box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+    #installBanner p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 12px;
+    }
+    #installBanner .banner-btns {
+      display: flex;
+      gap: 8px;
+    }
+    #installBanner .btn-install {
+      flex: 1;
+      padding: 10px;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #installBanner .btn-dismiss {
+      padding: 10px 16px;
+      background: none;
+      color: #aaa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .copy-toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #1a1a2e; color: white; padding: 10px 20px;
+      border-radius: 20px; font-size: 14px; opacity: 0;
+      transition: opacity 0.3s; pointer-events: none; z-index: 100;
+    }
+    .copy-toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <div id="searchView">
+    <div class="card">
+      <h1>スキマ</h1>
+      <p class="subtitle">スキマは、あなたのGoogleカレンダーから指定した期間の空き時間を自動で検索し、簡単に抽出・共有できるツールです。面倒な日程調整の時間を大幅に削減します。</p>
+
+      <div id="loginSection">
+        <button class="btn" id="loginBtn" onclick="doLogin()">Googleでログイン</button>
+        <p class="status" id="status"></p>
+      </div>
+
+      <div id="formSection" style="display:none;">
+        <div class="form-group">
+          <label>検索開始日</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="form-group">
+          <label>検索終了日</label>
+          <input type="date" id="endDate">
+        </div>
+        <div class="form-group">
+          <label>希望する空き時間</label>
+          <select id="duration">
+            <option value="30">30分</option>
+            <option value="60" selected>1時間</option>
+            <option value="90">1時間30分</option>
+            <option value="120">2時間</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>カレンダー</label>
+          <div id="calModeToggle" style="display:flex;gap:8px;">
+            <button id="btnModeAll" onclick="setCalMode('all')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#4f8ef7;color:white;border:none;">全カレンダー</button>
+            <button id="btnModeSelect" onclick="setCalMode('select')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#f0f4f8;color:#555;border:1px solid #ddd;">選んで使う</button>
+          </div>
+          <div id="calList" style="display:none;margin-top:10px;max-height:160px;overflow-y:auto;border:1px solid #ddd;border-radius:8px;padding:8px;"></div>
+        </div>
+        <button class="btn" id="searchBtn" onclick="startSearch()">空き時間を検索する</button>
+        <p class="login-info" id="loginInfo"></p>
+        <button class="btn-sub" id="logoutBtn" onclick="logout()">別のアカウントでログインする</button>
+        <p class="status" id="statusForm"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultView">
+    <div id="resultHeader">
+      <button id="backBtn" onclick="showSearch()">← 再検索</button>
+      <span id="resultTitle">検索結果</span>
+      <button id="copyAllBtn" onclick="copyAll()">全部コピー</button>
+    </div>
+    <div id="resultContent"></div>
+  </div>
+
+  <div class="copy-toast" id="toast"></div>
+
+  <div id="installBanner">
+    <p>ホーム画面に追加してアプリとして使えます</p>
+    <div class="banner-btns">
+      <button class="btn-install" id="installBtn">ホーム画面に追加</button>
+      <button class="btn-dismiss" onclick="dismissInstall()">後で</button>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p class="app-footer-text">スキマのご利用について</p>
+    <a href="/privacy.html" target="_blank" rel="noopener noreferrer" class="app-footer-link">プライバシーポリシー</a>
+    <p class="app-footer-copy">&copy; スキマ</p>
+  </footer>
+
+  <script>
+    const CLIENT_ID = '356365978986-kuvg67sktqngrtjmoci8nqef58rnsom3.apps.googleusercontent.com';
+    const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+    const TOKEN_KEY = 'gtoken';
+    const TOKEN_EXPIRY_KEY = 'gtoken_expiry';
+    const RESULT_KEY = 'last_result';
+    const DAY_START = 9;
+    const DAY_END = 22;
+    const STEP_MIN = 30;
+
+    let tokenClient;
+    let accessToken = null;
+    let currentSlots = [];
+    let userEmail = localStorage.getItem('user_email') || '';
+    let calMode = 'all';
+    let calendarList = [];
+
+    function setCalMode(mode) {
+      calMode = mode;
+      document.getElementById('btnModeAll').style.background = mode === 'all' ? '#4f8ef7' : '#f0f4f8';
+      document.getElementById('btnModeAll').style.color = mode === 'all' ? 'white' : '#555';
+      document.getElementById('btnModeAll').style.border = mode === 'all' ? 'none' : '1px solid #ddd';
+      document.getElementById('btnModeSelect').style.background = mode === 'select' ? '#4f8ef7' : '#f0f4f8';
+      document.getElementById('btnModeSelect').style.color = mode === 'select' ? 'white' : '#555';
+      document.getElementById('btnModeSelect').style.border = mode === 'select' ? 'none' : '1px solid #ddd';
+      document.getElementById('calList').style.display = mode === 'select' ? 'block' : 'none';
+      if (mode === 'select' && accessToken && calendarList.length === 0) loadCalendarList();
+    }
+
+    async function loadCalendarList() {
+      try {
+        const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const data = await res.json();
+        calendarList = (data.items || []).filter(c => c.accessRole === 'owner' || c.accessRole === 'writer' || c.accessRole === 'reader');
+        renderCalendarList();
+      } catch(e) {
+        setStatus('カレンダー一覧の取得に失敗しました');
+      }
+    }
+
+    function renderCalendarList() {
+      const container = document.getElementById('calList');
+      container.innerHTML = '';
+      calendarList.forEach(cal => {
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.id = 'cal_' + cal.id;
+        cb.value = cal.id;
+        cb.checked = true;
+        cb.style.cssText = 'width:16px;height:16px;cursor:pointer;';
+        const label = document.createElement('label');
+        label.htmlFor = 'cal_' + cal.id;
+        label.style.cssText = 'font-size:13px;color:#333;cursor:pointer;flex:1;';
+        label.textContent = cal.summary;
+        const dot = document.createElement('span');
+        dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${cal.backgroundColor || '#4f8ef7'};flex-shrink:0;`;
+        div.appendChild(cb);
+        div.appendChild(dot);
+        div.appendChild(label);
+        container.appendChild(div);
+      });
+    }
+
+    window.onload = () => {
+      const today = new Date();
+      const toLocalDateStr = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        return `${y}-${m}-${day}`;
+      };
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      document.getElementById('startDate').value = toLocalDateStr(today);
+      document.getElementById('endDate').value = toLocalDateStr(nextWeek);
+
+      const cached = localStorage.getItem(TOKEN_KEY);
+      const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+      if (cached && expiry && Date.now() < parseInt(expiry)) {
+        accessToken = cached;
+        showLoggedIn();
+      }
+
+      const savedResult = sessionStorage.getItem(RESULT_KEY);
+      const savedSlots = sessionStorage.getItem('last_slots');
+      if (savedResult && savedSlots) {
+        currentSlots = JSON.parse(savedSlots);
+        showResult(savedResult);
+      }
+
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+    };
+
+    function showLoggedIn() {
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('formSection').style.display = 'block';
+      document.getElementById('loginInfo').textContent = 'Googleアカウント連携済み';
+    }
+
+    function doLogin() {
+      if (typeof google === 'undefined' || !google.accounts) {
+        setStatus('Googleの読み込み中です...');
+        waitForGoogle().then(() => {
+          if (!tokenClient) initTokenClient();
+          tokenClient.requestAccessToken();
+        });
+        return;
+      }
+      if (!tokenClient) initTokenClient();
+      tokenClient.requestAccessToken();
+    }
+
+    function logout() {
+      accessToken = null;
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_EXPIRY_KEY);
+      localStorage.removeItem('user_email');
+      userEmail = '';
+      calendarList = [];
+      document.getElementById('loginSection').style.display = 'block';
+      document.getElementById('formSection').style.display = 'none';
+      sessionStorage.removeItem(RESULT_KEY);
+      sessionStorage.removeItem('last_slots');
+      setStatus('ログアウトしました');
+    }
+
+    function showSearch() {
+      document.getElementById('searchView').style.display = 'flex';
+      document.getElementById('resultView').style.display = 'none';
+    }
+
+    function showResult(html) {
+      document.getElementById('resultContent').innerHTML = html;
+      document.getElementById('searchView').style.display = 'none';
+      document.getElementById('resultView').style.display = 'block';
+      window.scrollTo(0, 0);
+    }
+
+    function initTokenClient() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID, scope: SCOPES,
+        callback: async (response) => {
+          if (response.error) {
+            setStatus('ログインに失敗しました');
+            document.getElementById('searchBtn').disabled = false;
+            return;
+          }
+          accessToken = response.access_token;
+          localStorage.setItem(TOKEN_KEY, accessToken);
+          localStorage.setItem(TOKEN_EXPIRY_KEY, Date.now() + 3500 * 1000);
+          try {
+            const info = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${accessToken}` } });
+            const data = await info.json();
+            userEmail = data.email || '';
+            localStorage.setItem('user_email', userEmail);
+          } catch(e) {}
+          showLoggedIn();
+          if (calMode === 'select') await loadCalendarList();
+        }
+      });
+    }
+
+    function waitForGoogle() {
+      return new Promise((resolve) => {
+        const check = setInterval(() => {
+          if (typeof google !== 'undefined' && google.accounts) { clearInterval(check); resolve(); }
+        }, 200);
+      });
+    }
+
+    async function startSearch() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      if (!startDate || !endDate) { setStatusForm('日付を入力してください'); return; }
+      if (startDate > endDate) { setStatusForm('終了日は開始日より後にしてください'); return; }
+      document.getElementById('searchBtn').disabled = true;
+      if (accessToken) { await fetchAndCalc(); return; }
+      if (typeof google === 'undefined' || !google.accounts) {
+        setStatus('Googleの読み込み中です...');
+        await waitForGoogle();
+      }
+      if (!tokenClient) initTokenClient();
+      setStatusForm('Googleにログインしています...');
+      tokenClient.requestAccessToken();
+    }
+
+    async function fetchAndCalc() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const duration = parseInt(document.getElementById('duration').value);
+      const btn = document.getElementById('searchBtn');
+      setStatusForm('カレンダーを取得中...');
+      try {
+        const timeMin = startDate + 'T00:00:00+09:00';
+        const timeMax = endDate + 'T23:59:59+09:00';
+
+        // 使用するカレンダーIDを決定
+        let calIds = ['primary'];
+        if (calMode === 'select') {
+          if (calendarList.length === 0) await loadCalendarList();
+          const checked = Array.from(document.querySelectorAll('#calList input[type=checkbox]:checked')).map(cb => cb.value);
+          calIds = checked.length > 0 ? checked : ['primary'];
+        } else {
+          // 全カレンダー取得
+          try {
+            const listRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (listRes.ok) {
+              const listData = await listRes.json();
+              calIds = (listData.items || []).map(c => c.id);
+              if (calIds.length === 0) calIds = ['primary'];
+            }
+          } catch(e) {}
+        }
+
+        // 各カレンダーのイベントを取得
+        let allEvents = [];
+        for (const calId of calIds) {
+          try {
+            const calRes = await fetch(
+              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            if (calRes.status === 401) {
+              accessToken = null;
+              localStorage.removeItem(TOKEN_KEY);
+              localStorage.removeItem(TOKEN_EXPIRY_KEY);
+              document.getElementById('loginInfo').textContent = '';
+              document.getElementById('logoutBtn').style.display = 'none';
+              if (!tokenClient) initTokenClient();
+              setStatusForm('セッションが切れました。再度ログインしてください。');
+              tokenClient.requestAccessToken();
+              return;
+            }
+            if (calRes.ok) {
+              const calData = await calRes.json();
+              const items = (calData.items || []).map(e => ({
+                start: e.start.dateTime || e.start.date,
+                end: e.end.dateTime || e.end.date
+              }));
+              allEvents = allEvents.concat(items);
+            }
+          } catch(e) {}
+        }
+        const events = allEvents;
+        setStatusForm('空き時間を計算中...');
+        currentSlots = findFreeSlots(startDate, endDate, duration, events);
+        const html = formatResult(currentSlots);
+        sessionStorage.setItem(RESULT_KEY, html);
+        sessionStorage.setItem('last_slots', JSON.stringify(currentSlots));
+        showResult(html);
+        setStatusForm('');
+      } catch (e) {
+        setStatusForm('エラーが発生しました: ' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function findFreeSlots(startDate, endDate, duration, events) {
+      const slots = [];
+      const [sy, sm, sd] = startDate.split('-').map(Number);
+      const [ey, em, ed] = endDate.split('-').map(Number);
+      const start = new Date(sy, sm - 1, sd);
+      const end = new Date(ey, em - 1, ed);
+
+      const now = new Date();
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const isToday = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+        let dayStart;
+        if (isToday) {
+          // 現在時刻を30分単位で切り捨て（14:32→14:30、14:45→14:30）
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          const roundedMinutes = Math.floor(nowMinutes / STEP_MIN) * STEP_MIN;
+          const startMinutes = Math.max(DAY_START * 60, roundedMinutes);
+          dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(startMinutes / 60), startMinutes % 60, 0);
+        } else {
+          dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_START, 0, 0);
+        }
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_END, 0, 0);
+        const dayEvents = events
+          .map(e => ({ start: new Date(e.start), end: new Date(e.end) }))
+          .filter(e => e.start < dayEnd && e.end > dayStart)
+          .sort((a, b) => a.start - b.start);
+
+        let cur = new Date(dayStart);
+        let bStart = null;
+        while (cur < dayEnd) {
+          const next = new Date(cur.getTime() + STEP_MIN * 60000);
+          const hit = dayEvents.some(e => e.start < next && e.end > cur);
+          if (!hit) {
+            if (bStart === null) bStart = new Date(cur);
+            cur = next;
+          } else {
+            if (bStart !== null && (cur - bStart) >= duration * 60000) {
+              slots.push({ start: new Date(bStart), end: new Date(cur) });
+            }
+            bStart = null;
+            const blocking = dayEvents.filter(e => e.start < next && e.end > cur);
+            const maxEnd = new Date(Math.max(...blocking.map(e => e.end)));
+            cur = maxEnd > next ? maxEnd : next;
+          }
+        }
+        if (bStart !== null && (cur - bStart) >= duration * 60000) {
+          slots.push({ start: new Date(bStart), end: new Date(cur < dayEnd ? cur : dayEnd) });
+        }
+      }
+      return slots;
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function slotToCalendarUrl(slot) {
+      const fmt = (d) =>
+        `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&dates=${fmt(slot.start)}/${fmt(slot.end)}`;
+    }
+
+    function slotToText(slot) {
+      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      const dateStr = `${slot.start.getMonth()+1}月${slot.start.getDate()}日(${days[slot.start.getDay()]})`;
+      const startT = `${pad(slot.start.getHours())}:${pad(slot.start.getMinutes())}`;
+      const endT = `${pad(slot.end.getHours())}:${pad(slot.end.getMinutes())}`;
+      return `${dateStr} ${startT}〜${endT}`;
+    }
+
+
+
+    function formatResult(slots) {
+      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      if (slots.length === 0) {
+        return '<div style="text-align:center;padding:60px 20px;color:#888;">該当する空き時間がありませんでした。<br>条件を変更してお試しください。</div>';
+      }
+      let html = `<p style="text-align:center;color:#888;font-size:14px;margin-bottom:20px;">${slots.length}件の空き時間が見つかりました</p>`;
+      slots.forEach((s, i) => {
+        const dateStr = `${s.start.getMonth()+1}月${s.start.getDate()}日 (${days[s.start.getDay()]})`;
+        const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
+        const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
+        html += `
+          <div class="slot-card">
+            <div class="slot-date">${dateStr}</div>
+            <div class="slot-time">${startT}<span>〜</span>${endT}</div>
+            <div class="slot-actions">
+              <button class="btn-copy" onclick="copySlot(${i})">この枠をコピー</button>
+              <button class="btn-calendar" onclick="openCalendar(${i})">予定を追加</button>
+            </div>
+          </div>`;
+      });
+      return html;
+    }
+
+    function openCalendar(i) {
+      let url = slotToCalendarUrl(currentSlots[i]);
+      if (userEmail) url += '&authuser=' + encodeURIComponent(userEmail);
+      window.open(url, '_blank');
+    }
+
+    function copySlot(i) {
+      const text = slotToText(currentSlots[i]);
+      navigator.clipboard.writeText(text).then(() => showToast('コピーしました'));
+    }
+
+    function copyAll() {
+      if (currentSlots.length === 0) return;
+      const text = currentSlots.map(slotToText).join('\n');
+      navigator.clipboard.writeText(text).then(() => showToast('全件コピーしました'));
+    }
+
+
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function setStatus(msg) { document.getElementById('status').textContent = msg; }
+    function setStatusForm(msg) {
+      const el = document.getElementById('statusForm');
+      if (el) el.textContent = msg;
+    }
+
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (!localStorage.getItem('install_dismissed')) {
+        document.getElementById('installBanner').style.display = 'block';
+      }
+    });
+
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const result = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      document.getElementById('installBanner').style.display = 'none';
+    });
+
+    function dismissInstall() {
+      document.getElementById('installBanner').style.display = 'none';
+      localStorage.setItem('install_dismissed', '1');
+    }
+
+    window.addEventListener('appinstalled', () => {
+      document.getElementById('installBanner').style.display = 'none';
+      deferredPrompt = null;
+    });
+  </script>
+</body>
+</html>
