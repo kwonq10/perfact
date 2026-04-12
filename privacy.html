@@ -1,36 +1,55 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>プライバシーポリシー - スキマ</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       font-family: 'Segoe UI', sans-serif;
       background: #f0f4f8;
       color: #333;
       line-height: 1.8;
     }
+
     header {
       background: #4f8ef7;
       color: white;
       padding: 20px 24px;
     }
-    header h1 { font-size: 20px; font-weight: 600; }
-    header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header p {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
     .container {
       max-width: 720px;
       margin: 32px auto;
       padding: 0 24px 64px;
     }
+
     .card {
       background: white;
       border-radius: 14px;
       padding: 32px;
       margin-bottom: 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     }
+
     h2 {
       font-size: 16px;
       font-weight: 600;
@@ -39,79 +58,100 @@
       padding-bottom: 8px;
       border-bottom: 1px solid #eee;
     }
-    p { font-size: 14px; color: #555; margin-bottom: 10px; }
-    ul { font-size: 14px; color: #555; padding-left: 20px; margin-bottom: 10px; }
-    ul li { margin-bottom: 6px; }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      font-size: 14px;
+      color: #555;
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+
     .updated {
       text-align: center;
       font-size: 12px;
       color: #aaa;
       margin-top: 32px;
     }
-    a { color: #4f8ef7; text-decoration: none; }
+
+    a {
+      color: #4f8ef7;
+      text-decoration: none;
+    }
   </style>
 </head>
+
 <body>
 
-<header>
-  <h1>スキマ - プライバシーポリシー</h1>
-  <p>Privacy Policy</p>
-</header>
+  <header>
+    <h1>スキマ - プライバシーポリシー</h1>
+    <p>Privacy Policy</p>
+  </header>
 
-<div class="container">
+  <div class="container">
 
-  <div class="card">
-    <h2>はじめに</h2>
-    <p>スキマ（以下「本サービス」）は、Googleカレンダーと連携してユーザーの空き時間を検索するWebアプリケーションです。本プライバシーポリシーは、本サービスが収集する情報とその取り扱いについて説明します。</p>
-  </div>
+    <div class="card">
+      <h2>はじめに</h2>
+      <p>スキマ（以下「本サービス」）は、Googleカレンダーと連携してユーザーの空き時間を検索するWebアプリケーションです。本プライバシーポリシーは、本サービスが収集する情報とその取り扱いについて説明します。</p>
+    </div>
 
-  <div class="card">
-    <h2>取得する情報</h2>
-    <p>本サービスは、ユーザーがGoogleアカウントでログインした際に以下の情報にアクセスします。</p>
-    <ul>
-      <li>Googleカレンダーの予定情報（タイトル、開始時刻、終了時刻）</li>
-      <li>Googleアカウントのメールアドレス</li>
-    </ul>
-    <p>これらの情報は空き時間の計算のみに使用されます。</p>
-  </div>
+    <div class="card">
+      <h2>取得する情報</h2>
+      <p>本サービスは、ユーザーがGoogleアカウントでログインした際に以下の情報にアクセスします。</p>
+      <ul>
+        <li>Googleカレンダーの予定情報（タイトル、開始時刻、終了時刻）</li>
+        <li>Googleアカウントのメールアドレス</li>
+      </ul>
+      <p>これらの情報は空き時間の計算のみに使用されます。</p>
+    </div>
 
-  <div class="card">
-    <h2>情報の使用目的</h2>
-    <p>取得した情報は以下の目的にのみ使用します。</p>
-    <ul>
-      <li>ユーザーの指定した期間における空き時間の計算と表示</li>
-      <li>複数カレンダーの統合処理</li>
-    </ul>
-  </div>
+    <div class="card">
+      <h2>情報の使用目的</h2>
+      <p>取得した情報は以下の目的にのみ使用します。</p>
+      <ul>
+        <li>ユーザーの指定した期間における空き時間の計算と表示</li>
+        <li>複数カレンダーの統合処理</li>
+      </ul>
+    </div>
 
-  <div class="card">
-    <h2>情報の保存・共有について</h2>
-    <p>本サービスは取得したカレンダーデータをサーバーに保存しません。すべての処理はユーザーのブラウザ上で行われます。</p>
-    <p>取得した情報を第三者に販売・提供・共有することは一切ありません。</p>
-    <p>アクセストークンはユーザーのブラウザのlocalStorageに一時的に保存されますが、最大1時間で自動的に無効化されます。</p>
-  </div>
+    <div class="card">
+      <h2>情報の保存・共有について</h2>
+      <p>本サービスは取得したカレンダーデータをサーバーに保存しません。すべての処理はユーザーのブラウザ上で行われます。</p>
+      <p>取得した情報を第三者に販売・提供・共有することは一切ありません。</p>
+      <p>アクセストークンはユーザーのブラウザのlocalStorageに一時的に保存されますが、最大1時間で自動的に無効化されます。</p>
+    </div>
 
-  <div class="card">
-    <h2>Googleアカウントの権限について</h2>
-    <p>本サービスが使用するGoogleの権限は以下の通りです。</p>
-    <ul>
-      <li><strong>calendar.readonly</strong>：カレンダーの予定を読み取るための権限（読み取りのみ、書き込みは行いません）</li>
-    </ul>
-    <p>本サービスはカレンダーへの書き込み・編集・削除は一切行いません。</p>
-  </div>
+    <div class="card">
+      <h2>Googleアカウントの権限について</h2>
+      <p>本サービスが使用するGoogleの権限は以下の通りです。</p>
+      <ul>
+        <li><strong>calendar.readonly</strong>：カレンダーの予定を読み取るための権限（読み取りのみ、書き込みは行いません）</li>
+      </ul>
+      <p>本サービスはカレンダーへの書き込み・編集・削除は一切行いません。</p>
+    </div>
 
-  <div class="card">
-    <h2>アクセス権限の取り消し</h2>
-    <p>ユーザーはいつでも以下のページからスキマへのアクセス権限を取り消すことができます。</p>
-    <p><a href="https://myaccount.google.com/permissions" target="_blank">https://myaccount.google.com/permissions</a></p>
-  </div>
+    <div class="card">
+      <h2>アクセス権限の取り消し</h2>
+      <p>ユーザーはいつでも以下のページからスキマへのアクセス権限を取り消すことができます。</p>
+      <p><a href="https://myaccount.google.com/permissions" target="_blank">https://myaccount.google.com/permissions</a>
+      </p>
+    </div>
 
-  <div class="card">
-    <h2>Cookieについて</h2>
-    <p>本サービスは分析・広告目的のCookieを使用しません。ログイン状態の維持のみにブラウザのlocalStorageを使用します。</p>
-  </div>
+    <div class="card">
+      <h2>Cookieについて</h2>
+      <p>本サービスは分析・広告目的のCookieを使用しません。ログイン状態の維持のみにブラウザのlocalStorageを使用します。</p>
+    </div>
 
-  <div class="card">
-    <h2>お問い合わせ</h2>
-    <p>プライバシーポリシーに関するご質問は以下までお問い合わせください。</p>
-    <p>メール：<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8ffbeafbfcfae8eee4fabbcfe8e2eee6e3a1ece0e2">[e
+    <div class="card">
+      <h2>お問い合わせ</h2>
+      <p>プライバシーポリシーに関するご質問は以下までお問い合わせください。</p>
+      <p>メール：<a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></p>
