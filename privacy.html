@@ -101,17 +101,17 @@
 
     <div class="card">
       <h2>はじめに</h2>
-      <p>スキマ（以下「本サービス」）は、Googleカレンダーと連携してユーザーの空き時間を検索するWebアプリケーションです。本プライバシーポリシーは、本サービスが収集する情報とその取り扱いについて説明します。</p>
+      <p>スキマ（以下「本サービス」）は、Googleカレンダーと連携してユーザーの空き時間を検索するWebアプリケーションです。本プライバシーポリシーは、本サービスが取得する情報とその取り扱いについて説明します。</p>
     </div>
 
     <div class="card">
-      <h2>取得する情報</h2>
+      <h2>取得するGoogleユーザーデータ</h2>
       <p>本サービスは、ユーザーがGoogleアカウントでログインした際に以下の情報にアクセスします。</p>
       <ul>
         <li>Googleカレンダーの予定情報（タイトル、開始時刻、終了時刻）</li>
-        <li>Googleアカウントのメールアドレス</li>
+        <li>Googleカレンダーの一覧情報（カレンダー名、カレンダーID）</li>
       </ul>
-      <p>これらの情報は空き時間の計算のみに使用されます。</p>
+      <p>メールアドレスやその他の個人情報は取得しません。</p>
     </div>
 
     <div class="card">
@@ -119,22 +119,37 @@
       <p>取得した情報は以下の目的にのみ使用します。</p>
       <ul>
         <li>ユーザーの指定した期間における空き時間の計算と表示</li>
-        <li>複数カレンダーの統合処理</li>
+        <li>ユーザーが対象カレンダーを選択できるようにするため</li>
       </ul>
+      <p>上記以外の目的には一切使用しません。</p>
     </div>
 
     <div class="card">
       <h2>情報の保存・共有について</h2>
       <p>本サービスは取得したカレンダーデータをサーバーに保存しません。すべての処理はユーザーのブラウザ上で行われます。</p>
       <p>取得した情報を第三者に販売・提供・共有することは一切ありません。</p>
-      <p>アクセストークンはユーザーのブラウザのlocalStorageに一時的に保存されますが、最大1時間で自動的に無効化されます。</p>
+      <p>取得した情報を広告配信に使用することは一切ありません。</p>
+      <p>取得した情報をAIモデルの学習に使用することは一切ありません。</p>
+      <p>本サービスはGoogle Workspace API User Data Policyの<a href="https://developers.google.com/terms/api-services-user-data-policy#additional_requirements_for_specific_api_scopes" target="_blank" rel="noopener noreferrer">Limited Use requirements</a>に準拠しています。</p>
+    </div>
+
+    <div class="card">
+      <h2>ブラウザへの保存情報（localStorage）</h2>
+      <p>本サービスはユーザーのブラウザ（localStorage）に以下の情報を保存します。</p>
+      <ul>
+        <li><strong>gtoken</strong>：Google APIアクセストークン</li>
+        <li><strong>gtoken_expiry</strong>：アクセストークンの有効期限（取得から約1時間で自動無効化）</li>
+        <li><strong>install_dismissed</strong>：PWAインストール案内の非表示状態</li>
+      </ul>
+      <p>これらの情報はサーバーへ送信されることはありません。</p>
     </div>
 
     <div class="card">
       <h2>Googleアカウントの権限について</h2>
       <p>本サービスが使用するGoogleの権限は以下の通りです。</p>
       <ul>
-        <li><strong>calendar.readonly</strong>：カレンダーの予定を読み取るための権限（読み取りのみ、書き込みは行いません）</li>
+        <li><strong>https://www.googleapis.com/auth/calendar.events.readonly</strong>：カレンダーの予定を読み取るための権限（読み取りのみ）</li>
+        <li><strong>https://www.googleapis.com/auth/calendar.calendarlist.readonly</strong>：カレンダーの一覧を読み取るための権限（読み取りのみ）</li>
       </ul>
       <p>本サービスはカレンダーへの書き込み・編集・削除は一切行いません。</p>
     </div>
@@ -142,8 +157,7 @@
     <div class="card">
       <h2>アクセス権限の取り消し</h2>
       <p>ユーザーはいつでも以下のページからスキマへのアクセス権限を取り消すことができます。</p>
-      <p><a href="https://myaccount.google.com/permissions" target="_blank">https://myaccount.google.com/permissions</a>
-      </p>
+      <p><a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/permissions</a></p>
     </div>
 
     <div class="card">
@@ -155,3 +169,12 @@
       <h2>お問い合わせ</h2>
       <p>プライバシーポリシーに関するご質問は以下までお問い合わせください。</p>
       <p>メール：<a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></p>
+    </div>
+
+    <p class="updated">最終更新日：2025年7月9日</p>
+
+  </div>
+
+</body>
+
+</html>

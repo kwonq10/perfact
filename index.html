@@ -238,7 +238,6 @@
     let tokenClient;
     let accessToken = null;
     let currentSlots = [];
-    let userEmail = localStorage.getItem('user_email') || '';
     let calMode = 'all';
     let calendarList = [];
 
@@ -345,8 +344,6 @@
       accessToken = null;
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(TOKEN_EXPIRY_KEY);
-      localStorage.removeItem('user_email');
-      userEmail = '';
       calendarList = [];
       document.getElementById('loginSection').style.display = 'block';
       document.getElementById('formSection').style.display = 'none';
@@ -379,12 +376,6 @@
           accessToken = response.access_token;
           localStorage.setItem(TOKEN_KEY, accessToken);
           localStorage.setItem(TOKEN_EXPIRY_KEY, Date.now() + 3500 * 1000);
-          try {
-            const info = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${accessToken}` } });
-            const data = await info.json();
-            userEmail = data.email || '';
-            localStorage.setItem('user_email', userEmail);
-          } catch(e) {}
           showLoggedIn();
           if (calMode === 'select') await loadCalendarList();
         }
@@ -582,8 +573,7 @@
     }
 
     function openCalendar(i) {
-      let url = slotToCalendarUrl(currentSlots[i]);
-      if (userEmail) url += '&authuser=' + encodeURIComponent(userEmail);
+      const url = slotToCalendarUrl(currentSlots[i]);
       window.open(url, '_blank');
     }
 
