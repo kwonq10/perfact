@@ -323,29 +323,21 @@
     };
 
     function showLoggedIn() {
-      console.log('[DEBUG] showLoggedIn called');
       document.getElementById('loginSection').style.display = 'none';
-      console.log('[DEBUG] loginSection display:', document.getElementById('loginSection').style.display);
       document.getElementById('formSection').style.display = 'block';
-      console.log('[DEBUG] formSection display:', document.getElementById('formSection').style.display);
       document.getElementById('loginInfo').textContent = 'Googleアカウント連携済み';
     }
 
     function doLogin() {
-      console.log('[DEBUG] doLogin clicked');
       if (typeof google === 'undefined' || !google.accounts) {
-        console.log('[DEBUG] google not loaded yet, waiting...');
         setStatus('Googleの読み込み中です...');
         waitForGoogle().then(() => {
-          console.log('[DEBUG] waitForGoogle resolved');
           if (!tokenClient) initTokenClient();
-          console.log('[DEBUG] requestAccessToken called (after waitForGoogle)');
           tokenClient.requestAccessToken();
         });
         return;
       }
       if (!tokenClient) initTokenClient();
-      console.log('[DEBUG] requestAccessToken called (direct)');
       tokenClient.requestAccessToken();
     }
 
@@ -376,18 +368,14 @@
     }
 
     function initTokenClient() {
-      console.log('[DEBUG] initTokenClient called');
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID, scope: SCOPES,
         callback: async (response) => {
-          console.log('[DEBUG] callback called, response:', JSON.stringify(response));
           if (response.error) {
-            console.log('[DEBUG] response.error:', response.error);
             setStatus('ログインに失敗しました');
             document.getElementById('searchBtn').disabled = false;
             return;
           }
-          console.log('[DEBUG] access token exists:', !!response.access_token);
           accessToken = response.access_token;
           localStorage.setItem(TOKEN_KEY, accessToken);
           localStorage.setItem(TOKEN_EXPIRY_KEY, Date.now() + 3500 * 1000);
@@ -399,9 +387,6 @@
           } catch(e) {}
           showLoggedIn();
           if (calMode === 'select') await loadCalendarList();
-        },
-        error_callback: (err) => {
-          console.log('[DEBUG] error_callback fired:', JSON.stringify(err));
         }
       });
     }
