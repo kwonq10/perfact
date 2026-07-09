@@ -1,4 +1,4 @@
-const CACHE_NAME = 'free-slots-v2';
+const CACHE_NAME = 'free-slots-v3';
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -16,5 +16,21 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  e.respondWith(caches.match(e.request).then((cached) => cached || fetch(e.request)));
+  const request = e.request;
+  const acceptsHtml = request.headers.get('accept')?.includes('text/html');
+
+  if (request.mode === 'navigate' || acceptsHtml) {
+    e.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  e.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
 });
