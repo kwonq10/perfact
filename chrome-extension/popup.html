@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スキマ</title>
+  <style>
+    body {
+      width: 320px;
+      padding: 24px 20px;
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      margin: 0;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      background: #fff3cd;
+      color: #856404;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      font-size: 14px;
+      color: #555;
+      line-height: 1.7;
+    }
+    .card p { margin: 0 0 8px; }
+    .card p:last-child { margin: 0; }
+  </style>
+</head>
+<body>
+  <h1>スキマ</h1>
+  <div style="text-align:center;">
+    <span class="badge">Chrome拡張 MVP — 準備版</span>
+  </div>
+  <div class="card">
+    <p>OAuth Client ID取得前の準備版です。</p>
+    <p>この段階では<strong>Googleログインはまだ動きません</strong>。</p>
+    <p>拡張機能IDの取得後、Google CloudでOAuth Client IDを作成してから認証機能を実装します。</p>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
