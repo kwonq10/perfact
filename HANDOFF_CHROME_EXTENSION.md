@@ -21,7 +21,7 @@ Repository:
 
 正式ローカル作業場所:
 
-D:\09_AI_Projects\perfact
+C:\Users\tetsu\perfact
 
 ## 直近の重要コミット
 
