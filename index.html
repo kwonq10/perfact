@@ -169,41 +169,27 @@
     .swipe-hint-week {
       text-align: center;
     }
-    .week-calendar {
+    /* 週内位置インジケーター（極小ドット7つ） */
+    .week-pos-dots {
       display: flex;
-      touch-action: none;
-      min-height: 44px;
+      justify-content: center;
+      gap: 5px;
       margin-bottom: 12px;
-      cursor: grab;
     }
-    .week-calendar:active { cursor: grabbing; }
-    .week-calendar-day {
-      flex: 1;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 2px;
-      background: none; border: none; font: inherit;
-      padding: 4px 2px;
-      border-radius: 10px;
-      cursor: pointer;
-      color: #6b7684;
+    .week-pos-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #d8e0ea;
+      flex-shrink: 0;
     }
-    .week-calendar-day:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
+    .week-pos-dot.active {
+      width: 5px;
+      height: 5px;
     }
-    .week-calendar-dow { font-size: 11px; font-weight: 600; }
-    .week-calendar-date { font-size: 15px; font-weight: 600; }
-    .week-calendar-day.week-calendar-sun { color: #c0574f; }
-    .week-calendar-day.week-calendar-sat { color: #4a72c4; }
-    .week-calendar-day.week-calendar-selected {
-      background: #eef3ff; color: #1a1a2e;
-    }
-    .week-calendar-day.week-calendar-selected .week-calendar-date { font-weight: 700; }
-    .week-calendar-day.week-calendar-selected.week-calendar-sun { background: #fbeceb; color: #a8443c; }
-    .week-calendar-day.week-calendar-selected.week-calendar-sat { background: #eaf0fa; color: #3a5c96; }
-    .week-calendar-day:focus-visible {
-      outline: 2px solid #4f8ef7; outline-offset: 2px;
-    }
+    /* 曜日色 */
+    .day-card-date.dow-sun { color: #c0574f; }
+    .day-card-date.dow-sat { color: #4a72c4; }
     .week-swipe-zone {
       touch-action: none;
       min-height: 44px;
@@ -311,7 +297,6 @@
     let calendarList = [];
     let swipeState = null;
     let weekSwipeState = null;
-    let daySwipeState = null;
     let isSearching = false;
     let isAnimating = false;
     const SWIPE_MIN_DISTANCE = 50;
@@ -802,41 +787,27 @@
       return `${y}-${m}-${day}`;
     }
 
-    function getWeekDatesForDate(date) {
-      const sunday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay());
-      const week = [];
+    function renderWeekPosIndicator(dow) {
+      const dots = [];
       for (let i = 0; i < 7; i++) {
-        week.push(new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + i));
+        const isActive = i === dow;
+        let activeStyle = '';
+        if (isActive) {
+          const color = i === 0 ? '#c0574f' : i === 6 ? '#4a72c4' : '#7a8a9b';
+          activeStyle = ` style="background:${color}"`;
+        }
+        dots.push(`<span class="week-pos-dot${isActive ? ' active' : ''}"${activeStyle}></span>`);
       }
-      return week;
-    }
-
-    function renderWeekCalendarHtml(currentDate) {
-      const dowLabels = ['日', '月', '火', '水', '木', '金', '土'];
-      const week = getWeekDatesForDate(currentDate);
-      const currentKey = dateKeyOfDate(currentDate);
-      const cells = week.map((d, i) => {
-        const key = dateKeyOfDate(d);
-        const inRange = currentDailyResults.some(dd => dd.dateKey === key);
-        const isSelected = key === currentKey;
-        const classes = ['week-calendar-day'];
-        if (i === 0) classes.push('week-calendar-sun');
-        if (i === 6) classes.push('week-calendar-sat');
-        if (isSelected) classes.push('week-calendar-selected');
-        const ariaCurrent = isSelected ? ' aria-current="date"' : '';
-        const label = `${d.getMonth() + 1}月${d.getDate()}日（${dowLabels[i]}）へ移動`;
-        return `
-          <button type="button" class="${classes.join(' ')}" data-week-day-key="${key}" aria-label="${label}"${ariaCurrent} ${inRange ? '' : 'disabled'}>
-            <span class="week-calendar-dow">${dowLabels[i]}</span>
-            <span class="week-calendar-date">${d.getDate()}</span>
-          </button>`;
-      }).join('');
-      return `<div class="week-calendar" data-week-calendar role="group" aria-label="週間カレンダー">${cells}</div>`;
+      return `<div class="week-pos-dots" aria-hidden="true">${dots.join('')}</div>`;
     }
 
     function renderDailyCard(day) {
       const days = ['日', '月', '火', '水', '木', '金', '土'];
-      const dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[day.date.getDay()]}）`;
+      const dow = day.date.getDay();
+      const dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[dow]}）`;
+      // 曜日ごとの水平位置（日曜=左 → 土曜=右）
+      const DOW_LEFT_OFFSETS = ['0%', '4%', '7%', '11%', '15%', '19%', '22%'];
+      const dateColorClass = dow === 0 ? ' dow-sun' : dow === 6 ? ' dow-sat' : '';
 
       let slotsHtml;
       if (day.slots.length === 0) {
@@ -858,8 +829,8 @@
 
       return `
         <div class="slot-card daily-result-card" data-day-card>
-          ${renderWeekCalendarHtml(day.date)}
-          <div class="day-card-date">${dateStr}</div>
+          ${renderWeekPosIndicator(dow)}
+          <div class="day-card-date${dateColorClass}" style="padding-left:${DOW_LEFT_OFFSETS[dow]}">${dateStr}</div>
           ${slotsHtml}
           <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>この日をコピー</button>
         </div>
@@ -951,15 +922,11 @@
     }
 
     function isSwipeExcludedTarget(target) {
-      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone], [data-week-calendar]'));
+      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone]'));
     }
 
     function isWeekSwipeZoneTarget(target) {
       return !!(target && target.closest && target.closest('[data-week-swipe-zone]'));
-    }
-
-    function isDaySwipeZoneTarget(target) {
-      return !!(target && target.closest && target.closest('[data-week-calendar]'));
     }
 
     function releaseSwipePointer(e) {
@@ -1065,13 +1032,10 @@
       jumpToDayIndex(targetIndex, cardEl);
     }
 
-    // Card body: no longer attempts to claim left/right gestures itself
-    // (the dedicated .week-calendar strip remains the *reliable* layer, since
-    // it uses touch-action: none). This handler is a *supplementary* layer that
-    // lets a swipe started anywhere on the card body also move the day, as
-    // long as the gesture is clearly horizontal -- touch-action: pan-y stays
-    // in effect here, so ambiguous/diagonal gestures still hand off to
-    // native vertical scrolling rather than fighting it.
+    // Card body swipe handler. Allows left/right gestures started anywhere on
+    // the card body to move the day, as long as the gesture is clearly
+    // horizontal. touch-action: pan-y stays in effect here, so
+    // ambiguous/diagonal gestures hand off to native vertical scrolling.
     function handleResultPointerDown(e) {
       if (isSearching || isAnimating) return;
       if (e.isPrimary === false) return;
@@ -1153,109 +1117,6 @@
       const cardEl = getDayCardEl();
       releaseSwipePointer(e);
       resetCardTransform(cardEl);
-    }
-
-    function resetDaySwipeState(e) {
-      if (daySwipeState && e && e.currentTarget && e.currentTarget.hasPointerCapture && e.currentTarget.hasPointerCapture(daySwipeState.pointerId)) {
-        try { e.currentTarget.releasePointerCapture(daySwipeState.pointerId); } catch (err) {}
-      }
-      daySwipeState = null;
-    }
-
-    function handleDaySwipePointerDown(e) {
-      if (isSearching || isAnimating) return;
-      if (e.isPrimary === false) return;
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      if (!isDaySwipeZoneTarget(e.target)) return;
-      if (daySwipeState) return;
-      const dayCellEl = e.target.closest && e.target.closest('.week-calendar-day');
-      daySwipeState = {
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        startDateKey: (dayCellEl && !dayCellEl.disabled) ? dayCellEl.getAttribute('data-week-day-key') : null
-      };
-      if (e.currentTarget.setPointerCapture) {
-        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
-      }
-    }
-
-    function handleDaySwipePointerMove(e) {
-      if (!daySwipeState || e.pointerId !== daySwipeState.pointerId) return;
-      // The dedicated zone uses touch-action: none, so there is no native
-      // gesture to race against; drive the card's finger-follow directly.
-      if (e.cancelable) e.preventDefault();
-      const deltaX = e.clientX - daySwipeState.startX;
-      const cardEl = getDayCardEl();
-      if (!cardEl) return;
-      const atFirst = currentDayIndex <= 0;
-      const atLast = currentDayIndex >= currentDailyResults.length - 1;
-      let adjusted = deltaX;
-      if ((deltaX > 0 && atFirst) || (deltaX < 0 && atLast)) {
-        adjusted = deltaX * CARD_BOUNDARY_RESISTANCE;
-      }
-      cardEl.style.transition = 'none';
-      cardEl.style.transform = `translateX(${adjusted}px)`;
-    }
-
-    function handleDaySwipePointerUp(e) {
-      if (!daySwipeState || e.pointerId !== daySwipeState.pointerId) return;
-      const deltaX = e.clientX - daySwipeState.startX;
-      const deltaY = e.clientY - daySwipeState.startY;
-      const startDateKey = daySwipeState.startDateKey;
-      const cardEl = getDayCardEl();
-      resetDaySwipeState(e);
-
-      if (isSearching || isAnimating) {
-        resetCardTransform(cardEl);
-        return;
-      }
-
-      const absX = Math.abs(deltaX);
-      const absY = Math.abs(deltaY);
-
-      if (absX >= SWIPE_MIN_DISTANCE && absX >= absY * DAY_SWIPE_DIRECTION_RATIO) {
-        const wantsNext = deltaX < 0;
-        const wantsPrev = deltaX > 0;
-        const atFirst = currentDayIndex <= 0;
-        const atLast = currentDayIndex >= currentDailyResults.length - 1;
-        const blocked = (wantsNext && atLast) || (wantsPrev && atFirst);
-        isAnimating = true;
-        if (!blocked) {
-          animateDayChange(wantsNext ? 'next' : 'previous', cardEl);
-        } else {
-          snapCardToCenter(cardEl);
-        }
-        return;
-      }
-
-      if (absX < DRAG_AXIS_LOCK_THRESHOLD && absY < DRAG_AXIS_LOCK_THRESHOLD && startDateKey) {
-        resetCardTransform(cardEl);
-        triggerDateNav(startDateKey);
-        return;
-      }
-
-      isAnimating = true;
-      snapCardToCenter(cardEl);
-    }
-
-    function handleDaySwipePointerCancel(e) {
-      if (!daySwipeState || e.pointerId !== daySwipeState.pointerId) return;
-      const cardEl = getDayCardEl();
-      resetDaySwipeState(e);
-      resetCardTransform(cardEl);
-    }
-
-    function handleWeekCalendarClick(e) {
-      // Week-calendar day cells are real <button> elements, so keyboard
-      // activation (Enter/Space) fires a native click with detail === 0.
-      // Pointer/touch-driven taps are already handled entirely via the
-      // pointerup-based logic above, so this only needs to react to the
-      // keyboard case to avoid a double-trigger.
-      if (e.detail !== 0) return;
-      const cellEl = e.target.closest && e.target.closest('.week-calendar-day');
-      if (!cellEl || cellEl.disabled) return;
-      triggerDateNav(cellEl.getAttribute('data-week-day-key'));
     }
 
     function resetWeekSwipeState(e) {
@@ -1376,12 +1237,7 @@
     resultContentEl.addEventListener('pointermove', handleWeekSwipePointerMove);
     resultContentEl.addEventListener('pointerup', handleWeekSwipePointerUp);
     resultContentEl.addEventListener('pointercancel', handleWeekSwipePointerCancel);
-    resultContentEl.addEventListener('pointerdown', handleDaySwipePointerDown);
-    resultContentEl.addEventListener('pointermove', handleDaySwipePointerMove);
-    resultContentEl.addEventListener('pointerup', handleDaySwipePointerUp);
-    resultContentEl.addEventListener('pointercancel', handleDaySwipePointerCancel);
     resultContentEl.addEventListener('keydown', handleWeekSwipeKeyDown);
-    resultContentEl.addEventListener('click', handleWeekCalendarClick);
 
     let deferredPrompt = null;
 
