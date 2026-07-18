@@ -529,6 +529,43 @@
       return slots;
     }
 
+    function groupSlotsByDay(slots) {
+      const toValidDate = (v) => {
+        const d = (v instanceof Date) ? v : new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const normalized = [];
+      for (const s of slots) {
+        if (!s) continue;
+        const start = toValidDate(s.start);
+        const end = toValidDate(s.end);
+        if (!start || !end) continue;
+        normalized.push({ start, end });
+      }
+
+      normalized.sort((a, b) => a.start - b.start);
+
+      const dateKeyOf = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const groupsByKey = new Map();
+      for (const slot of normalized) {
+        const key = dateKeyOf(slot.start);
+        if (!groupsByKey.has(key)) {
+          const dayDate = new Date(slot.start.getFullYear(), slot.start.getMonth(), slot.start.getDate());
+          groupsByKey.set(key, { date: dayDate, dateKey: key, slots: [] });
+        }
+        groupsByKey.get(key).slots.push(slot);
+      }
+
+      return Array.from(groupsByKey.values()).sort((a, b) => a.date - b.date);
+    }
+
     function pad(n) { return String(n).padStart(2, '0'); }
 
     function slotToCalendarUrl(slot) {
