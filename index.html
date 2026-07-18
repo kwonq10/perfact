@@ -78,7 +78,7 @@
       padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
     }
     #copyAllBtn:active { background: #eef3ff; }
-    #resultContent { padding: 20px; }
+    #resultContent { padding: 20px; touch-action: pan-y; user-select: none; cursor: grab; }
 
     .slot-card {
       background: white; border-radius: 14px; padding: 20px 24px;
@@ -253,6 +253,9 @@
     let currentDayIndex = 0;
     let calMode = 'all';
     let calendarList = [];
+    let swipeState = null;
+    const SWIPE_MIN_DISTANCE = 50;
+    const SWIPE_DIRECTION_RATIO = 1.5;
 
     function setCalMode(mode) {
       calMode = mode;
@@ -782,6 +785,58 @@
       renderCurrentDay();
     }
 
+    function isSwipeExcludedTarget(target) {
+      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label'));
+    }
+
+    function releaseSwipePointer(e) {
+      if (swipeState && e.currentTarget && e.currentTarget.hasPointerCapture && e.currentTarget.hasPointerCapture(swipeState.pointerId)) {
+        try { e.currentTarget.releasePointerCapture(swipeState.pointerId); } catch (err) {}
+      }
+      swipeState = null;
+    }
+
+    function handleResultPointerDown(e) {
+      if (e.isPrimary === false) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (isSwipeExcludedTarget(e.target)) return;
+      if (swipeState) return;
+      swipeState = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY };
+      if (e.currentTarget.setPointerCapture) {
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+
+    function handleResultPointerMove(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const deltaX = e.clientX - swipeState.startX;
+      const deltaY = e.clientY - swipeState.startY;
+      if (Math.abs(deltaY) >= SWIPE_MIN_DISTANCE && Math.abs(deltaY) >= Math.abs(deltaX)) {
+        releaseSwipePointer(e);
+      }
+    }
+
+    function handleResultPointerUp(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const deltaX = e.clientX - swipeState.startX;
+      const deltaY = e.clientY - swipeState.startY;
+      releaseSwipePointer(e);
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      if (absX < SWIPE_MIN_DISTANCE) return;
+      if (absX < absY * SWIPE_DIRECTION_RATIO) return;
+      if (deltaX < 0) {
+        showNextDay();
+      } else {
+        showPreviousDay();
+      }
+    }
+
+    function handleResultPointerCancel(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      releaseSwipePointer(e);
+    }
+
     function openCalendar(i) {
       const day = currentDailyResults[currentDayIndex];
       if (!day || !day.slots[i]) return;
@@ -826,6 +881,12 @@
       const el = document.getElementById('statusForm');
       if (el) el.textContent = msg;
     }
+
+    const resultContentEl = document.getElementById('resultContent');
+    resultContentEl.addEventListener('pointerdown', handleResultPointerDown);
+    resultContentEl.addEventListener('pointermove', handleResultPointerMove);
+    resultContentEl.addEventListener('pointerup', handleResultPointerUp);
+    resultContentEl.addEventListener('pointercancel', handleResultPointerCancel);
 
     let deferredPrompt = null;
 
