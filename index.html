@@ -25,6 +25,16 @@
       width: 100%; min-height: 100vh;
       box-shadow: none; flex: 1;
     }
+    #langToggle {
+      position: absolute; top: 12px; right: 16px;
+      display: flex; align-items: center; gap: 2px;
+    }
+    #langToggle button {
+      background: none; border: none; font-size: 12px; font-weight: 600;
+      cursor: pointer; padding: 2px 4px; color: #bbb; border-radius: 4px;
+    }
+    #langToggle button.active { color: #4f8ef7; }
+    #langToggle .sep { font-size: 11px; color: #ddd; user-select: none; }
     @media (min-width: 480px) {
       #searchView { align-items: center; padding: 20px; }
       .card { border-radius: 16px; min-height: auto; max-width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); flex: none; }
@@ -210,11 +220,71 @@
     .week-swipe-zone:focus-visible {
       outline: 2px solid #4f8ef7; outline-offset: 2px; border-radius: 4px;
     }
+
+    #startView {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      padding: 48px 32px;
+      text-align: center;
+    }
+    #startTitle {
+      font-size: 44px;
+      font-weight: 800;
+      color: #1a1a2e;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+    }
+    #startTagline {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1a1a2e;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    #startDesc {
+      font-size: 14px;
+      color: #777;
+      line-height: 1.8;
+      margin-bottom: 52px;
+      max-width: 280px;
+    }
+    #startBtn {
+      width: 100%;
+      max-width: 280px;
+      padding: 16px;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+    }
+    #startBtn:hover { background: #3a7de8; }
+    #startBtn:active { background: #2d6dd4; }
   </style>
 </head>
 <body>
 
-  <div id="searchView">
+  <div id="startView">
+    <div id="langToggle">
+      <button id="langJa" onclick="setLang('ja')">日本語</button>
+      <span class="sep">|</span>
+      <button id="langEn" onclick="setLang('en')">English</button>
+    </div>
+    <p id="startTitle">スキマ</p>
+    <p id="startTagline">予定の空き時間を、すぐ見つける。</p>
+    <p id="startDesc">Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。</p>
+    <button id="startBtn" onclick="showSearch()">はじめる</button>
+  </div>
+
+  <div id="searchView" style="display:none">
     <div class="card">
       <h1>スキマ</h1>
       <p class="subtitle">スキマは、あなたのGoogleカレンダーから指定した期間の空き時間を自動で検索し、簡単に抽出・共有できるツールです。面倒な日程調整の時間を大幅に削減します。</p>
@@ -315,6 +385,182 @@
     const CARD_BOUNDARY_RESISTANCE = 0.25;
     const CARD_TRANSITION_MS = 250;
 
+    const LANG_KEY = 'sukima_lang';
+    let currentLang = localStorage.getItem(LANG_KEY) || 'ja';
+
+    const I18N = {
+      ja: {
+        appTitle: 'スキマ',
+        subtitle: 'スキマは、あなたのGoogleカレンダーから指定した期間の空き時間を自動で検索し、簡単に抽出・共有できるツールです。面倒な日程調整の時間を大幅に削減します。',
+        privacyPolicy: 'プライバシー ポリシー',
+        loginBtn: 'Googleでログイン',
+        labelStart: '検索開始日',
+        labelEnd: '検索終了日',
+        labelDuration: '希望する空き時間',
+        labelCalendar: 'カレンダー',
+        calModeAll: '全カレンダー',
+        calModeSelect: '選んで使う',
+        dur30: '30分', dur60: '1時間', dur90: '1時間30分', dur120: '2時間',
+        searchBtn: '空き時間を検索する',
+        logoutBtn: '別のアカウントでログインする',
+        footerTitle: 'スキマのご利用について',
+        backBtn: '← 再検索',
+        resultTitle: '検索結果',
+        copyAllBtn: '全部コピー',
+        swipeHint: 'カードを左右にスワイプして日付を移動できます',
+        installMsg: 'ホーム画面に追加してアプリとして使えます',
+        installBtn: 'ホーム画面に追加',
+        installLater: '後で',
+        loggedIn: 'Googleアカウント連携済み',
+        loadingGoogle: 'Googleの読み込み中です...',
+        loggedOut: 'ログアウトしました',
+        calListError: 'カレンダー一覧の取得に失敗しました',
+        noDate: '日付を入力してください',
+        invalidDate: '終了日は開始日より後にしてください',
+        loggingIn: 'Googleにログインしています...',
+        loadingCal: 'カレンダーを取得中...',
+        sessionExpired: 'セッションが切れました。再度ログインしてください。',
+        calculating: '空き時間を計算中...',
+        errorPrefix: 'エラーが発生しました: ',
+        noSlotsMsg: '該当する空き時間がありませんでした。<br>条件を変更してお試しください。',
+        slotsFound: (n) => `${n}件の空き時間が見つかりました`,
+        copySlot: 'この枠をコピー',
+        addCalendar: '予定を追加',
+        noAvailability: '空き時間なし',
+        available: '空き時間',
+        copyDay: 'この日をコピー',
+        nextWeek: '↓ 翌週',
+        nextWeekAria: '翌週へ移動',
+        nextWeekFail: '翌週の検索に失敗しました',
+        copied: 'コピーしました',
+        copiedDay: 'この日をコピーしました',
+        copiedAll: '全件コピーしました',
+        days: ['日', '月', '火', '水', '木', '金', '土'],
+        months: null,
+        startTagline: '予定の空き時間を、すぐ見つける。',
+        startDesc: 'Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。',
+        startBtn: 'はじめる',
+      },
+      en: {
+        appTitle: 'Sukima',
+        subtitle: 'Sukima searches your Google Calendar for available time slots and makes it easy to extract and share them. Spend less time on scheduling.',
+        privacyPolicy: 'Privacy Policy',
+        loginBtn: 'Login with Google',
+        labelStart: 'Start Date',
+        labelEnd: 'End Date',
+        labelDuration: 'Duration',
+        labelCalendar: 'Calendar',
+        calModeAll: 'All Calendars',
+        calModeSelect: 'Select',
+        dur30: '30 min', dur60: '1 hour', dur90: '1.5 hours', dur120: '2 hours',
+        searchBtn: 'Search',
+        logoutBtn: 'Switch Account',
+        footerTitle: 'About Sukima',
+        backBtn: '← Search',
+        resultTitle: 'Results',
+        copyAllBtn: 'Copy All',
+        swipeHint: 'Swipe left / right to change day',
+        installMsg: 'Add to home screen to use as an app',
+        installBtn: 'Add to Home Screen',
+        installLater: 'Later',
+        loggedIn: 'Google Account connected',
+        loadingGoogle: 'Loading Google...',
+        loggedOut: 'Logged out',
+        calListError: 'Failed to load calendar list',
+        noDate: 'Please enter dates',
+        invalidDate: 'End date must be after start date',
+        loggingIn: 'Logging in to Google...',
+        loadingCal: 'Loading calendar...',
+        sessionExpired: 'Session expired. Please login again.',
+        calculating: 'Calculating...',
+        errorPrefix: 'Error: ',
+        noSlotsMsg: 'No available times found.<br>Try changing the conditions.',
+        slotsFound: (n) => `Found ${n} available time(s)`,
+        copySlot: 'Copy',
+        addCalendar: 'Add to Calendar',
+        noAvailability: 'No availability',
+        available: 'Available',
+        copyDay: 'Copy Day',
+        nextWeek: '↓ Next Week',
+        nextWeekAria: 'Go to next week',
+        nextWeekFail: 'Failed to load next week',
+        copied: 'Copied',
+        copiedDay: 'Copied day',
+        copiedAll: 'Copied all',
+        days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+        startTagline: 'Find your free time, instantly.',
+        startDesc: 'Check your free time from Google Calendar<br>and copy or add events instantly.',
+        startBtn: 'Get Started',
+      }
+    };
+
+    function t(key, arg) {
+      const dict = I18N[currentLang] || I18N.ja;
+      const val = dict[key] !== undefined ? dict[key] : (I18N.ja[key] !== undefined ? I18N.ja[key] : key);
+      if (typeof val === 'function') return val(arg);
+      return val;
+    }
+
+    function setLang(lang) {
+      currentLang = lang;
+      localStorage.setItem(LANG_KEY, lang);
+      applyLang();
+    }
+
+    function applyLang() {
+      const q = (sel) => document.querySelector(sel);
+      document.getElementById('langJa').classList.toggle('active', currentLang === 'ja');
+      document.getElementById('langEn').classList.toggle('active', currentLang === 'en');
+
+      q('#searchView h1').textContent = t('appTitle');
+      q('#searchView .subtitle').textContent = t('subtitle');
+      const privLink = q('#searchView a[href="/privacy.html"]');
+      if (privLink) privLink.textContent = t('privacyPolicy');
+      document.getElementById('loginBtn').textContent = t('loginBtn');
+
+      const labels = document.querySelectorAll('#searchView .form-group label');
+      if (labels[0]) labels[0].textContent = t('labelStart');
+      if (labels[1]) labels[1].textContent = t('labelEnd');
+      if (labels[2]) labels[2].textContent = t('labelDuration');
+      if (labels[3]) labels[3].textContent = t('labelCalendar');
+
+      document.getElementById('btnModeAll').textContent = t('calModeAll');
+      document.getElementById('btnModeSelect').textContent = t('calModeSelect');
+      const durEl = document.getElementById('duration');
+      if (durEl) {
+        durEl.querySelector('option[value="30"]').textContent = t('dur30');
+        durEl.querySelector('option[value="60"]').textContent = t('dur60');
+        durEl.querySelector('option[value="90"]').textContent = t('dur90');
+        durEl.querySelector('option[value="120"]').textContent = t('dur120');
+      }
+      document.getElementById('searchBtn').textContent = t('searchBtn');
+      document.getElementById('logoutBtn').textContent = t('logoutBtn');
+      const footerTitle = q('#searchView .app-footer-text');
+      if (footerTitle) footerTitle.textContent = t('footerTitle');
+
+      document.getElementById('backBtn').textContent = t('backBtn');
+      document.getElementById('resultTitle').textContent = t('resultTitle');
+      document.getElementById('copyAllBtn').textContent = t('copyAllBtn');
+      const hint = q('.swipe-intro-hint');
+      if (hint) hint.textContent = t('swipeHint');
+
+      const bannerP = q('#installBanner > p');
+      if (bannerP) bannerP.textContent = t('installMsg');
+      document.getElementById('installBtn').textContent = t('installBtn');
+      const dismissBtn = q('#installBanner .btn-dismiss');
+      if (dismissBtn) dismissBtn.textContent = t('installLater');
+
+      const startTitle = q('#startTitle');
+      if (startTitle) startTitle.textContent = t('appTitle');
+      const startTagline = q('#startTagline');
+      if (startTagline) startTagline.textContent = t('startTagline');
+      const startDesc = q('#startDesc');
+      if (startDesc) startDesc.innerHTML = t('startDesc');
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.textContent = t('startBtn');
+    }
+
     function setCalMode(mode) {
       calMode = mode;
       document.getElementById('btnModeAll').style.background = mode === 'all' ? '#4f8ef7' : '#f0f4f8';
@@ -336,7 +582,7 @@
         calendarList = (data.items || []).filter(c => c.accessRole === 'owner' || c.accessRole === 'writer' || c.accessRole === 'reader');
         renderCalendarList();
       } catch(e) {
-        setStatus('カレンダー一覧の取得に失敗しました');
+        setStatus(t('calListError'));
       }
     }
 
@@ -436,17 +682,18 @@
       }
 
       if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+      applyLang();
     };
 
     function showLoggedIn() {
       document.getElementById('loginSection').style.display = 'none';
       document.getElementById('formSection').style.display = 'block';
-      document.getElementById('loginInfo').textContent = 'Googleアカウント連携済み';
+      document.getElementById('loginInfo').textContent = t('loggedIn');
     }
 
     function doLogin() {
       if (typeof google === 'undefined' || !google.accounts) {
-        setStatus('Googleの読み込み中です...');
+        setStatus(t('loadingGoogle'));
         waitForGoogle().then(() => {
           if (!tokenClient) initTokenClient();
           tokenClient.requestAccessToken();
@@ -466,16 +713,18 @@
       document.getElementById('formSection').style.display = 'none';
       sessionStorage.removeItem(RESULT_KEY);
       sessionStorage.removeItem('last_slots');
-      setStatus('ログアウトしました');
+      setStatus(t('loggedOut'));
     }
 
     function showSearch() {
+      document.getElementById('startView').style.display = 'none';
       document.getElementById('searchView').style.display = 'flex';
       document.getElementById('resultView').style.display = 'none';
     }
 
     function showResult(html) {
       document.getElementById('resultContent').innerHTML = html;
+      document.getElementById('startView').style.display = 'none';
       document.getElementById('searchView').style.display = 'none';
       document.getElementById('resultView').style.display = 'block';
       window.scrollTo(0, 0);
@@ -510,16 +759,16 @@
     async function startSearch() {
       const startDate = document.getElementById('startDate').value;
       const endDate = document.getElementById('endDate').value;
-      if (!startDate || !endDate) { setStatusForm('日付を入力してください'); return; }
-      if (startDate > endDate) { setStatusForm('終了日は開始日より後にしてください'); return; }
+      if (!startDate || !endDate) { setStatusForm(t('noDate')); return; }
+      if (startDate > endDate) { setStatusForm(t('invalidDate')); return; }
       document.getElementById('searchBtn').disabled = true;
       if (accessToken) { await fetchAndCalc(); return; }
       if (typeof google === 'undefined' || !google.accounts) {
-        setStatus('Googleの読み込み中です...');
+        setStatus(t('loadingGoogle'));
         await waitForGoogle();
       }
       if (!tokenClient) initTokenClient();
-      setStatusForm('Googleにログインしています...');
+      setStatusForm(t('loggingIn'));
       tokenClient.requestAccessToken();
     }
 
@@ -528,7 +777,7 @@
       const endDate = document.getElementById('endDate').value;
       const duration = parseInt(document.getElementById('duration').value);
       const btn = document.getElementById('searchBtn');
-      setStatusForm('カレンダーを取得中...');
+      setStatusForm(t('loadingCal'));
       try {
         const timeMin = startDate + 'T00:00:00+09:00';
         const timeMax = endDate + 'T23:59:59+09:00';
@@ -568,7 +817,7 @@
               document.getElementById('loginInfo').textContent = '';
               document.getElementById('logoutBtn').style.display = 'none';
               if (!tokenClient) initTokenClient();
-              setStatusForm('セッションが切れました。再度ログインしてください。');
+              setStatusForm(t('sessionExpired'));
               tokenClient.requestAccessToken();
               return;
             }
@@ -583,7 +832,7 @@
           } catch(e) {}
         }
         const events = allEvents;
-        setStatusForm('空き時間を計算中...');
+        setStatusForm(t('calculating'));
         currentSlots = findFreeSlots(startDate, endDate, duration, events);
         currentDailyResults = buildDailyResults(currentSlots, startDate, endDate);
         currentDayIndex = 0;
@@ -594,7 +843,7 @@
         showResult(html);
         setStatusForm('');
       } catch (e) {
-        setStatusForm('エラーが発生しました: ' + e.message);
+        setStatusForm(t('errorPrefix') + e.message);
       } finally {
         btn.disabled = false;
       }
@@ -757,23 +1006,36 @@
     }
 
     function slotToText(slot) {
-      const days = ['日', '月', '火', '水', '木', '金', '土'];
-      const dateStr = `${slot.start.getMonth()+1}月${slot.start.getDate()}日(${days[slot.start.getDay()]})`;
+      const days = t('days');
+      const dow = slot.start.getDay();
       const startT = `${pad(slot.start.getHours())}:${pad(slot.start.getMinutes())}`;
       const endT = `${pad(slot.end.getHours())}:${pad(slot.end.getMinutes())}`;
+      let dateStr;
+      if (currentLang === 'en') {
+        const months = t('months');
+        dateStr = `${months[slot.start.getMonth()]} ${slot.start.getDate()} (${days[dow]})`;
+      } else {
+        dateStr = `${slot.start.getMonth()+1}月${slot.start.getDate()}日(${days[dow]})`;
+      }
       return `${dateStr} ${startT}〜${endT}`;
     }
 
 
 
     function formatResult(slots) {
-      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      const days = t('days');
       if (slots.length === 0) {
-        return '<div style="text-align:center;padding:60px 20px;color:#888;">該当する空き時間がありませんでした。<br>条件を変更してお試しください。</div>';
+        return `<div style="text-align:center;padding:60px 20px;color:#888;">${t('noSlotsMsg')}</div>`;
       }
-      let html = `<p style="text-align:center;color:#888;font-size:14px;margin-bottom:20px;">${slots.length}件の空き時間が見つかりました</p>`;
+      let html = `<p style="text-align:center;color:#888;font-size:14px;margin-bottom:20px;">${t('slotsFound', slots.length)}</p>`;
       slots.forEach((s, i) => {
-        const dateStr = `${s.start.getMonth()+1}月${s.start.getDate()}日 (${days[s.start.getDay()]})`;
+        let dateStr;
+        if (currentLang === 'en') {
+          const months = t('months');
+          dateStr = `${months[s.start.getMonth()]} ${s.start.getDate()} (${days[s.start.getDay()]})`;
+        } else {
+          dateStr = `${s.start.getMonth()+1}月${s.start.getDate()}日 (${days[s.start.getDay()]})`;
+        }
         const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
         const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
         html += `
@@ -781,8 +1043,8 @@
             <div class="slot-date">${dateStr}</div>
             <div class="slot-time">${startT}<span>〜</span>${endT}</div>
             <div class="slot-actions">
-              <button class="btn-copy" onclick="copySlot(${i})">この枠をコピー</button>
-              <button class="btn-calendar" onclick="openCalendar(${i})">予定を追加</button>
+              <button class="btn-copy" onclick="copySlot(${i})">${t('copySlot')}</button>
+              <button class="btn-calendar" onclick="openCalendar(${i})">${t('addCalendar')}</button>
             </div>
           </div>`;
       });
@@ -811,27 +1073,33 @@
     }
 
     function renderDailyCard(day) {
-      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      const days = t('days');
       const dow = day.date.getDay();
-      const dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[dow]}）`;
+      let dateStr;
+      if (currentLang === 'en') {
+        const months = t('months');
+        dateStr = `${months[day.date.getMonth()]} ${day.date.getDate()}, ${day.date.getFullYear()} (${days[dow]})`;
+      } else {
+        dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[dow]}）`;
+      }
       // 曜日ごとの水平位置（日曜=左 → 土曜=右）
       const DOW_LEFT_OFFSETS = ['0%', '4%', '7%', '11%', '15%', '19%', '22%'];
       const dateColorClass = dow === 0 ? ' dow-sun' : dow === 6 ? ' dow-sat' : '';
 
       let slotsHtml;
       if (day.slots.length === 0) {
-        slotsHtml = '<div class="no-slots-message">空き時間なし</div>';
+        slotsHtml = `<div class="no-slots-message">${t('noAvailability')}</div>`;
       } else {
         slotsHtml = day.slots.map((s, i) => {
           const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
           const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
           return `
             <div class="day-slot-row">
-              <div class="slot-date">空き時間</div>
+              <div class="slot-date">${t('available')}</div>
               <div class="slot-time">${startT}<span>〜</span>${endT}</div>
               <div class="slot-actions">
-                <button class="btn-copy" onclick="copySlot(${i})">この枠をコピー</button>
-                <button class="btn-calendar" onclick="openCalendar(${i})">予定を追加</button>
+                <button class="btn-copy" onclick="copySlot(${i})">${t('copySlot')}</button>
+                <button class="btn-calendar" onclick="openCalendar(${i})">${t('addCalendar')}</button>
               </div>
             </div>`;
         }).join('');
@@ -842,16 +1110,16 @@
           ${renderWeekPosIndicator(dow)}
           <div class="day-card-date${dateColorClass}" style="padding-left:${DOW_LEFT_OFFSETS[dow]}">${dateStr}</div>
           ${slotsHtml}
-          <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>この日をコピー</button>
+          <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>${t('copyDay')}</button>
         </div>
-        <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="翌週へ移動">
-          <div class="swipe-hint swipe-hint-week" aria-hidden="true">↓ 翌週</div>
+        <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="${t('nextWeekAria')}">
+          <div class="swipe-hint swipe-hint-week" aria-hidden="true">${t('nextWeek')}</div>
         </div>`;
     }
 
     function renderDailyResultHtml() {
       if (!currentDailyResults || currentDailyResults.length === 0) {
-        return '<div style="text-align:center;padding:60px 20px;color:#888;">該当する空き時間がありませんでした。<br>条件を変更してお試しください。</div>';
+        return `<div style="text-align:center;padding:60px 20px;color:#888;">${t('noSlotsMsg')}</div>`;
       }
       if (currentDayIndex < 0) currentDayIndex = 0;
       if (currentDayIndex > currentDailyResults.length - 1) currentDayIndex = currentDailyResults.length - 1;
@@ -912,7 +1180,7 @@
           currentDayIndex = previousDayIndex;
           document.getElementById('startDate').value = startDate;
           document.getElementById('endDate').value = endDate;
-          showToast('翌週の検索に失敗しました');
+          showToast(t('nextWeekFail'));
         }
       } catch (e) {
         currentSlots = previousSlots;
@@ -920,7 +1188,7 @@
         currentDayIndex = previousDayIndex;
         document.getElementById('startDate').value = startDate;
         document.getElementById('endDate').value = endDate;
-        showToast('翌週の検索に失敗しました');
+        showToast(t('nextWeekFail'));
       } finally {
         isSearching = false;
         const searchBtnEl = document.getElementById('searchBtn');
@@ -1204,14 +1472,14 @@
       const day = currentDailyResults[currentDayIndex];
       if (!day || !day.slots[i]) return;
       const text = slotToText(day.slots[i]);
-      navigator.clipboard.writeText(text).then(() => showToast('コピーしました'));
+      navigator.clipboard.writeText(text).then(() => showToast(t('copied')));
     }
 
     function copyCurrentDay() {
       const day = currentDailyResults[currentDayIndex];
       if (!day || day.slots.length === 0) return;
       const text = day.slots.map(slotToText).join('\n');
-      navigator.clipboard.writeText(text).then(() => showToast('この日をコピーしました'));
+      navigator.clipboard.writeText(text).then(() => showToast(t('copiedDay')));
     }
 
     function copyAll() {
@@ -1220,7 +1488,7 @@
         : groupSlotsByDay(currentSlots).flatMap(day => day.slots);
       if (slots.length === 0) return;
       const text = slots.map(slotToText).join('\n');
-      navigator.clipboard.writeText(text).then(() => showToast('全件コピーしました'));
+      navigator.clipboard.writeText(text).then(() => showToast(t('copiedAll')));
     }
 
 
