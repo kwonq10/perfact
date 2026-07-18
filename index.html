@@ -148,6 +148,18 @@
       transition: opacity 0.3s; pointer-events: none; z-index: 100;
     }
     .copy-toast.show { opacity: 1; }
+
+    .day-card-date { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
+    .day-slot-row { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #eee; }
+    .day-slot-row:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .no-slots-message { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
+    .day-nav { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-daynav {
+      flex: 1; padding: 10px; border-radius: 8px; font-size: 14px;
+      font-weight: 600; cursor: pointer; border: 1px solid #4f8ef7;
+      background: white; color: #4f8ef7;
+    }
+    .btn-daynav:disabled { border-color: #ddd; color: #ccc; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -229,6 +241,7 @@
     const TOKEN_KEY = 'gtoken';
     const TOKEN_EXPIRY_KEY = 'gtoken_expiry';
     const RESULT_KEY = 'last_result';
+    const SEARCH_RANGE_KEY = 'last_search_range';
     const DAY_START = 9;
     const DAY_END = 22;
     const STEP_MIN = 30;
@@ -236,6 +249,8 @@
     let tokenClient;
     let accessToken = null;
     let currentSlots = [];
+    let currentDailyResults = [];
+    let currentDayIndex = 0;
     let calMode = 'all';
     let calendarList = [];
 
@@ -312,8 +327,51 @@
       const savedResult = sessionStorage.getItem(RESULT_KEY);
       const savedSlots = sessionStorage.getItem('last_slots');
       if (savedResult && savedSlots) {
-        currentSlots = JSON.parse(savedSlots);
-        showResult(savedResult);
+        let restoredSlots = [];
+        try {
+          const parsed = JSON.parse(savedSlots);
+          restoredSlots = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          restoredSlots = [];
+        }
+        currentSlots = restoredSlots;
+
+        let restoredRange = null;
+        const savedRangeRaw = sessionStorage.getItem(SEARCH_RANGE_KEY);
+        if (savedRangeRaw) {
+          try {
+            const parsedRange = JSON.parse(savedRangeRaw);
+            if (parsedRange && typeof parsedRange.startDate === 'string' && typeof parsedRange.endDate === 'string' &&
+                toLocalMidnight(parsedRange.startDate) && toLocalMidnight(parsedRange.endDate)) {
+              restoredRange = parsedRange;
+            }
+          } catch (e) {
+            restoredRange = null;
+          }
+        }
+
+        if (restoredRange) {
+          currentDailyResults = buildDailyResults(restoredSlots, restoredRange.startDate, restoredRange.endDate);
+          currentDayIndex = 0;
+          if (currentDailyResults.length > 0) {
+            document.getElementById('startDate').value = restoredRange.startDate;
+            document.getElementById('endDate').value = restoredRange.endDate;
+            showResult(renderDailyResultHtml());
+          } else {
+            showResult(savedResult);
+          }
+        } else {
+          const restoredGroups = groupSlotsByDay(restoredSlots);
+          if (restoredGroups.length > 0) {
+            currentDailyResults = buildDailyResults(restoredSlots, restoredGroups[0].date, restoredGroups[restoredGroups.length - 1].date);
+            currentDayIndex = 0;
+            showResult(renderDailyResultHtml());
+          } else {
+            currentDailyResults = [];
+            currentDayIndex = 0;
+            showResult(savedResult);
+          }
+        }
       }
 
       if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
@@ -466,9 +524,12 @@
         const events = allEvents;
         setStatusForm('空き時間を計算中...');
         currentSlots = findFreeSlots(startDate, endDate, duration, events);
-        const html = formatResult(currentSlots);
+        currentDailyResults = buildDailyResults(currentSlots, startDate, endDate);
+        currentDayIndex = 0;
+        const html = renderDailyResultHtml();
         sessionStorage.setItem(RESULT_KEY, html);
         sessionStorage.setItem('last_slots', JSON.stringify(currentSlots));
+        sessionStorage.setItem(SEARCH_RANGE_KEY, JSON.stringify({ startDate, endDate }));
         showResult(html);
         setStatusForm('');
       } catch (e) {
@@ -566,6 +627,59 @@
       return Array.from(groupsByKey.values()).sort((a, b) => a.date - b.date);
     }
 
+    function toLocalMidnight(v) {
+      if (v instanceof Date) {
+        return isNaN(v.getTime()) ? null : new Date(v.getFullYear(), v.getMonth(), v.getDate());
+      }
+      if (typeof v === 'string') {
+        const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) {
+          const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+          return isNaN(d.getTime()) ? null : d;
+        }
+        const parsed = new Date(v);
+        return isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      }
+      return null;
+    }
+
+    function getTodayLocalMidnight() {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    function buildDailyResults(slots, startDate, endDate) {
+      const today = getTodayLocalMidnight();
+      let start = toLocalMidnight(startDate);
+      const end = toLocalMidnight(endDate);
+      if (!start || !end) return [];
+      if (start < today) start = new Date(today.getTime());
+      if (start > end) return [];
+
+      const dateKeyOf = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const grouped = groupSlotsByDay(slots);
+      const groupedByKey = new Map(grouped.map(g => [g.dateKey, g]));
+
+      const results = [];
+      for (let cursor = new Date(start.getTime()); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+        const dayDate = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+        const key = dateKeyOf(dayDate);
+        const existing = groupedByKey.get(key);
+        results.push({
+          date: dayDate,
+          dateKey: key,
+          slots: existing ? existing.slots.slice() : []
+        });
+      }
+      return results;
+    }
+
     function pad(n) { return String(n).padStart(2, '0'); }
 
     function slotToCalendarUrl(slot) {
@@ -607,19 +721,94 @@
       return html;
     }
 
+    function renderDailyCard(day, index, total) {
+      const days = ['日', '月', '火', '水', '木', '金', '土'];
+      const dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[day.date.getDay()]}）`;
+      const prevDisabled = index <= 0 ? 'disabled' : '';
+      const nextDisabled = index >= total - 1 ? 'disabled' : '';
+
+      let slotsHtml;
+      if (day.slots.length === 0) {
+        slotsHtml = '<div class="no-slots-message">空き時間なし</div>';
+      } else {
+        slotsHtml = day.slots.map((s, i) => {
+          const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
+          const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
+          return `
+            <div class="day-slot-row">
+              <div class="slot-time">${startT}<span>〜</span>${endT}</div>
+              <div class="slot-actions">
+                <button class="btn-copy" onclick="copySlot(${i})">この枠をコピー</button>
+                <button class="btn-calendar" onclick="openCalendar(${i})">予定を追加</button>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      return `
+        <div class="slot-card">
+          <div class="day-card-date">${dateStr}</div>
+          ${slotsHtml}
+          <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>この日をコピー</button>
+        </div>
+        <div class="day-nav">
+          <button class="btn-daynav" onclick="showPreviousDay()" ${prevDisabled}>← 前の日</button>
+          <button class="btn-daynav" onclick="showNextDay()" ${nextDisabled}>次の日 →</button>
+        </div>`;
+    }
+
+    function renderDailyResultHtml() {
+      if (!currentDailyResults || currentDailyResults.length === 0) {
+        return '<div style="text-align:center;padding:60px 20px;color:#888;">該当する空き時間がありませんでした。<br>条件を変更してお試しください。</div>';
+      }
+      if (currentDayIndex < 0) currentDayIndex = 0;
+      if (currentDayIndex > currentDailyResults.length - 1) currentDayIndex = currentDailyResults.length - 1;
+      return renderDailyCard(currentDailyResults[currentDayIndex], currentDayIndex, currentDailyResults.length);
+    }
+
+    function renderCurrentDay() {
+      showResult(renderDailyResultHtml());
+    }
+
+    function showPreviousDay() {
+      if (currentDayIndex <= 0) return;
+      currentDayIndex -= 1;
+      renderCurrentDay();
+    }
+
+    function showNextDay() {
+      if (currentDayIndex >= currentDailyResults.length - 1) return;
+      currentDayIndex += 1;
+      renderCurrentDay();
+    }
+
     function openCalendar(i) {
-      const url = slotToCalendarUrl(currentSlots[i]);
+      const day = currentDailyResults[currentDayIndex];
+      if (!day || !day.slots[i]) return;
+      const url = slotToCalendarUrl(day.slots[i]);
       window.open(url, '_blank');
     }
 
     function copySlot(i) {
-      const text = slotToText(currentSlots[i]);
+      const day = currentDailyResults[currentDayIndex];
+      if (!day || !day.slots[i]) return;
+      const text = slotToText(day.slots[i]);
       navigator.clipboard.writeText(text).then(() => showToast('コピーしました'));
     }
 
+    function copyCurrentDay() {
+      const day = currentDailyResults[currentDayIndex];
+      if (!day || day.slots.length === 0) return;
+      const text = day.slots.map(slotToText).join('\n');
+      navigator.clipboard.writeText(text).then(() => showToast('この日をコピーしました'));
+    }
+
     function copyAll() {
-      if (currentSlots.length === 0) return;
-      const text = currentSlots.map(slotToText).join('\n');
+      const slots = currentDailyResults.length > 0
+        ? currentDailyResults.flatMap(day => day.slots)
+        : groupSlotsByDay(currentSlots).flatMap(day => day.slots);
+      if (slots.length === 0) return;
+      const text = slots.map(slotToText).join('\n');
       navigator.clipboard.writeText(text).then(() => showToast('全件コピーしました'));
     }
 
