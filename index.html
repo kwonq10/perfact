@@ -435,6 +435,7 @@
         copied: 'コピーしました',
         copiedDay: 'この日をコピーしました',
         copiedAll: '全件コピーしました',
+        loginFailed: 'ログインに失敗しました',
         days: ['日', '月', '火', '水', '木', '金', '土'],
         months: null,
         startTagline: '予定の空き時間を、すぐ見つける。',
@@ -487,6 +488,7 @@
         copied: 'Copied',
         copiedDay: 'Copied day',
         copiedAll: 'Copied all',
+        loginFailed: 'Login failed',
         days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
         startTagline: 'Find your free time, instantly.',
@@ -735,7 +737,7 @@
         client_id: CLIENT_ID, scope: SCOPES,
         callback: async (response) => {
           if (response.error) {
-            setStatus('ログインに失敗しました');
+            setStatus(t('loginFailed'));
             document.getElementById('searchBtn').disabled = false;
             return;
           }
