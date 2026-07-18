@@ -62,7 +62,7 @@
     .status { text-align: center; margin-top: 16px; font-size: 14px; color: #666; min-height: 20px; }
     .login-info { text-align: center; font-size: 13px; color: #4f8ef7; margin-top: 12px; font-weight: 600; }
 
-    #resultView { display: none; min-height: 100vh; background: #f0f4f8; }
+    #resultView { display: none; min-height: 100vh; background: #f0f4f8; touch-action: pan-y; user-select: none; }
     #resultHeader {
       background: white; padding: 16px 20px;
       display: flex; align-items: center; justify-content: space-between;
@@ -1228,16 +1228,16 @@
       if (el) el.textContent = msg;
     }
 
-    const resultContentEl = document.getElementById('resultContent');
-    resultContentEl.addEventListener('pointerdown', handleResultPointerDown);
-    resultContentEl.addEventListener('pointermove', handleResultPointerMove);
-    resultContentEl.addEventListener('pointerup', handleResultPointerUp);
-    resultContentEl.addEventListener('pointercancel', handleResultPointerCancel);
-    resultContentEl.addEventListener('pointerdown', handleWeekSwipePointerDown);
-    resultContentEl.addEventListener('pointermove', handleWeekSwipePointerMove);
-    resultContentEl.addEventListener('pointerup', handleWeekSwipePointerUp);
-    resultContentEl.addEventListener('pointercancel', handleWeekSwipePointerCancel);
-    resultContentEl.addEventListener('keydown', handleWeekSwipeKeyDown);
+    const resultViewEl = document.getElementById('resultView');
+    resultViewEl.addEventListener('pointerdown', handleResultPointerDown);
+    resultViewEl.addEventListener('pointermove', handleResultPointerMove);
+    resultViewEl.addEventListener('pointerup', handleResultPointerUp);
+    resultViewEl.addEventListener('pointercancel', handleResultPointerCancel);
+    resultViewEl.addEventListener('pointerdown', handleWeekSwipePointerDown);
+    resultViewEl.addEventListener('pointermove', handleWeekSwipePointerMove);
+    resultViewEl.addEventListener('pointerup', handleWeekSwipePointerUp);
+    resultViewEl.addEventListener('pointercancel', handleWeekSwipePointerCancel);
+    resultViewEl.addEventListener('keydown', handleWeekSwipeKeyDown);
 
     let deferredPrompt = null;
 
