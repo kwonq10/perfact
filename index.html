@@ -192,6 +192,9 @@
       cursor: grab;
     }
     .week-swipe-zone:active { cursor: grabbing; }
+    .week-swipe-zone:focus-visible {
+      outline: 2px solid #4f8ef7; outline-offset: 2px; border-radius: 4px;
+    }
   </style>
 </head>
 <body>
@@ -804,7 +807,7 @@
           ${slotsHtml}
           <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>この日をコピー</button>
         </div>
-        <div class="week-swipe-zone" data-week-swipe-zone role="group" aria-label="下にスワイプして翌週を表示">
+        <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="翌週へ移動">
           <div class="swipe-hint swipe-hint-week" aria-hidden="true">↓ 翌週</div>
         </div>`;
     }
@@ -1148,6 +1151,11 @@
       if (e.cancelable) e.preventDefault();
     }
 
+    function triggerNextWeekNav() {
+      if (isSearching || isAnimating) return;
+      goToNextWeek();
+    }
+
     function handleWeekSwipePointerUp(e) {
       if (!weekSwipeState || e.pointerId !== weekSwipeState.pointerId) return;
       const deltaX = e.clientX - weekSwipeState.startX;
@@ -1156,6 +1164,14 @@
       if (isSearching || isAnimating) return;
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
+
+      // Short, near-stationary press: treat as a tap.
+      if (absX < DRAG_AXIS_LOCK_THRESHOLD && absY < DRAG_AXIS_LOCK_THRESHOLD) {
+        triggerNextWeekNav();
+        return;
+      }
+
+      // Otherwise, evaluate the existing down-swipe condition only.
       if (deltaY > 0 && absY >= SWIPE_MIN_DISTANCE && absY >= absX * SWIPE_DIRECTION_RATIO) {
         goToNextWeek();
       }
@@ -1164,6 +1180,13 @@
     function handleWeekSwipePointerCancel(e) {
       if (!weekSwipeState || e.pointerId !== weekSwipeState.pointerId) return;
       resetWeekSwipeState(e);
+    }
+
+    function handleWeekSwipeKeyDown(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!isWeekSwipeZoneTarget(e.target)) return;
+      e.preventDefault();
+      triggerNextWeekNav();
     }
 
     function openCalendar(i) {
@@ -1225,6 +1248,7 @@
     resultContentEl.addEventListener('pointerup', handleDaySwipePointerUp);
     resultContentEl.addEventListener('pointercancel', handleDaySwipePointerCancel);
     resultContentEl.addEventListener('keydown', handleDaySwipeKeyDown);
+    resultContentEl.addEventListener('keydown', handleWeekSwipeKeyDown);
 
     let deferredPrompt = null;
 
