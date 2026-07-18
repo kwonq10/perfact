@@ -169,20 +169,40 @@
     .swipe-hint-week {
       text-align: center;
     }
-    .day-swipe-zone {
+    .week-calendar {
+      display: flex;
       touch-action: none;
       min-height: 44px;
-      display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 12px;
       cursor: grab;
     }
-    .day-swipe-zone:active { cursor: grabbing; }
-    .day-nav-hint {
-      color: #b8c2cf; font-size: 12px; font-weight: 600;
-      user-select: none; padding: 8px 4px;
+    .week-calendar:active { cursor: grabbing; }
+    .week-calendar-day {
+      flex: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px;
+      background: none; border: none; font: inherit;
+      padding: 4px 2px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: #6b7684;
     }
-    .day-nav-hint:focus-visible {
-      outline: 2px solid #4f8ef7; outline-offset: 2px; border-radius: 4px;
+    .week-calendar-day:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .week-calendar-dow { font-size: 11px; font-weight: 600; }
+    .week-calendar-date { font-size: 15px; font-weight: 600; }
+    .week-calendar-day.week-calendar-sun { color: #c0574f; }
+    .week-calendar-day.week-calendar-sat { color: #4a72c4; }
+    .week-calendar-day.week-calendar-selected {
+      background: #eef3ff; color: #1a1a2e;
+    }
+    .week-calendar-day.week-calendar-selected .week-calendar-date { font-weight: 700; }
+    .week-calendar-day.week-calendar-selected.week-calendar-sun { background: #fbeceb; color: #a8443c; }
+    .week-calendar-day.week-calendar-selected.week-calendar-sat { background: #eaf0fa; color: #3a5c96; }
+    .week-calendar-day:focus-visible {
+      outline: 2px solid #4f8ef7; outline-offset: 2px;
     }
     .week-swipe-zone {
       touch-action: none;
@@ -775,6 +795,45 @@
       return html;
     }
 
+    function dateKeyOfDate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function getWeekDatesForDate(date) {
+      const sunday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay());
+      const week = [];
+      for (let i = 0; i < 7; i++) {
+        week.push(new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + i));
+      }
+      return week;
+    }
+
+    function renderWeekCalendarHtml(currentDate) {
+      const dowLabels = ['日', '月', '火', '水', '木', '金', '土'];
+      const week = getWeekDatesForDate(currentDate);
+      const currentKey = dateKeyOfDate(currentDate);
+      const cells = week.map((d, i) => {
+        const key = dateKeyOfDate(d);
+        const inRange = currentDailyResults.some(dd => dd.dateKey === key);
+        const isSelected = key === currentKey;
+        const classes = ['week-calendar-day'];
+        if (i === 0) classes.push('week-calendar-sun');
+        if (i === 6) classes.push('week-calendar-sat');
+        if (isSelected) classes.push('week-calendar-selected');
+        const ariaCurrent = isSelected ? ' aria-current="date"' : '';
+        const label = `${d.getMonth() + 1}月${d.getDate()}日（${dowLabels[i]}）へ移動`;
+        return `
+          <button type="button" class="${classes.join(' ')}" data-week-day-key="${key}" aria-label="${label}"${ariaCurrent} ${inRange ? '' : 'disabled'}>
+            <span class="week-calendar-dow">${dowLabels[i]}</span>
+            <span class="week-calendar-date">${d.getDate()}</span>
+          </button>`;
+      }).join('');
+      return `<div class="week-calendar" data-week-calendar role="group" aria-label="週間カレンダー">${cells}</div>`;
+    }
+
     function renderDailyCard(day) {
       const days = ['日', '月', '火', '水', '木', '金', '土'];
       const dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[day.date.getDay()]}）`;
@@ -799,10 +858,7 @@
 
       return `
         <div class="slot-card daily-result-card" data-day-card>
-          <div class="day-swipe-zone" data-day-swipe-zone role="group" aria-label="左右にスワイプして前後の日へ移動">
-            <span class="day-nav-hint day-nav-prev" role="button" tabindex="0" aria-label="前の日へ移動">前の日 →</span>
-            <span class="day-nav-hint day-nav-next" role="button" tabindex="0" aria-label="次の日へ移動">← 次の日</span>
-          </div>
+          ${renderWeekCalendarHtml(day.date)}
           <div class="day-card-date">${dateStr}</div>
           ${slotsHtml}
           <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>この日をコピー</button>
@@ -895,7 +951,7 @@
     }
 
     function isSwipeExcludedTarget(target) {
-      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone], [data-day-swipe-zone]'));
+      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone], [data-week-calendar]'));
     }
 
     function isWeekSwipeZoneTarget(target) {
@@ -903,7 +959,7 @@
     }
 
     function isDaySwipeZoneTarget(target) {
-      return !!(target && target.closest && target.closest('[data-day-swipe-zone]'));
+      return !!(target && target.closest && target.closest('[data-week-calendar]'));
     }
 
     function releaseSwipePointer(e) {
@@ -979,27 +1035,55 @@
       });
     }
 
-    function triggerDayNav(direction) {
+    function jumpToDayIndex(targetIndex, cardEl) {
+      if (targetIndex < 0 || targetIndex >= currentDailyResults.length) { isAnimating = false; return; }
+      const direction = targetIndex > currentDayIndex ? 'next' : 'previous';
+      const duration = prefersReducedMotion() ? 0 : CARD_TRANSITION_MS;
+      const exitTarget = direction === 'next' ? 'translateX(-100%)' : 'translateX(100%)';
+      runCardTransition(cardEl, exitTarget, duration, () => {
+        currentDayIndex = targetIndex;
+        renderCurrentDay();
+        const newCardEl = getDayCardEl();
+        if (!newCardEl) { isAnimating = false; return; }
+        const enterFrom = direction === 'next' ? 'translateX(100%)' : 'translateX(-100%)';
+        newCardEl.style.transition = 'none';
+        newCardEl.style.transform = enterFrom;
+        runCardTransition(newCardEl, 'translateX(0)', duration, () => {
+          resetCardTransform(newCardEl);
+          isAnimating = false;
+        });
+      });
+    }
+
+    function triggerDateNav(dateKey) {
       if (isSearching || isAnimating) return;
-      const atFirst = currentDayIndex <= 0;
-      const atLast = currentDayIndex >= currentDailyResults.length - 1;
-      if ((direction === 'previous' && atFirst) || (direction === 'next' && atLast)) return;
+      if (!dateKey) return;
+      const targetIndex = currentDailyResults.findIndex(d => d.dateKey === dateKey);
+      if (targetIndex === -1 || targetIndex === currentDayIndex) return;
       const cardEl = getDayCardEl();
       isAnimating = true;
-      animateDayChange(direction, cardEl);
+      jumpToDayIndex(targetIndex, cardEl);
     }
 
     // Card body: no longer attempts to claim left/right gestures itself
-    // (that responsibility now belongs entirely to the dedicated
-    // .day-swipe-zone below). It only needs to stop tracking as soon as any
-    // real movement occurs, so native vertical scrolling is never delayed.
+    // (the dedicated .week-calendar strip remains the *reliable* layer, since
+    // it uses touch-action: none). This handler is a *supplementary* layer that
+    // lets a swipe started anywhere on the card body also move the day, as
+    // long as the gesture is clearly horizontal -- touch-action: pan-y stays
+    // in effect here, so ambiguous/diagonal gestures still hand off to
+    // native vertical scrolling rather than fighting it.
     function handleResultPointerDown(e) {
       if (isSearching || isAnimating) return;
       if (e.isPrimary === false) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (isSwipeExcludedTarget(e.target)) return;
       if (swipeState) return;
-      swipeState = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY };
+      swipeState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        axisLock: null
+      };
       if (e.currentTarget.setPointerCapture) {
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
       }
@@ -1009,19 +1093,66 @@
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
       const deltaX = e.clientX - swipeState.startX;
       const deltaY = e.clientY - swipeState.startY;
-      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= DRAG_AXIS_LOCK_THRESHOLD) {
-        releaseSwipePointer(e);
+
+      if (!swipeState.axisLock) {
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+        if (Math.max(absX, absY) < DRAG_AXIS_LOCK_THRESHOLD) return;
+        if (absX <= absY) {
+          // Not clearly horizontal: treat as scrolling and get out of the way.
+          releaseSwipePointer(e);
+          return;
+        }
+        swipeState.axisLock = 'x';
       }
+
+      const cardEl = getDayCardEl();
+      if (!cardEl) return;
+      const atFirst = currentDayIndex <= 0;
+      const atLast = currentDayIndex >= currentDailyResults.length - 1;
+      let adjusted = deltaX;
+      if ((deltaX > 0 && atFirst) || (deltaX < 0 && atLast)) {
+        adjusted = deltaX * CARD_BOUNDARY_RESISTANCE;
+      }
+      cardEl.style.transition = 'none';
+      cardEl.style.transform = `translateX(${adjusted}px)`;
     }
 
     function handleResultPointerUp(e) {
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const deltaX = e.clientX - swipeState.startX;
+      const axisLock = swipeState.axisLock;
+      const cardEl = getDayCardEl();
       releaseSwipePointer(e);
+
+      if (isSearching || isAnimating) {
+        resetCardTransform(cardEl);
+        return;
+      }
+
+      if (axisLock !== 'x') return; // vertical/ambiguous gesture already handed off in pointermove
+
+      const absX = Math.abs(deltaX);
+      const atFirst = currentDayIndex <= 0;
+      const atLast = currentDayIndex >= currentDailyResults.length - 1;
+      const wantsNext = deltaX < 0;
+      const wantsPrev = deltaX > 0;
+      const blocked = (wantsNext && atLast) || (wantsPrev && atFirst);
+      const committed = absX >= SWIPE_MIN_DISTANCE;
+
+      isAnimating = true;
+      if (committed && !blocked) {
+        animateDayChange(wantsNext ? 'next' : 'previous', cardEl);
+      } else {
+        snapCardToCenter(cardEl);
+      }
     }
 
     function handleResultPointerCancel(e) {
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const cardEl = getDayCardEl();
       releaseSwipePointer(e);
+      resetCardTransform(cardEl);
     }
 
     function resetDaySwipeState(e) {
@@ -1037,13 +1168,12 @@
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (!isDaySwipeZoneTarget(e.target)) return;
       if (daySwipeState) return;
-      const prevEl = e.target.closest && e.target.closest('.day-nav-prev');
-      const nextEl = e.target.closest && e.target.closest('.day-nav-next');
+      const dayCellEl = e.target.closest && e.target.closest('.week-calendar-day');
       daySwipeState = {
         pointerId: e.pointerId,
         startX: e.clientX,
         startY: e.clientY,
-        startSide: prevEl ? 'prev' : (nextEl ? 'next' : null)
+        startDateKey: (dayCellEl && !dayCellEl.disabled) ? dayCellEl.getAttribute('data-week-day-key') : null
       };
       if (e.currentTarget.setPointerCapture) {
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1072,7 +1202,7 @@
       if (!daySwipeState || e.pointerId !== daySwipeState.pointerId) return;
       const deltaX = e.clientX - daySwipeState.startX;
       const deltaY = e.clientY - daySwipeState.startY;
-      const startSide = daySwipeState.startSide;
+      const startDateKey = daySwipeState.startDateKey;
       const cardEl = getDayCardEl();
       resetDaySwipeState(e);
 
@@ -1099,9 +1229,9 @@
         return;
       }
 
-      if (absX < DRAG_AXIS_LOCK_THRESHOLD && absY < DRAG_AXIS_LOCK_THRESHOLD && startSide) {
+      if (absX < DRAG_AXIS_LOCK_THRESHOLD && absY < DRAG_AXIS_LOCK_THRESHOLD && startDateKey) {
         resetCardTransform(cardEl);
-        triggerDayNav(startSide === 'prev' ? 'previous' : 'next');
+        triggerDateNav(startDateKey);
         return;
       }
 
@@ -1116,13 +1246,16 @@
       resetCardTransform(cardEl);
     }
 
-    function handleDaySwipeKeyDown(e) {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      const prevEl = e.target.closest && e.target.closest('.day-nav-prev');
-      const nextEl = e.target.closest && e.target.closest('.day-nav-next');
-      if (!prevEl && !nextEl) return;
-      e.preventDefault();
-      triggerDayNav(prevEl ? 'previous' : 'next');
+    function handleWeekCalendarClick(e) {
+      // Week-calendar day cells are real <button> elements, so keyboard
+      // activation (Enter/Space) fires a native click with detail === 0.
+      // Pointer/touch-driven taps are already handled entirely via the
+      // pointerup-based logic above, so this only needs to react to the
+      // keyboard case to avoid a double-trigger.
+      if (e.detail !== 0) return;
+      const cellEl = e.target.closest && e.target.closest('.week-calendar-day');
+      if (!cellEl || cellEl.disabled) return;
+      triggerDateNav(cellEl.getAttribute('data-week-day-key'));
     }
 
     function resetWeekSwipeState(e) {
@@ -1247,8 +1380,8 @@
     resultContentEl.addEventListener('pointermove', handleDaySwipePointerMove);
     resultContentEl.addEventListener('pointerup', handleDaySwipePointerUp);
     resultContentEl.addEventListener('pointercancel', handleDaySwipePointerCancel);
-    resultContentEl.addEventListener('keydown', handleDaySwipeKeyDown);
     resultContentEl.addEventListener('keydown', handleWeekSwipeKeyDown);
+    resultContentEl.addEventListener('click', handleWeekCalendarClick);
 
     let deferredPrompt = null;
 
