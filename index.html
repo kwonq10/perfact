@@ -78,8 +78,11 @@
       padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
     }
     #copyAllBtn:active { background: #eef3ff; }
-    #resultContent { padding: 20px; touch-action: pan-y; user-select: none; cursor: grab; overflow: hidden; }
+    #resultContent { padding: 20px 8px; touch-action: pan-y; user-select: none; cursor: grab; overflow: hidden; }
     #resultContent:active { cursor: grabbing; }
+    @media (min-width: 600px) {
+      #resultContent { padding: 20px; max-width: 600px; margin: 0 auto; }
+    }
 
     .slot-card {
       background: white; border-radius: 14px; padding: 20px 24px;
