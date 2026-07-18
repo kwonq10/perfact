@@ -254,6 +254,7 @@
     let calMode = 'all';
     let calendarList = [];
     let swipeState = null;
+    let isSearching = false;
     const SWIPE_MIN_DISTANCE = 50;
     const SWIPE_DIRECTION_RATIO = 1.5;
 
@@ -651,6 +652,13 @@
       return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     }
 
+    function dateToLocalDateStr(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
     function buildDailyResults(slots, startDate, endDate) {
       const today = getTodayLocalMidnight();
       let start = toLocalMidnight(startDate);
@@ -727,8 +735,9 @@
     function renderDailyCard(day, index, total) {
       const days = ['日', '月', '火', '水', '木', '金', '土'];
       const dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[day.date.getDay()]}）`;
-      const prevDisabled = index <= 0 ? 'disabled' : '';
-      const nextDisabled = index >= total - 1 ? 'disabled' : '';
+      const prevDisabled = (index <= 0 || isSearching) ? 'disabled' : '';
+      const nextDisabled = (index >= total - 1 || isSearching) ? 'disabled' : '';
+      const weekDisabled = isSearching ? 'disabled' : '';
 
       let slotsHtml;
       if (day.slots.length === 0) {
@@ -757,6 +766,7 @@
         <div class="day-nav">
           <button class="btn-daynav" onclick="showPreviousDay()" ${prevDisabled}>← 前の日</button>
           <button class="btn-daynav" onclick="showNextDay()" ${nextDisabled}>次の日 →</button>
+          <button class="btn-daynav" onclick="goToNextWeek()" ${weekDisabled}>翌週 ↓</button>
         </div>`;
     }
 
@@ -774,15 +784,72 @@
     }
 
     function showPreviousDay() {
+      if (isSearching) return;
       if (currentDayIndex <= 0) return;
       currentDayIndex -= 1;
       renderCurrentDay();
     }
 
     function showNextDay() {
+      if (isSearching) return;
       if (currentDayIndex >= currentDailyResults.length - 1) return;
       currentDayIndex += 1;
       renderCurrentDay();
+    }
+
+    async function goToNextWeek() {
+      if (isSearching) return;
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const start = toLocalMidnight(startDate);
+      const end = toLocalMidnight(endDate);
+      if (!start || !end) return;
+
+      const nextStart = new Date(start.getTime());
+      nextStart.setDate(nextStart.getDate() + 7);
+      const nextEnd = new Date(end.getTime());
+      nextEnd.setDate(nextEnd.getDate() + 7);
+      const nextStartStr = dateToLocalDateStr(nextStart);
+      const nextEndStr = dateToLocalDateStr(nextEnd);
+
+      const previousSlots = currentSlots;
+      const previousDailyResults = currentDailyResults;
+      const previousDayIndex = currentDayIndex;
+
+      isSearching = true;
+      const searchBtn = document.getElementById('searchBtn');
+      if (searchBtn) searchBtn.disabled = true;
+      renderCurrentDay();
+
+      document.getElementById('startDate').value = nextStartStr;
+      document.getElementById('endDate').value = nextEndStr;
+
+      try {
+        await fetchAndCalc();
+        const succeeded = currentDailyResults.length > 0 && currentDailyResults[0].dateKey === nextStartStr;
+        if (!succeeded) {
+          currentSlots = previousSlots;
+          currentDailyResults = previousDailyResults;
+          currentDayIndex = previousDayIndex;
+          document.getElementById('startDate').value = startDate;
+          document.getElementById('endDate').value = endDate;
+          showToast('翌週の検索に失敗しました');
+        }
+      } catch (e) {
+        currentSlots = previousSlots;
+        currentDailyResults = previousDailyResults;
+        currentDayIndex = previousDayIndex;
+        document.getElementById('startDate').value = startDate;
+        document.getElementById('endDate').value = endDate;
+        showToast('翌週の検索に失敗しました');
+      } finally {
+        isSearching = false;
+        const searchBtnEl = document.getElementById('searchBtn');
+        if (searchBtnEl) searchBtnEl.disabled = false;
+        if (currentDailyResults.length > 0) {
+          renderCurrentDay();
+        }
+      }
     }
 
     function isSwipeExcludedTarget(target) {
@@ -797,11 +864,18 @@
     }
 
     function handleResultPointerDown(e) {
+      if (isSearching) return;
       if (e.isPrimary === false) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (isSwipeExcludedTarget(e.target)) return;
       if (swipeState) return;
-      swipeState = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY };
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      swipeState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startedAtTop: scrollTop <= 4
+      };
       if (e.currentTarget.setPointerCapture) {
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
       }
@@ -811,7 +885,10 @@
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
       const deltaX = e.clientX - swipeState.startX;
       const deltaY = e.clientY - swipeState.startY;
-      if (Math.abs(deltaY) >= SWIPE_MIN_DISTANCE && Math.abs(deltaY) >= Math.abs(deltaX)) {
+      // Only bail out early for ordinary mid-page vertical scrolling. When the
+      // gesture started at the scroll-top, keep tracking through to pointerup
+      // so a deliberate downward pull can still be evaluated for goToNextWeek().
+      if (!swipeState.startedAtTop && Math.abs(deltaY) >= SWIPE_MIN_DISTANCE && Math.abs(deltaY) >= Math.abs(deltaX)) {
         releaseSwipePointer(e);
       }
     }
@@ -820,15 +897,23 @@
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
       const deltaX = e.clientX - swipeState.startX;
       const deltaY = e.clientY - swipeState.startY;
+      const startedAtTop = swipeState.startedAtTop;
       releaseSwipePointer(e);
+      if (isSearching) return;
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
-      if (absX < SWIPE_MIN_DISTANCE) return;
-      if (absX < absY * SWIPE_DIRECTION_RATIO) return;
-      if (deltaX < 0) {
-        showNextDay();
-      } else {
-        showPreviousDay();
+
+      if (absX >= SWIPE_MIN_DISTANCE && absX >= absY * SWIPE_DIRECTION_RATIO) {
+        if (deltaX < 0) {
+          showNextDay();
+        } else {
+          showPreviousDay();
+        }
+        return;
+      }
+
+      if (startedAtTop && deltaY > 0 && absY >= SWIPE_MIN_DISTANCE && absY >= absX * SWIPE_DIRECTION_RATIO) {
+        goToNextWeek();
       }
     }
 
