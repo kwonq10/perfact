@@ -166,12 +166,23 @@
       pointer-events: none; user-select: none;
       color: #b8c2cf; font-size: 12px; font-weight: 600;
     }
-    .swipe-hint-horizontal {
-      display: flex; justify-content: space-between;
-      margin-bottom: 12px;
-    }
     .swipe-hint-week {
       text-align: center;
+    }
+    .day-swipe-zone {
+      touch-action: none;
+      min-height: 44px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+      cursor: grab;
+    }
+    .day-swipe-zone:active { cursor: grabbing; }
+    .day-nav-hint {
+      color: #b8c2cf; font-size: 12px; font-weight: 600;
+      user-select: none; padding: 8px 4px;
+    }
+    .day-nav-hint:focus-visible {
+      outline: 2px solid #4f8ef7; outline-offset: 2px; border-radius: 4px;
     }
     .week-swipe-zone {
       touch-action: none;
@@ -277,10 +288,12 @@
     let calendarList = [];
     let swipeState = null;
     let weekSwipeState = null;
+    let daySwipeState = null;
     let isSearching = false;
     let isAnimating = false;
     const SWIPE_MIN_DISTANCE = 50;
     const SWIPE_DIRECTION_RATIO = 1.5;
+    const DAY_SWIPE_DIRECTION_RATIO = 1.0;
     const DRAG_AXIS_LOCK_THRESHOLD = 10;
     const CARD_BOUNDARY_RESISTANCE = 0.25;
     const CARD_TRANSITION_MS = 250;
@@ -783,9 +796,9 @@
 
       return `
         <div class="slot-card daily-result-card" data-day-card>
-          <div class="swipe-hint swipe-hint-horizontal" aria-hidden="true">
-            <span class="swipe-hint-prev">前の日 →</span>
-            <span class="swipe-hint-next">← 次の日</span>
+          <div class="day-swipe-zone" data-day-swipe-zone role="group" aria-label="左右にスワイプして前後の日へ移動">
+            <span class="day-nav-hint day-nav-prev" role="button" tabindex="0" aria-label="前の日へ移動">前の日 →</span>
+            <span class="day-nav-hint day-nav-next" role="button" tabindex="0" aria-label="次の日へ移動">← 次の日</span>
           </div>
           <div class="day-card-date">${dateStr}</div>
           ${slotsHtml}
@@ -879,11 +892,15 @@
     }
 
     function isSwipeExcludedTarget(target) {
-      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone]'));
+      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone], [data-day-swipe-zone]'));
     }
 
     function isWeekSwipeZoneTarget(target) {
       return !!(target && target.closest && target.closest('[data-week-swipe-zone]'));
+    }
+
+    function isDaySwipeZoneTarget(target) {
+      return !!(target && target.closest && target.closest('[data-day-swipe-zone]'));
     }
 
     function releaseSwipePointer(e) {
@@ -959,18 +976,27 @@
       });
     }
 
+    function triggerDayNav(direction) {
+      if (isSearching || isAnimating) return;
+      const atFirst = currentDayIndex <= 0;
+      const atLast = currentDayIndex >= currentDailyResults.length - 1;
+      if ((direction === 'previous' && atFirst) || (direction === 'next' && atLast)) return;
+      const cardEl = getDayCardEl();
+      isAnimating = true;
+      animateDayChange(direction, cardEl);
+    }
+
+    // Card body: no longer attempts to claim left/right gestures itself
+    // (that responsibility now belongs entirely to the dedicated
+    // .day-swipe-zone below). It only needs to stop tracking as soon as any
+    // real movement occurs, so native vertical scrolling is never delayed.
     function handleResultPointerDown(e) {
       if (isSearching || isAnimating) return;
       if (e.isPrimary === false) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (isSwipeExcludedTarget(e.target)) return;
       if (swipeState) return;
-      swipeState = {
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        axisLock: null
-      };
+      swipeState = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY };
       if (e.currentTarget.setPointerCapture) {
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
       }
@@ -980,21 +1006,53 @@
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
       const deltaX = e.clientX - swipeState.startX;
       const deltaY = e.clientY - swipeState.startY;
-
-      if (!swipeState.axisLock) {
-        const absX = Math.abs(deltaX);
-        const absY = Math.abs(deltaY);
-        if (Math.max(absX, absY) < DRAG_AXIS_LOCK_THRESHOLD) return;
-        if (absY > absX) {
-          // Vertical gestures are not this card's concern any more (down-swipe
-          // now lives in the dedicated .week-swipe-zone); hand off to native
-          // vertical scrolling immediately.
-          releaseSwipePointer(e);
-          return;
-        }
-        swipeState.axisLock = 'x';
+      if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= DRAG_AXIS_LOCK_THRESHOLD) {
+        releaseSwipePointer(e);
       }
+    }
 
+    function handleResultPointerUp(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      releaseSwipePointer(e);
+    }
+
+    function handleResultPointerCancel(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      releaseSwipePointer(e);
+    }
+
+    function resetDaySwipeState(e) {
+      if (daySwipeState && e && e.currentTarget && e.currentTarget.hasPointerCapture && e.currentTarget.hasPointerCapture(daySwipeState.pointerId)) {
+        try { e.currentTarget.releasePointerCapture(daySwipeState.pointerId); } catch (err) {}
+      }
+      daySwipeState = null;
+    }
+
+    function handleDaySwipePointerDown(e) {
+      if (isSearching || isAnimating) return;
+      if (e.isPrimary === false) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (!isDaySwipeZoneTarget(e.target)) return;
+      if (daySwipeState) return;
+      const prevEl = e.target.closest && e.target.closest('.day-nav-prev');
+      const nextEl = e.target.closest && e.target.closest('.day-nav-next');
+      daySwipeState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startSide: prevEl ? 'prev' : (nextEl ? 'next' : null)
+      };
+      if (e.currentTarget.setPointerCapture) {
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+
+    function handleDaySwipePointerMove(e) {
+      if (!daySwipeState || e.pointerId !== daySwipeState.pointerId) return;
+      // The dedicated zone uses touch-action: none, so there is no native
+      // gesture to race against; drive the card's finger-follow directly.
+      if (e.cancelable) e.preventDefault();
+      const deltaX = e.clientX - daySwipeState.startX;
       const cardEl = getDayCardEl();
       if (!cardEl) return;
       const atFirst = currentDayIndex <= 0;
@@ -1007,41 +1065,61 @@
       cardEl.style.transform = `translateX(${adjusted}px)`;
     }
 
-    function handleResultPointerUp(e) {
-      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
-      const deltaX = e.clientX - swipeState.startX;
-      const axisLock = swipeState.axisLock;
+    function handleDaySwipePointerUp(e) {
+      if (!daySwipeState || e.pointerId !== daySwipeState.pointerId) return;
+      const deltaX = e.clientX - daySwipeState.startX;
+      const deltaY = e.clientY - daySwipeState.startY;
+      const startSide = daySwipeState.startSide;
       const cardEl = getDayCardEl();
-      releaseSwipePointer(e);
+      resetDaySwipeState(e);
 
       if (isSearching || isAnimating) {
         resetCardTransform(cardEl);
         return;
       }
 
-      if (axisLock !== 'x') return; // vertical gesture already handed off in pointermove
-
       const absX = Math.abs(deltaX);
-      const atFirst = currentDayIndex <= 0;
-      const atLast = currentDayIndex >= currentDailyResults.length - 1;
-      const wantsNext = deltaX < 0;
-      const wantsPrev = deltaX > 0;
-      const blocked = (wantsNext && atLast) || (wantsPrev && atFirst);
-      const committed = absX >= SWIPE_MIN_DISTANCE;
+      const absY = Math.abs(deltaY);
+
+      if (absX >= SWIPE_MIN_DISTANCE && absX >= absY * DAY_SWIPE_DIRECTION_RATIO) {
+        const wantsNext = deltaX < 0;
+        const wantsPrev = deltaX > 0;
+        const atFirst = currentDayIndex <= 0;
+        const atLast = currentDayIndex >= currentDailyResults.length - 1;
+        const blocked = (wantsNext && atLast) || (wantsPrev && atFirst);
+        isAnimating = true;
+        if (!blocked) {
+          animateDayChange(wantsNext ? 'next' : 'previous', cardEl);
+        } else {
+          snapCardToCenter(cardEl);
+        }
+        return;
+      }
+
+      if (absX < DRAG_AXIS_LOCK_THRESHOLD && absY < DRAG_AXIS_LOCK_THRESHOLD && startSide) {
+        resetCardTransform(cardEl);
+        triggerDayNav(startSide === 'prev' ? 'previous' : 'next');
+        return;
+      }
 
       isAnimating = true;
-      if (committed && !blocked) {
-        animateDayChange(wantsNext ? 'next' : 'previous', cardEl);
-      } else {
-        snapCardToCenter(cardEl);
-      }
+      snapCardToCenter(cardEl);
     }
 
-    function handleResultPointerCancel(e) {
-      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+    function handleDaySwipePointerCancel(e) {
+      if (!daySwipeState || e.pointerId !== daySwipeState.pointerId) return;
       const cardEl = getDayCardEl();
-      releaseSwipePointer(e);
+      resetDaySwipeState(e);
       resetCardTransform(cardEl);
+    }
+
+    function handleDaySwipeKeyDown(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const prevEl = e.target.closest && e.target.closest('.day-nav-prev');
+      const nextEl = e.target.closest && e.target.closest('.day-nav-next');
+      if (!prevEl && !nextEl) return;
+      e.preventDefault();
+      triggerDayNav(prevEl ? 'previous' : 'next');
     }
 
     function resetWeekSwipeState(e) {
@@ -1142,6 +1220,11 @@
     resultContentEl.addEventListener('pointermove', handleWeekSwipePointerMove);
     resultContentEl.addEventListener('pointerup', handleWeekSwipePointerUp);
     resultContentEl.addEventListener('pointercancel', handleWeekSwipePointerCancel);
+    resultContentEl.addEventListener('pointerdown', handleDaySwipePointerDown);
+    resultContentEl.addEventListener('pointermove', handleDaySwipePointerMove);
+    resultContentEl.addEventListener('pointerup', handleDaySwipePointerUp);
+    resultContentEl.addEventListener('pointercancel', handleDaySwipePointerCancel);
+    resultContentEl.addEventListener('keydown', handleDaySwipeKeyDown);
 
     let deferredPrompt = null;
 
