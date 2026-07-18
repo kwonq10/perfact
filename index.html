@@ -164,7 +164,13 @@
     }
     .daily-result-card {
       will-change: transform;
+      display: flex;
+      flex-direction: column;
     }
+    @media (max-width: 599px) {
+      .daily-result-card { min-height: calc(100dvh - 180px); }
+    }
+    .daily-result-card > .btn { margin-top: auto; }
     .swipe-hint {
       pointer-events: none; user-select: none;
       color: #b8c2cf; font-size: 12px; font-weight: 600;
