@@ -78,7 +78,8 @@
       padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
     }
     #copyAllBtn:active { background: #eef3ff; }
-    #resultContent { padding: 20px; touch-action: pan-y; user-select: none; cursor: grab; }
+    #resultContent { padding: 20px; touch-action: pan-y; user-select: none; cursor: grab; overflow: hidden; }
+    #resultContent:active { cursor: grabbing; }
 
     .slot-card {
       background: white; border-radius: 14px; padding: 20px 24px;
@@ -153,13 +154,25 @@
     .day-slot-row { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #eee; }
     .day-slot-row:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
     .no-slots-message { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
-    .day-nav { display: flex; gap: 8px; margin-top: 12px; }
-    .btn-daynav {
-      flex: 1; padding: 10px; border-radius: 8px; font-size: 14px;
-      font-weight: 600; cursor: pointer; border: 1px solid #4f8ef7;
-      background: white; color: #4f8ef7;
+
+    .swipe-intro-hint {
+      text-align: center; font-size: 12px; color: #999;
+      padding: 8px 20px 0;
     }
-    .btn-daynav:disabled { border-color: #ddd; color: #ccc; cursor: not-allowed; }
+    .daily-result-card {
+      will-change: transform;
+    }
+    .swipe-hint {
+      pointer-events: none; user-select: none;
+      color: #b8c2cf; font-size: 12px; font-weight: 600;
+    }
+    .swipe-hint-horizontal {
+      display: flex; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .swipe-hint-week {
+      text-align: center; margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -222,6 +235,7 @@
       <span id="resultTitle">検索結果</span>
       <button id="copyAllBtn" onclick="copyAll()">全部コピー</button>
     </div>
+    <p class="swipe-intro-hint">カードをスワイプして日付を移動できます</p>
     <div id="resultContent"></div>
   </div>
 
@@ -255,8 +269,12 @@
     let calendarList = [];
     let swipeState = null;
     let isSearching = false;
+    let isAnimating = false;
     const SWIPE_MIN_DISTANCE = 50;
     const SWIPE_DIRECTION_RATIO = 1.5;
+    const DRAG_AXIS_LOCK_THRESHOLD = 10;
+    const CARD_BOUNDARY_RESISTANCE = 0.25;
+    const CARD_TRANSITION_MS = 250;
 
     function setCalMode(mode) {
       calMode = mode;
@@ -732,12 +750,9 @@
       return html;
     }
 
-    function renderDailyCard(day, index, total) {
+    function renderDailyCard(day) {
       const days = ['日', '月', '火', '水', '木', '金', '土'];
       const dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[day.date.getDay()]}）`;
-      const prevDisabled = (index <= 0 || isSearching) ? 'disabled' : '';
-      const nextDisabled = (index >= total - 1 || isSearching) ? 'disabled' : '';
-      const weekDisabled = isSearching ? 'disabled' : '';
 
       let slotsHtml;
       if (day.slots.length === 0) {
@@ -758,16 +773,16 @@
       }
 
       return `
-        <div class="slot-card">
+        <div class="slot-card daily-result-card" data-day-card>
+          <div class="swipe-hint swipe-hint-horizontal" aria-hidden="true">
+            <span class="swipe-hint-prev">前の日 →</span>
+            <span class="swipe-hint-next">← 次の日</span>
+          </div>
           <div class="day-card-date">${dateStr}</div>
           ${slotsHtml}
           <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>この日をコピー</button>
         </div>
-        <div class="day-nav">
-          <button class="btn-daynav" onclick="showPreviousDay()" ${prevDisabled}>← 前の日</button>
-          <button class="btn-daynav" onclick="showNextDay()" ${nextDisabled}>次の日 →</button>
-          <button class="btn-daynav" onclick="goToNextWeek()" ${weekDisabled}>翌週 ↓</button>
-        </div>`;
+        <div class="swipe-hint swipe-hint-week" aria-hidden="true">↓ 翌週</div>`;
     }
 
     function renderDailyResultHtml() {
@@ -776,7 +791,7 @@
       }
       if (currentDayIndex < 0) currentDayIndex = 0;
       if (currentDayIndex > currentDailyResults.length - 1) currentDayIndex = currentDailyResults.length - 1;
-      return renderDailyCard(currentDailyResults[currentDayIndex], currentDayIndex, currentDailyResults.length);
+      return renderDailyCard(currentDailyResults[currentDayIndex]);
     }
 
     function renderCurrentDay() {
@@ -798,7 +813,7 @@
     }
 
     async function goToNextWeek() {
-      if (isSearching) return;
+      if (isSearching || isAnimating) return;
       const startDate = document.getElementById('startDate').value;
       const endDate = document.getElementById('endDate').value;
       const start = toLocalMidnight(startDate);
@@ -863,8 +878,74 @@
       swipeState = null;
     }
 
+    function getDayCardEl() {
+      return document.querySelector('[data-day-card]');
+    }
+
+    function prefersReducedMotion() {
+      return typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    function resetCardTransform(cardEl) {
+      if (!cardEl) return;
+      cardEl.style.transition = '';
+      cardEl.style.transform = '';
+    }
+
+    function runCardTransition(cardEl, targetTransform, duration, onDone) {
+      if (!cardEl) { if (onDone) onDone(); return; }
+      if (duration <= 0) {
+        cardEl.style.transition = '';
+        cardEl.style.transform = targetTransform;
+        if (onDone) onDone();
+        return;
+      }
+      cardEl.style.transition = `transform ${duration}ms ease`;
+      void cardEl.offsetWidth; // force reflow so the transition picks up the current transform
+      cardEl.style.transform = targetTransform;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        cardEl.removeEventListener('transitionend', onTransitionEnd);
+        if (onDone) onDone();
+      };
+      const onTransitionEnd = (ev) => {
+        if (ev.target !== cardEl || ev.propertyName !== 'transform') return;
+        finish();
+      };
+      cardEl.addEventListener('transitionend', onTransitionEnd);
+      setTimeout(finish, duration + 100); // safety net in case transitionend never fires
+    }
+
+    function snapCardToCenter(cardEl) {
+      const duration = prefersReducedMotion() ? 0 : CARD_TRANSITION_MS;
+      runCardTransition(cardEl, 'translateX(0)', duration, () => {
+        resetCardTransform(cardEl);
+        isAnimating = false;
+      });
+    }
+
+    function animateDayChange(direction, cardEl) {
+      const duration = prefersReducedMotion() ? 0 : CARD_TRANSITION_MS;
+      const exitTarget = direction === 'next' ? 'translateX(-100%)' : 'translateX(100%)';
+      runCardTransition(cardEl, exitTarget, duration, () => {
+        if (direction === 'next') { showNextDay(); } else { showPreviousDay(); }
+        const newCardEl = getDayCardEl();
+        if (!newCardEl) { isAnimating = false; return; }
+        const enterFrom = direction === 'next' ? 'translateX(100%)' : 'translateX(-100%)';
+        newCardEl.style.transition = 'none';
+        newCardEl.style.transform = enterFrom;
+        runCardTransition(newCardEl, 'translateX(0)', duration, () => {
+          resetCardTransform(newCardEl);
+          isAnimating = false;
+        });
+      });
+    }
+
     function handleResultPointerDown(e) {
-      if (isSearching) return;
+      if (isSearching || isAnimating) return;
       if (e.isPrimary === false) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (isSwipeExcludedTarget(e.target)) return;
@@ -874,7 +955,8 @@
         pointerId: e.pointerId,
         startX: e.clientX,
         startY: e.clientY,
-        startedAtTop: scrollTop <= 4
+        startedAtTop: scrollTop <= 4,
+        axisLock: null
       };
       if (e.currentTarget.setPointerCapture) {
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
@@ -885,12 +967,39 @@
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
       const deltaX = e.clientX - swipeState.startX;
       const deltaY = e.clientY - swipeState.startY;
-      // Only bail out early for ordinary mid-page vertical scrolling. When the
-      // gesture started at the scroll-top, keep tracking through to pointerup
-      // so a deliberate downward pull can still be evaluated for goToNextWeek().
-      if (!swipeState.startedAtTop && Math.abs(deltaY) >= SWIPE_MIN_DISTANCE && Math.abs(deltaY) >= Math.abs(deltaX)) {
-        releaseSwipePointer(e);
+
+      if (!swipeState.axisLock) {
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+        if (Math.max(absX, absY) < DRAG_AXIS_LOCK_THRESHOLD) return;
+        if (absY > absX) {
+          // Vertical-leaning gesture. Only keep tracking it if it started at
+          // the scroll-top (a down-swipe candidate); otherwise this is
+          // ordinary scrolling, so get out of the way immediately.
+          if (!swipeState.startedAtTop) {
+            releaseSwipePointer(e);
+            return;
+          }
+          swipeState.axisLock = 'y';
+        } else {
+          swipeState.axisLock = 'x';
+        }
       }
+
+      if (swipeState.axisLock === 'x') {
+        const cardEl = getDayCardEl();
+        if (!cardEl) return;
+        const atFirst = currentDayIndex <= 0;
+        const atLast = currentDayIndex >= currentDailyResults.length - 1;
+        let adjusted = deltaX;
+        if ((deltaX > 0 && atFirst) || (deltaX < 0 && atLast)) {
+          adjusted = deltaX * CARD_BOUNDARY_RESISTANCE;
+        }
+        cardEl.style.transition = 'none';
+        cardEl.style.transform = `translateX(${adjusted}px)`;
+      }
+      // axisLock === 'y': the card never moves; we just keep tracking the
+      // gesture until pointerup decides whether it qualifies as a down-swipe.
     }
 
     function handleResultPointerUp(e) {
@@ -898,28 +1007,47 @@
       const deltaX = e.clientX - swipeState.startX;
       const deltaY = e.clientY - swipeState.startY;
       const startedAtTop = swipeState.startedAtTop;
+      const axisLock = swipeState.axisLock;
+      const cardEl = getDayCardEl();
       releaseSwipePointer(e);
-      if (isSearching) return;
+
+      if (isSearching || isAnimating) {
+        resetCardTransform(cardEl);
+        return;
+      }
+
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
 
-      if (absX >= SWIPE_MIN_DISTANCE && absX >= absY * SWIPE_DIRECTION_RATIO) {
-        if (deltaX < 0) {
-          showNextDay();
+      if (axisLock === 'x') {
+        const atFirst = currentDayIndex <= 0;
+        const atLast = currentDayIndex >= currentDailyResults.length - 1;
+        const wantsNext = deltaX < 0;
+        const wantsPrev = deltaX > 0;
+        const blocked = (wantsNext && atLast) || (wantsPrev && atFirst);
+        const committed = absX >= SWIPE_MIN_DISTANCE;
+
+        isAnimating = true;
+        if (committed && !blocked) {
+          animateDayChange(wantsNext ? 'next' : 'previous', cardEl);
         } else {
-          showPreviousDay();
+          snapCardToCenter(cardEl);
         }
         return;
       }
 
-      if (startedAtTop && deltaY > 0 && absY >= SWIPE_MIN_DISTANCE && absY >= absX * SWIPE_DIRECTION_RATIO) {
-        goToNextWeek();
+      if (axisLock === 'y') {
+        if (startedAtTop && deltaY > 0 && absY >= SWIPE_MIN_DISTANCE && absY >= absX * SWIPE_DIRECTION_RATIO) {
+          goToNextWeek();
+        }
       }
     }
 
     function handleResultPointerCancel(e) {
       if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const cardEl = getDayCardEl();
       releaseSwipePointer(e);
+      resetCardTransform(cardEl);
     }
 
     function openCalendar(i) {
