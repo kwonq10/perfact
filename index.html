@@ -827,6 +827,7 @@
           const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
           return `
             <div class="day-slot-row">
+              <div class="slot-date">空き時間</div>
               <div class="slot-time">${startT}<span>〜</span>${endT}</div>
               <div class="slot-actions">
                 <button class="btn-copy" onclick="copySlot(${i})">この枠をコピー</button>
