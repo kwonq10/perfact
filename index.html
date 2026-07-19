@@ -314,27 +314,6 @@
     }
     .bg-image-hint { font-size: 12px; color: #999; margin-top: 6px; }
     .bg-image-status { font-size: 12px; color: #4f8ef7; margin-top: 6px; font-weight: 600; }
-    .bg-position-section { margin-top: 12px; }
-    .bg-position-label { font-size: 12px; font-weight: 600; color: #777; margin-bottom: 6px; }
-    .bg-position-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      max-width: 168px;
-      margin-bottom: 10px;
-    }
-    .bg-pos-btn {
-      aspect-ratio: 1;
-      min-height: 40px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: #fafafa;
-      color: #888;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    .bg-pos-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .bg-pos-btn.active { border-color: #4f8ef7; background: #eef3ff; color: #4f8ef7; }
     .bg-position-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .bg-position-slider-row input[type="range"] { flex: 1; }
     .bg-white-range-value { flex-shrink: 0; font-size: 12px; color: #777; white-space: nowrap; }
@@ -577,21 +556,6 @@
           <span class="bg-preview-badge" id="bgPreviewBadge" style="display:none;">タップして画像を変更</span>
         </div>
         <p class="status" id="bgImageError"></p>
-      </div>
-
-      <div class="form-group" id="bgPositionSection">
-        <label class="bg-position-label" id="labelBgPosition">画像の表示位置</label>
-        <div class="bg-position-grid" id="bgPositionGrid">
-          <button type="button" class="bg-pos-btn" data-x="0" data-y="0" data-poskey="posTopLeft" disabled>↖</button>
-          <button type="button" class="bg-pos-btn" data-x="50" data-y="0" data-poskey="posTop" disabled>↑</button>
-          <button type="button" class="bg-pos-btn" data-x="100" data-y="0" data-poskey="posTopRight" disabled>↗</button>
-          <button type="button" class="bg-pos-btn" data-x="0" data-y="50" data-poskey="posLeft" disabled>←</button>
-          <button type="button" class="bg-pos-btn active" data-x="50" data-y="50" data-poskey="posCenter" disabled>●</button>
-          <button type="button" class="bg-pos-btn" data-x="100" data-y="50" data-poskey="posRight" disabled>→</button>
-          <button type="button" class="bg-pos-btn" data-x="0" data-y="100" data-poskey="posBottomLeft" disabled>↙</button>
-          <button type="button" class="bg-pos-btn" data-x="50" data-y="100" data-poskey="posBottom" disabled>↓</button>
-          <button type="button" class="bg-pos-btn" data-x="100" data-y="100" data-poskey="posBottomRight" disabled>↘</button>
-        </div>
       </div>
 
       <div class="form-group" id="bgWhiteRangeSection">
@@ -859,20 +823,10 @@
         bgImageTooLarge: '画像サイズが大きすぎます（10MBまで）',
         bgImageSaveFailed: 'この画像を保存できませんでした',
         bgImageDeleteFailed: '保存した背景画像を削除できませんでした',
-        bgPositionLabel: '画像の表示位置',
         bgWhiteRangeLabel: '白くする範囲',
         bgWhiteRangeFull: '全体を画像',
         bgWhiteRangeTime: '時刻だけ白',
         bgWhiteRangeHeader: 'ヘッダーも白',
-        posTopLeft: '左上',
-        posTop: '上',
-        posTopRight: '右上',
-        posLeft: '左',
-        posCenter: '中央',
-        posRight: '右',
-        posBottomLeft: '左下',
-        posBottom: '下',
-        posBottomRight: '右下',
         bgSettingsTitle: '背景画像設定',
         bgSettingsBack: '← 戻る',
         openBgSettingsBtn: '背景画像を設定',
@@ -940,20 +894,10 @@
         bgImageTooLarge: 'Image is too large (10MB max)',
         bgImageSaveFailed: 'The image could not be saved',
         bgImageDeleteFailed: 'The saved background image could not be removed',
-        bgPositionLabel: 'Image position',
         bgWhiteRangeLabel: 'White area range',
         bgWhiteRangeFull: 'Full image',
         bgWhiteRangeTime: 'Time area white',
         bgWhiteRangeHeader: 'Header also white',
-        posTopLeft: 'Top left',
-        posTop: 'Top',
-        posTopRight: 'Top right',
-        posLeft: 'Left',
-        posCenter: 'Center',
-        posRight: 'Right',
-        posBottomLeft: 'Bottom left',
-        posBottom: 'Bottom',
-        posBottomRight: 'Bottom right',
         bgSettingsTitle: 'Background image settings',
         bgSettingsBack: '← Back',
         openBgSettingsBtn: 'Set background image',
@@ -1045,13 +989,6 @@
         if (bgImageError) bgImageError.textContent = t(lastBgImageErrorKey);
       }
 
-      const labelBgPosition = document.getElementById('labelBgPosition');
-      if (labelBgPosition) labelBgPosition.textContent = t('bgPositionLabel');
-      document.querySelectorAll('.bg-pos-btn').forEach(btn => {
-        const label = t(btn.dataset.poskey);
-        btn.setAttribute('aria-label', label);
-        btn.title = label;
-      });
       const bgPreviewHighlightLabel = document.getElementById('bgPreviewHighlightLabel');
       if (bgPreviewHighlightLabel) bgPreviewHighlightLabel.textContent = t('bgPreviewHighlightLabel');
 
@@ -1130,41 +1067,17 @@
       const posStr = `${bgPositionX}% ${bgPositionY}%`;
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundPosition = posStr;
-      updateBgPositionUI();
       updateBgPreviewHighlight();
       saveBgPositionToStorage();
     }
 
     // Used while dragging the preview highlight: keeps the result background
-    // and preset UI in sync on every pointermove without writing to
-    // localStorage on every frame (that only happens once, on pointerup).
+    // in sync on every pointermove without writing to localStorage on every
+    // frame (that only happens once, on pointerup).
     function applyBgPositionRealtime() {
       const posStr = `${bgPositionX}% ${bgPositionY}%`;
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundPosition = posStr;
-      updateBgPositionUI();
-    }
-
-    function updateBgPositionUI() {
-      document.querySelectorAll('.bg-pos-btn').forEach(btn => {
-        const isActive = Number(btn.dataset.x) === bgPositionX && Number(btn.dataset.y) === bgPositionY;
-        btn.classList.toggle('active', isActive);
-      });
-    }
-
-    function setBgPosition(x, y) {
-      bgPositionX = x;
-      bgPositionY = y;
-      updateBackgroundPosition();
-    }
-
-    function setBgPositionControlsEnabled(enabled) {
-      document.querySelectorAll('.bg-pos-btn').forEach(btn => { btn.disabled = !enabled; });
-    }
-
-    function handleBgPositionPresetClick(e) {
-      const btn = e.currentTarget;
-      setBgPosition(Number(btn.dataset.x), Number(btn.dataset.y));
     }
 
     function updateBgPreviewHighlight() {
@@ -1322,7 +1235,6 @@
       }
       const removeBtn = document.getElementById('removeBgImageBtn');
       if (removeBtn) removeBtn.style.display = 'block';
-      setBgPositionControlsEnabled(true);
     }
 
     function applyBackgroundImage(file) {
@@ -1423,7 +1335,6 @@
       setBgImageError(null);
       bgPositionX = 50;
       bgPositionY = 50;
-      setBgPositionControlsEnabled(false);
       updateBackgroundPosition();
       clearBgPositionFromStorage();
       bgWhiteRange = 0;
@@ -2403,9 +2314,6 @@
       bgPreviewHighlightEl.addEventListener('pointercancel', handleBgPreviewHighlightPointerCancel);
     }
 
-    document.querySelectorAll('.bg-pos-btn').forEach(btn => {
-      btn.addEventListener('click', handleBgPositionPresetClick);
-    });
     const bgWhiteRangeSliderEl = document.getElementById('bgWhiteRangeSlider');
     if (bgWhiteRangeSliderEl) bgWhiteRangeSliderEl.addEventListener('input', handleBgWhiteRangeSliderInput);
 
