@@ -620,13 +620,109 @@
     const LANG_KEY = 'sukima_lang';
     let currentLang = localStorage.getItem(LANG_KEY) || 'ja';
 
-    // 背景画像プロトタイプ（試作・永続保存なし）
+    // 背景画像（画像本体はIndexedDB、位置はlocalStorageへ永続化）
     const BG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
     const BG_IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    const BG_DB_NAME = 'sukima-settings';
+    const BG_DB_VERSION = 1;
+    const BG_DB_STORE = 'backgrounds';
+    const BG_DB_KEY = 'resultBackground';
+    const BG_POS_X_KEY = 'sukima_bg_position_x';
+    const BG_POS_Y_KEY = 'sukima_bg_position_y';
     let bgImageObjectUrl = null;
     let lastBgImageErrorKey = null;
     let bgPositionX = 50;
     let bgPositionY = 50;
+    // Incremented on any user-initiated select/remove so a slower,
+    // already-in-flight restoreSavedBackground() can detect it was
+    // superseded and avoid clobbering the newer state.
+    let bgRestoreGeneration = 0;
+
+    function openBackgroundDatabase() {
+      return new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) {
+          reject(new Error('IndexedDB is not supported'));
+          return;
+        }
+        const req = indexedDB.open(BG_DB_NAME, BG_DB_VERSION);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(BG_DB_STORE)) {
+            db.createObjectStore(BG_DB_STORE, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveBackgroundImage(file) {
+      const db = await openBackgroundDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(BG_DB_STORE, 'readwrite');
+        tx.objectStore(BG_DB_STORE).put({
+          id: BG_DB_KEY,
+          blob: file,
+          type: file.type,
+          name: file.name,
+          updatedAt: Date.now()
+        });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      });
+    }
+
+    async function loadBackgroundImage() {
+      const db = await openBackgroundDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(BG_DB_STORE, 'readonly');
+        const req = tx.objectStore(BG_DB_STORE).get(BG_DB_KEY);
+        req.onsuccess = () => { db.close(); resolve(req.result || null); };
+        req.onerror = () => { db.close(); reject(req.error); };
+      });
+    }
+
+    async function deleteBackgroundImage() {
+      const db = await openBackgroundDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(BG_DB_STORE, 'readwrite');
+        tx.objectStore(BG_DB_STORE).delete(BG_DB_KEY);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      });
+    }
+
+    function saveBgPositionToStorage() {
+      try {
+        localStorage.setItem(BG_POS_X_KEY, String(bgPositionX));
+        localStorage.setItem(BG_POS_Y_KEY, String(bgPositionY));
+      } catch (e) {}
+    }
+
+    function clearBgPositionFromStorage() {
+      try {
+        localStorage.removeItem(BG_POS_X_KEY);
+        localStorage.removeItem(BG_POS_Y_KEY);
+      } catch (e) {}
+    }
+
+    function loadBgPositionFromStorage() {
+      const clamp = (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < -100 || n > 200) return 50;
+        return n;
+      };
+      let x = 50, y = 50;
+      try {
+        const rawX = localStorage.getItem(BG_POS_X_KEY);
+        const rawY = localStorage.getItem(BG_POS_Y_KEY);
+        if (rawX !== null) x = clamp(rawX);
+        if (rawY !== null) y = clamp(rawY);
+      } catch (e) {}
+      return { x, y };
+    }
 
     const I18N = {
       ja: {
@@ -688,6 +784,8 @@
         bgPreviewTapToChoose: 'タップして背景画像を選択',
         bgImageUnsupported: '対応していない画像形式です（JPG・PNG・WebPのみ）',
         bgImageTooLarge: '画像サイズが大きすぎます（10MBまで）',
+        bgImageSaveFailed: 'この画像を保存できませんでした',
+        bgImageDeleteFailed: '保存した背景画像を削除できませんでした',
         bgPositionLabel: '画像の表示位置',
         bgPosXLabel: '横位置',
         bgPosYLabel: '縦位置',
@@ -764,6 +862,8 @@
         bgPreviewTapToChoose: 'Tap to choose a background image',
         bgImageUnsupported: 'Unsupported image format (JPG, PNG, WebP only)',
         bgImageTooLarge: 'Image is too large (10MB max)',
+        bgImageSaveFailed: 'The image could not be saved',
+        bgImageDeleteFailed: 'The saved background image could not be removed',
         bgPositionLabel: 'Image position',
         bgPosXLabel: 'Horizontal position',
         bgPosYLabel: 'Vertical position',
@@ -951,6 +1051,7 @@
       const preview = document.getElementById('bgPreview');
       if (preview) preview.style.backgroundPosition = posStr;
       updateBgPositionUI();
+      saveBgPositionToStorage();
     }
 
     function updateBgPositionUI() {
@@ -993,16 +1094,11 @@
       updateBackgroundPosition();
     }
 
-    function applyBackgroundImage(file) {
-      if (bgImageObjectUrl) {
-        URL.revokeObjectURL(bgImageObjectUrl);
-        bgImageObjectUrl = null;
-      }
-      bgImageObjectUrl = URL.createObjectURL(file);
+    function applyBackgroundImageDom(objectUrl) {
       const layer = document.getElementById('bgImageLayer');
-      if (layer) layer.style.backgroundImage = `url("${bgImageObjectUrl}")`;
+      if (layer) layer.style.backgroundImage = `url("${objectUrl}")`;
       const preview = document.getElementById('bgPreview');
-      if (preview) preview.style.backgroundImage = `url("${bgImageObjectUrl}")`;
+      if (preview) preview.style.backgroundImage = `url("${objectUrl}")`;
       const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
       if (previewPlaceholder) previewPlaceholder.style.display = 'none';
       document.getElementById('resultView').classList.add('has-custom-background');
@@ -1013,13 +1109,63 @@
       }
       const removeBtn = document.getElementById('removeBgImageBtn');
       if (removeBtn) removeBtn.style.display = 'block';
+      setBgPositionControlsEnabled(true);
+    }
+
+    function applyBackgroundImage(file) {
+      bgRestoreGeneration++;
+      if (bgImageObjectUrl) {
+        URL.revokeObjectURL(bgImageObjectUrl);
+        bgImageObjectUrl = null;
+      }
+      bgImageObjectUrl = URL.createObjectURL(file);
+      applyBackgroundImageDom(bgImageObjectUrl);
       bgPositionX = 50;
       bgPositionY = 50;
-      setBgPositionControlsEnabled(true);
+      updateBackgroundPosition();
+      saveBackgroundImage(file).catch((err) => {
+        console.warn('Failed to save background image to IndexedDB', err);
+        setBgImageError('bgImageSaveFailed');
+      });
+    }
+
+    async function restoreSavedBackground() {
+      const generationAtStart = bgRestoreGeneration;
+      let record = null;
+      try {
+        record = await loadBackgroundImage();
+      } catch (e) {
+        console.warn('Failed to load saved background image', e);
+        return;
+      }
+      // The user already selected or removed a background while this load
+      // was in flight; the newer state must win, so drop this stale result.
+      if (bgRestoreGeneration !== generationAtStart) return;
+      if (!record || !(record.blob instanceof Blob)) return;
+
+      let objectUrl;
+      try {
+        objectUrl = URL.createObjectURL(record.blob);
+      } catch (e) {
+        console.warn('Failed to create object URL for saved background image', e);
+        return;
+      }
+
+      const pos = loadBgPositionFromStorage();
+      bgPositionX = pos.x;
+      bgPositionY = pos.y;
+
+      if (bgImageObjectUrl) {
+        URL.revokeObjectURL(bgImageObjectUrl);
+        bgImageObjectUrl = null;
+      }
+      bgImageObjectUrl = objectUrl;
+      applyBackgroundImageDom(bgImageObjectUrl);
       updateBackgroundPosition();
     }
 
     function removeBackgroundImage() {
+      bgRestoreGeneration++;
       if (bgImageObjectUrl) {
         URL.revokeObjectURL(bgImageObjectUrl);
         bgImageObjectUrl = null;
@@ -1045,6 +1191,11 @@
       bgPositionY = 50;
       setBgPositionControlsEnabled(false);
       updateBackgroundPosition();
+      clearBgPositionFromStorage();
+      deleteBackgroundImage().catch((err) => {
+        console.warn('Failed to delete saved background image', err);
+        setBgImageError('bgImageDeleteFailed');
+      });
     }
 
     function handleBgImageChange(e) {
@@ -1079,6 +1230,8 @@
     }
 
     window.onload = () => {
+      restoreSavedBackground();
+
       const today = new Date();
       const toLocalDateStr = (d) => {
         const y = d.getFullYear();
