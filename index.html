@@ -345,7 +345,19 @@
       font-size: 15px; font-weight: 600; cursor: pointer; padding: 0;
     }
     #bgSettingsTitle { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+    #bgImageInput {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
     .bg-preview {
+      position: relative;
       width: 100%;
       height: 220px;
       margin-top: 6px;
@@ -358,8 +370,36 @@
       align-items: center;
       justify-content: center;
       text-align: center;
+      cursor: pointer;
+      transition: transform 0.15s ease, filter 0.15s ease;
     }
-    .bg-preview-placeholder { font-size: 13px; color: #999; padding: 0 16px; }
+    .bg-preview:hover { filter: brightness(1.03); }
+    .bg-preview:active { transform: scale(0.995); }
+    .bg-preview:focus-visible {
+      outline: 3px solid rgba(79, 142, 247, 0.45);
+      outline-offset: 3px;
+    }
+    .bg-preview-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #999;
+      padding: 0 16px;
+    }
+    .bg-preview-subtext { font-size: 11px; color: #b3b3b3; }
+    .bg-preview-badge {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      pointer-events: none;
+    }
 
     #startView {
       position: relative;
@@ -485,18 +525,16 @@
       </div>
 
       <div class="form-group">
-        <label id="labelBgImage">背景画像を選ぶ</label>
-        <input type="file" id="bgImageInput" accept="image/jpeg,image/png,image/webp">
-        <p class="bg-image-hint" id="bgImageHint">対応形式はJPG・PNG・WebPです</p>
-        <p class="bg-image-status" id="bgImageStatus" style="display:none;"></p>
-        <p class="status" id="bgImageError"></p>
-      </div>
-
-      <div class="form-group">
         <label id="labelBgPreview">背景画像プレビュー</label>
-        <div class="bg-preview" id="bgPreview">
-          <span class="bg-preview-placeholder" id="bgPreviewPlaceholder">背景画像は選択されていません</span>
+        <input type="file" id="bgImageInput" accept="image/jpeg,image/png,image/webp">
+        <div class="bg-preview" id="bgPreview" role="button" tabindex="0" aria-label="背景画像を選択" title="背景画像を選択">
+          <span class="bg-preview-placeholder" id="bgPreviewPlaceholder">
+            <span id="bgPreviewMainText">タップして背景画像を選択</span>
+            <span class="bg-preview-subtext" id="bgPreviewSubText">JPG・PNG・WebP、10MBまで</span>
+          </span>
+          <span class="bg-preview-badge" id="bgPreviewBadge" style="display:none;">タップして画像を変更</span>
         </div>
+        <p class="status" id="bgImageError"></p>
       </div>
 
       <div class="form-group" id="bgPositionSection">
@@ -643,10 +681,11 @@
         startTagline: '予定の空き時間を、すぐ見つける。',
         startDesc: 'Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。',
         startBtn: 'はじめる',
-        bgImageLabel: '背景画像を選ぶ',
+        bgImageLabel: '背景画像を選択',
         bgImageRemove: '背景画像を解除',
-        bgImageSelected: '選択中の画像',
-        bgImageFormats: '対応形式はJPG・PNG・WebPです',
+        bgImageSelected: 'タップして画像を変更',
+        bgImageFormats: 'JPG・PNG・WebP、10MBまで',
+        bgPreviewTapToChoose: 'タップして背景画像を選択',
         bgImageUnsupported: '対応していない画像形式です（JPG・PNG・WebPのみ）',
         bgImageTooLarge: '画像サイズが大きすぎます（10MBまで）',
         bgPositionLabel: '画像の表示位置',
@@ -665,7 +704,6 @@
         bgSettingsBack: '← 戻る',
         openBgSettingsBtn: '背景画像を設定',
         bgPreviewLabel: '背景画像プレビュー',
-        bgPreviewPlaceholder: '背景画像は選択されていません',
       },
       en: {
         appTitle: 'Sukima',
@@ -721,8 +759,9 @@
         startBtn: 'Get Started',
         bgImageLabel: 'Choose background image',
         bgImageRemove: 'Remove background image',
-        bgImageSelected: 'Background image selected',
-        bgImageFormats: 'Supported formats: JPG, PNG and WebP',
+        bgImageSelected: 'Tap to change image',
+        bgImageFormats: 'JPG, PNG or WebP, up to 10MB',
+        bgPreviewTapToChoose: 'Tap to choose a background image',
         bgImageUnsupported: 'Unsupported image format (JPG, PNG, WebP only)',
         bgImageTooLarge: 'Image is too large (10MB max)',
         bgPositionLabel: 'Image position',
@@ -741,7 +780,6 @@
         bgSettingsBack: '← Back',
         openBgSettingsBtn: 'Set background image',
         bgPreviewLabel: 'Background image preview',
-        bgPreviewPlaceholder: 'No background image selected',
       }
     };
 
@@ -810,14 +848,19 @@
       const startBtn = document.getElementById('startBtn');
       if (startBtn) startBtn.textContent = t('startBtn');
 
-      const labelBgImage = document.getElementById('labelBgImage');
-      if (labelBgImage) labelBgImage.textContent = t('bgImageLabel');
-      const bgImageHint = document.getElementById('bgImageHint');
-      if (bgImageHint) bgImageHint.textContent = t('bgImageFormats');
       const removeBgImageBtn = document.getElementById('removeBgImageBtn');
       if (removeBgImageBtn) removeBgImageBtn.textContent = t('bgImageRemove');
-      const bgImageStatus = document.getElementById('bgImageStatus');
-      if (bgImageStatus && bgImageStatus.style.display !== 'none') bgImageStatus.textContent = t('bgImageSelected');
+      const bgPreviewEl2 = document.getElementById('bgPreview');
+      if (bgPreviewEl2) {
+        bgPreviewEl2.setAttribute('aria-label', t('bgImageLabel'));
+        bgPreviewEl2.title = t('bgImageLabel');
+      }
+      const bgPreviewMainText = document.getElementById('bgPreviewMainText');
+      if (bgPreviewMainText) bgPreviewMainText.textContent = t('bgPreviewTapToChoose');
+      const bgPreviewSubText = document.getElementById('bgPreviewSubText');
+      if (bgPreviewSubText) bgPreviewSubText.textContent = t('bgImageFormats');
+      const bgPreviewBadge = document.getElementById('bgPreviewBadge');
+      if (bgPreviewBadge && bgPreviewBadge.style.display !== 'none') bgPreviewBadge.textContent = t('bgImageSelected');
       if (lastBgImageErrorKey) {
         const bgImageError = document.getElementById('bgImageError');
         if (bgImageError) bgImageError.textContent = t(lastBgImageErrorKey);
@@ -843,8 +886,6 @@
       if (openBgSettingsBtn) openBgSettingsBtn.textContent = t('openBgSettingsBtn');
       const labelBgPreview = document.getElementById('labelBgPreview');
       if (labelBgPreview) labelBgPreview.textContent = t('bgPreviewLabel');
-      const bgPreviewPlaceholder = document.getElementById('bgPreviewPlaceholder');
-      if (bgPreviewPlaceholder) bgPreviewPlaceholder.textContent = t('bgPreviewPlaceholder');
     }
 
     function setCalMode(mode) {
@@ -965,10 +1006,10 @@
       const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
       if (previewPlaceholder) previewPlaceholder.style.display = 'none';
       document.getElementById('resultView').classList.add('has-custom-background');
-      const statusEl = document.getElementById('bgImageStatus');
-      if (statusEl) {
-        statusEl.textContent = t('bgImageSelected');
-        statusEl.style.display = 'block';
+      const previewBadge = document.getElementById('bgPreviewBadge');
+      if (previewBadge) {
+        previewBadge.textContent = t('bgImageSelected');
+        previewBadge.style.display = 'inline-block';
       }
       const removeBtn = document.getElementById('removeBgImageBtn');
       if (removeBtn) removeBtn.style.display = 'block';
@@ -988,12 +1029,12 @@
       const preview = document.getElementById('bgPreview');
       if (preview) preview.style.backgroundImage = '';
       const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
-      if (previewPlaceholder) previewPlaceholder.style.display = 'block';
+      if (previewPlaceholder) previewPlaceholder.style.display = 'flex';
       document.getElementById('resultView').classList.remove('has-custom-background');
-      const statusEl = document.getElementById('bgImageStatus');
-      if (statusEl) {
-        statusEl.textContent = '';
-        statusEl.style.display = 'none';
+      const previewBadge = document.getElementById('bgPreviewBadge');
+      if (previewBadge) {
+        previewBadge.textContent = '';
+        previewBadge.style.display = 'none';
       }
       const removeBtn = document.getElementById('removeBgImageBtn');
       if (removeBtn) removeBtn.style.display = 'none';
@@ -1021,6 +1062,20 @@
       }
       setBgImageError(null);
       applyBackgroundImage(file);
+    }
+
+    function openBgImagePicker() {
+      const input = document.getElementById('bgImageInput');
+      if (input) input.click();
+    }
+
+    function handleBgPreviewKeyDown(e) {
+      if (e.key === 'Enter') {
+        openBgImagePicker();
+      } else if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        openBgImagePicker();
+      }
     }
 
     window.onload = () => {
@@ -1934,6 +1989,12 @@
 
     const bgImageInputEl = document.getElementById('bgImageInput');
     if (bgImageInputEl) bgImageInputEl.addEventListener('change', handleBgImageChange);
+
+    const bgPreviewEl = document.getElementById('bgPreview');
+    if (bgPreviewEl) {
+      bgPreviewEl.addEventListener('click', openBgImagePicker);
+      bgPreviewEl.addEventListener('keydown', handleBgPreviewKeyDown);
+    }
 
     document.querySelectorAll('.bg-pos-btn').forEach(btn => {
       btn.addEventListener('click', handleBgPositionPresetClick);
