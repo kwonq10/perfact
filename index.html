@@ -336,9 +336,7 @@
     .bg-pos-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .bg-pos-btn.active { border-color: #4f8ef7; background: #eef3ff; color: #4f8ef7; }
     .bg-position-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-    .bg-position-slider-row label { flex-shrink: 0; width: 56px; margin-bottom: 0; font-size: 13px; }
     .bg-position-slider-row input[type="range"] { flex: 1; }
-    .bg-position-value { flex-shrink: 0; width: 52px; text-align: right; font-size: 12px; color: #777; font-variant-numeric: tabular-nums; }
     .bg-white-range-value { flex-shrink: 0; font-size: 12px; color: #777; white-space: nowrap; }
 
     #backgroundSettingsView {
@@ -375,13 +373,12 @@
       border-radius: 12px;
       border: 1px solid #ddd;
       background-color: #f0f4f8;
-      background-size: cover;
-      background-repeat: no-repeat;
       display: flex;
       align-items: center;
       justify-content: center;
       text-align: center;
       cursor: pointer;
+      overflow: hidden;
       transition: transform 0.15s ease, filter 0.15s ease;
     }
     .bg-preview:hover { filter: brightness(1.03); }
@@ -389,6 +386,36 @@
     .bg-preview:focus-visible {
       outline: 3px solid rgba(79, 142, 247, 0.45);
       outline-offset: 3px;
+    }
+    .bg-preview-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+    }
+    .bg-preview-highlight {
+      position: absolute;
+      border: 2px solid rgba(255, 255, 255, 0.95);
+      border-radius: 10px;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 6px;
+      pointer-events: auto;
+      touch-action: none;
+      cursor: grab;
+    }
+    .bg-preview-highlight.dragging { cursor: grabbing; }
+    .bg-preview-highlight-label {
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
     }
     .bg-preview-placeholder {
       display: flex;
@@ -539,10 +566,14 @@
         <label id="labelBgPreview">背景画像プレビュー</label>
         <input type="file" id="bgImageInput" accept="image/jpeg,image/png,image/webp">
         <div class="bg-preview" id="bgPreview" role="button" tabindex="0" aria-label="背景画像を選択" title="背景画像を選択">
+          <img id="bgPreviewImg" class="bg-preview-img" alt="" style="display:none;">
           <span class="bg-preview-placeholder" id="bgPreviewPlaceholder">
             <span id="bgPreviewMainText">タップして背景画像を選択</span>
             <span class="bg-preview-subtext" id="bgPreviewSubText">JPG・PNG・WebP、10MBまで</span>
           </span>
+          <div class="bg-preview-highlight" id="bgPreviewHighlight" style="display:none;">
+            <span class="bg-preview-highlight-label" id="bgPreviewHighlightLabel">カード表示範囲</span>
+          </div>
           <span class="bg-preview-badge" id="bgPreviewBadge" style="display:none;">タップして画像を変更</span>
         </div>
         <p class="status" id="bgImageError"></p>
@@ -560,16 +591,6 @@
           <button type="button" class="bg-pos-btn" data-x="0" data-y="100" data-poskey="posBottomLeft" disabled>↙</button>
           <button type="button" class="bg-pos-btn" data-x="50" data-y="100" data-poskey="posBottom" disabled>↓</button>
           <button type="button" class="bg-pos-btn" data-x="100" data-y="100" data-poskey="posBottomRight" disabled>↘</button>
-        </div>
-        <div class="bg-position-slider-row">
-          <label id="labelBgPosX" for="bgPosXSlider">横位置</label>
-          <input type="range" id="bgPosXSlider" min="-100" max="200" step="1" value="50" disabled>
-          <span class="bg-position-value" id="bgPosXValue">50%</span>
-        </div>
-        <div class="bg-position-slider-row">
-          <label id="labelBgPosY" for="bgPosYSlider">縦位置</label>
-          <input type="range" id="bgPosYSlider" min="-100" max="200" step="1" value="50" disabled>
-          <span class="bg-position-value" id="bgPosYValue">50%</span>
         </div>
       </div>
 
@@ -659,6 +680,12 @@
     // already-in-flight restoreSavedBackground() can detect it was
     // superseded and avoid clobbering the newer state.
     let bgRestoreGeneration = 0;
+    // Recomputed by updateBgPreviewHighlight(): the actual rendered image
+    // bounds within #bgPreview (accounting for object-fit:contain letterboxing)
+    // and how far the highlight can slide inside them. Reused by the drag
+    // handlers so the movable-area math lives in a single place.
+    let bgPreviewMovableBounds = null;
+    let bgPreviewDragState = null;
 
     function openBackgroundDatabase() {
       return new Promise((resolve, reject) => {
@@ -833,8 +860,6 @@
         bgImageSaveFailed: 'この画像を保存できませんでした',
         bgImageDeleteFailed: '保存した背景画像を削除できませんでした',
         bgPositionLabel: '画像の表示位置',
-        bgPosXLabel: '横位置',
-        bgPosYLabel: '縦位置',
         bgWhiteRangeLabel: '白くする範囲',
         bgWhiteRangeFull: '全体を画像',
         bgWhiteRangeTime: '時刻だけ白',
@@ -852,6 +877,7 @@
         bgSettingsBack: '← 戻る',
         openBgSettingsBtn: '背景画像を設定',
         bgPreviewLabel: '背景画像プレビュー',
+        bgPreviewHighlightLabel: 'カード表示範囲',
       },
       en: {
         appTitle: 'Sukima',
@@ -915,8 +941,6 @@
         bgImageSaveFailed: 'The image could not be saved',
         bgImageDeleteFailed: 'The saved background image could not be removed',
         bgPositionLabel: 'Image position',
-        bgPosXLabel: 'Horizontal position',
-        bgPosYLabel: 'Vertical position',
         bgWhiteRangeLabel: 'White area range',
         bgWhiteRangeFull: 'Full image',
         bgWhiteRangeTime: 'Time area white',
@@ -934,6 +958,7 @@
         bgSettingsBack: '← Back',
         openBgSettingsBtn: 'Set background image',
         bgPreviewLabel: 'Background image preview',
+        bgPreviewHighlightLabel: 'Card visible area',
       }
     };
 
@@ -1022,15 +1047,13 @@
 
       const labelBgPosition = document.getElementById('labelBgPosition');
       if (labelBgPosition) labelBgPosition.textContent = t('bgPositionLabel');
-      const labelBgPosX = document.getElementById('labelBgPosX');
-      if (labelBgPosX) labelBgPosX.textContent = t('bgPosXLabel');
-      const labelBgPosY = document.getElementById('labelBgPosY');
-      if (labelBgPosY) labelBgPosY.textContent = t('bgPosYLabel');
       document.querySelectorAll('.bg-pos-btn').forEach(btn => {
         const label = t(btn.dataset.poskey);
         btn.setAttribute('aria-label', label);
         btn.title = label;
       });
+      const bgPreviewHighlightLabel = document.getElementById('bgPreviewHighlightLabel');
+      if (bgPreviewHighlightLabel) bgPreviewHighlightLabel.textContent = t('bgPreviewHighlightLabel');
 
       const labelBgWhiteRange = document.getElementById('labelBgWhiteRange');
       if (labelBgWhiteRange) labelBgWhiteRange.textContent = t('bgWhiteRangeLabel');
@@ -1107,21 +1130,22 @@
       const posStr = `${bgPositionX}% ${bgPositionY}%`;
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundPosition = posStr;
-      const preview = document.getElementById('bgPreview');
-      if (preview) preview.style.backgroundPosition = posStr;
       updateBgPositionUI();
+      updateBgPreviewHighlight();
       saveBgPositionToStorage();
     }
 
+    // Used while dragging the preview highlight: keeps the result background
+    // and preset UI in sync on every pointermove without writing to
+    // localStorage on every frame (that only happens once, on pointerup).
+    function applyBgPositionRealtime() {
+      const posStr = `${bgPositionX}% ${bgPositionY}%`;
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundPosition = posStr;
+      updateBgPositionUI();
+    }
+
     function updateBgPositionUI() {
-      const xSlider = document.getElementById('bgPosXSlider');
-      const ySlider = document.getElementById('bgPosYSlider');
-      if (xSlider) xSlider.value = bgPositionX;
-      if (ySlider) ySlider.value = bgPositionY;
-      const xValue = document.getElementById('bgPosXValue');
-      const yValue = document.getElementById('bgPosYValue');
-      if (xValue) xValue.textContent = `${bgPositionX}%`;
-      if (yValue) yValue.textContent = `${bgPositionY}%`;
       document.querySelectorAll('.bg-pos-btn').forEach(btn => {
         const isActive = Number(btn.dataset.x) === bgPositionX && Number(btn.dataset.y) === bgPositionY;
         btn.classList.toggle('active', isActive);
@@ -1136,10 +1160,6 @@
 
     function setBgPositionControlsEnabled(enabled) {
       document.querySelectorAll('.bg-pos-btn').forEach(btn => { btn.disabled = !enabled; });
-      const xSlider = document.getElementById('bgPosXSlider');
-      const ySlider = document.getElementById('bgPosYSlider');
-      if (xSlider) xSlider.disabled = !enabled;
-      if (ySlider) ySlider.disabled = !enabled;
     }
 
     function handleBgPositionPresetClick(e) {
@@ -1147,10 +1167,114 @@
       setBgPosition(Number(btn.dataset.x), Number(btn.dataset.y));
     }
 
-    function handleBgPositionSliderInput() {
-      bgPositionX = Number(document.getElementById('bgPosXSlider').value);
-      bgPositionY = Number(document.getElementById('bgPosYSlider').value);
-      updateBackgroundPosition();
+    function updateBgPreviewHighlight() {
+      const preview = document.getElementById('bgPreview');
+      const img = document.getElementById('bgPreviewImg');
+      const highlight = document.getElementById('bgPreviewHighlight');
+      if (!preview || !img || !highlight) return;
+      if (img.style.display === 'none' || !img.naturalWidth || !img.naturalHeight) {
+        highlight.style.display = 'none';
+        bgPreviewMovableBounds = null;
+        return;
+      }
+      const containerW = preview.clientWidth;
+      const containerH = preview.clientHeight;
+      if (!containerW || !containerH) {
+        highlight.style.display = 'none';
+        bgPreviewMovableBounds = null;
+        return;
+      }
+      const imgRatio = img.naturalWidth / img.naturalHeight;
+      const containerRatio = containerW / containerH;
+      let renderW, renderH;
+      if (imgRatio > containerRatio) {
+        renderW = containerW;
+        renderH = containerW / imgRatio;
+      } else {
+        renderH = containerH;
+        renderW = containerH * imgRatio;
+      }
+      const renderLeft = (containerW - renderW) / 2;
+      const renderTop = (containerH - renderH) / 2;
+      const highlightW = renderW * 0.75;
+      const highlightH = renderH * 0.45;
+      const movableW = renderW - highlightW;
+      const movableH = renderH - highlightH;
+      // -100 -> 0% (left/top edge), 50 -> 50% (center), 200 -> 100% (right/bottom edge)
+      const fracX = Math.min(Math.max((bgPositionX + 100) / 300, 0), 1);
+      const fracY = Math.min(Math.max((bgPositionY + 100) / 300, 0), 1);
+      const highlightLeft = renderLeft + fracX * movableW;
+      const highlightTop = renderTop + fracY * movableH;
+      bgPreviewMovableBounds = { renderLeft, renderTop, movableW, movableH };
+      highlight.style.width = `${highlightW}px`;
+      highlight.style.height = `${highlightH}px`;
+      highlight.style.left = `${highlightLeft}px`;
+      highlight.style.top = `${highlightTop}px`;
+      highlight.style.display = 'flex';
+    }
+
+    function handleBgPreviewHighlightPointerDown(e) {
+      if (!bgPreviewMovableBounds) return;
+      if (e.isPrimary === false) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (bgPreviewDragState) return;
+      // The user is now driving the position directly; a slower, already
+      // in-flight restore must not clobber this once it resolves.
+      bgRestoreGeneration++;
+      const highlight = document.getElementById('bgPreviewHighlight');
+      bgPreviewDragState = {
+        pointerId: e.pointerId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startLeft: parseFloat(highlight.style.left) || 0,
+        startTop: parseFloat(highlight.style.top) || 0
+      };
+      highlight.classList.add('dragging');
+      if (highlight.setPointerCapture) {
+        try { highlight.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+      e.preventDefault();
+    }
+
+    function handleBgPreviewHighlightPointerMove(e) {
+      if (!bgPreviewDragState || e.pointerId !== bgPreviewDragState.pointerId) return;
+      if (!bgPreviewMovableBounds) return;
+      const b = bgPreviewMovableBounds;
+      const deltaX = e.clientX - bgPreviewDragState.startClientX;
+      const deltaY = e.clientY - bgPreviewDragState.startClientY;
+      let newLeft = bgPreviewDragState.startLeft + deltaX;
+      let newTop = bgPreviewDragState.startTop + deltaY;
+      newLeft = Math.min(Math.max(newLeft, b.renderLeft), b.renderLeft + b.movableW);
+      newTop = Math.min(Math.max(newTop, b.renderTop), b.renderTop + b.movableH);
+
+      const highlight = document.getElementById('bgPreviewHighlight');
+      highlight.style.left = `${newLeft}px`;
+      highlight.style.top = `${newTop}px`;
+
+      const fracX = b.movableW > 0 ? (newLeft - b.renderLeft) / b.movableW : 0.5;
+      const fracY = b.movableH > 0 ? (newTop - b.renderTop) / b.movableH : 0.5;
+      bgPositionX = -100 + fracX * 300;
+      bgPositionY = -100 + fracY * 300;
+      applyBgPositionRealtime();
+    }
+
+    function endBgPreviewHighlightDrag(e) {
+      if (!bgPreviewDragState || e.pointerId !== bgPreviewDragState.pointerId) return;
+      const highlight = document.getElementById('bgPreviewHighlight');
+      if (highlight && highlight.hasPointerCapture && highlight.hasPointerCapture(e.pointerId)) {
+        try { highlight.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+      if (highlight) highlight.classList.remove('dragging');
+      bgPreviewDragState = null;
+      saveBgPositionToStorage();
+    }
+
+    function handleBgPreviewHighlightPointerUp(e) {
+      endBgPreviewHighlightDrag(e);
+    }
+
+    function handleBgPreviewHighlightPointerCancel(e) {
+      endBgPreviewHighlightDrag(e);
     }
 
     function applyBgWhiteRange() {
@@ -1183,8 +1307,11 @@
     function applyBackgroundImageDom(objectUrl) {
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundImage = `url("${objectUrl}")`;
-      const preview = document.getElementById('bgPreview');
-      if (preview) preview.style.backgroundImage = `url("${objectUrl}")`;
+      const previewImg = document.getElementById('bgPreviewImg');
+      if (previewImg) {
+        previewImg.style.display = 'block';
+        previewImg.src = objectUrl;
+      }
       const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
       if (previewPlaceholder) previewPlaceholder.style.display = 'none';
       document.getElementById('resultView').classList.add('has-custom-background');
@@ -1263,8 +1390,24 @@
       }
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundImage = '';
-      const preview = document.getElementById('bgPreview');
-      if (preview) preview.style.backgroundImage = '';
+      const previewImg = document.getElementById('bgPreviewImg');
+      if (previewImg) {
+        previewImg.style.display = 'none';
+        previewImg.src = '';
+      }
+      const previewHighlight = document.getElementById('bgPreviewHighlight');
+      if (previewHighlight) {
+        previewHighlight.style.display = 'none';
+        previewHighlight.classList.remove('dragging');
+        if (bgPreviewDragState && previewHighlight.hasPointerCapture && previewHighlight.hasPointerCapture(bgPreviewDragState.pointerId)) {
+          try { previewHighlight.releasePointerCapture(bgPreviewDragState.pointerId); } catch (err) {}
+        }
+      }
+      // Removing the background mid-drag hides the highlight, which implicitly
+      // releases pointer capture; a later pointerup/cancel for that gesture may
+      // never reach us. Clear the drag state now so it can't get stuck and
+      // block every future drag attempt.
+      bgPreviewDragState = null;
       const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
       if (previewPlaceholder) previewPlaceholder.style.display = 'flex';
       document.getElementById('resultView').classList.remove('has-custom-background');
@@ -1441,6 +1584,10 @@
     function showBackgroundSettings() {
       document.getElementById('searchView').style.display = 'none';
       document.getElementById('backgroundSettingsView').style.display = 'flex';
+      // The preview may have been sized while hidden (e.g. a background was
+      // restored before this view was ever opened), so its bounds could be
+      // stale or missing. Recompute now that the container has real layout.
+      updateBgPreviewHighlight();
     }
 
     function hideBackgroundSettings() {
@@ -2243,14 +2390,22 @@
       bgPreviewEl.addEventListener('click', openBgImagePicker);
       bgPreviewEl.addEventListener('keydown', handleBgPreviewKeyDown);
     }
+    const bgPreviewImgEl = document.getElementById('bgPreviewImg');
+    if (bgPreviewImgEl) bgPreviewImgEl.addEventListener('load', updateBgPreviewHighlight);
+    window.addEventListener('resize', () => {
+      if (!bgPreviewDragState) updateBgPreviewHighlight();
+    });
+    const bgPreviewHighlightEl = document.getElementById('bgPreviewHighlight');
+    if (bgPreviewHighlightEl) {
+      bgPreviewHighlightEl.addEventListener('pointerdown', handleBgPreviewHighlightPointerDown);
+      bgPreviewHighlightEl.addEventListener('pointermove', handleBgPreviewHighlightPointerMove);
+      bgPreviewHighlightEl.addEventListener('pointerup', handleBgPreviewHighlightPointerUp);
+      bgPreviewHighlightEl.addEventListener('pointercancel', handleBgPreviewHighlightPointerCancel);
+    }
 
     document.querySelectorAll('.bg-pos-btn').forEach(btn => {
       btn.addEventListener('click', handleBgPositionPresetClick);
     });
-    const bgPosXSliderEl = document.getElementById('bgPosXSlider');
-    const bgPosYSliderEl = document.getElementById('bgPosYSlider');
-    if (bgPosXSliderEl) bgPosXSliderEl.addEventListener('input', handleBgPositionSliderInput);
-    if (bgPosYSliderEl) bgPosYSliderEl.addEventListener('input', handleBgPositionSliderInput);
     const bgWhiteRangeSliderEl = document.getElementById('bgWhiteRangeSlider');
     if (bgWhiteRangeSliderEl) bgWhiteRangeSliderEl.addEventListener('input', handleBgWhiteRangeSliderInput);
 
