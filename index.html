@@ -825,10 +825,12 @@
             }
             if (calRes.ok) {
               const calData = await calRes.json();
-              const items = (calData.items || []).map(e => ({
-                start: e.start.dateTime || e.start.date,
-                end: e.end.dateTime || e.end.date
-              }));
+              const items = (calData.items || [])
+                .filter(e => e.transparency !== 'transparent' && e.status !== 'cancelled')
+                .map(e => ({
+                  start: e.start.dateTime || e.start.date,
+                  end: e.end.dateTime || e.end.date
+                }));
               allEvents = allEvents.concat(items);
             }
           } catch(e) {}
