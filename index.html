@@ -234,7 +234,7 @@
       display: none;
       position: fixed; inset: 0;
       width: 100%; height: 100dvh;
-      background: rgba(10, 20, 35, 0.32);
+      background: rgba(10, 20, 35, 0.1);
       pointer-events: none;
       z-index: -1;
     }
@@ -264,6 +264,23 @@
     #resultView.has-custom-background .week-pos-dot {
       box-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
     }
+    #resultView.has-custom-background #resultHeader {
+      background: transparent;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+      box-shadow: none;
+    }
+    #resultView.has-custom-background #backBtn,
+    #resultView.has-custom-background #resultTitle {
+      text-shadow:
+        -1px -1px 0 rgba(255, 255, 255, 0.95),
+         1px -1px 0 rgba(255, 255, 255, 0.95),
+        -1px  1px 0 rgba(255, 255, 255, 0.95),
+         1px  1px 0 rgba(255, 255, 255, 0.95),
+         0 2px 4px rgba(0, 0, 0, 0.25);
+    }
+    #resultView.has-custom-background #copyAllBtn {
+      background: #fff;
+    }
     .bg-image-hint { font-size: 12px; color: #999; margin-top: 6px; }
     .bg-image-status { font-size: 12px; color: #4f8ef7; margin-top: 6px; font-weight: 600; }
     .bg-position-section { margin-top: 12px; }
@@ -290,6 +307,7 @@
     .bg-position-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .bg-position-slider-row label { flex-shrink: 0; width: 56px; margin-bottom: 0; font-size: 13px; }
     .bg-position-slider-row input[type="range"] { flex: 1; }
+    .bg-position-value { flex-shrink: 0; width: 52px; text-align: right; font-size: 12px; color: #777; font-variant-numeric: tabular-nums; }
 
     #backgroundSettingsView {
       min-height: 100vh; display: flex; align-items: stretch;
@@ -475,11 +493,13 @@
         </div>
         <div class="bg-position-slider-row">
           <label id="labelBgPosX" for="bgPosXSlider">横位置</label>
-          <input type="range" id="bgPosXSlider" min="0" max="100" value="50" disabled>
+          <input type="range" id="bgPosXSlider" min="-100" max="200" step="1" value="50" disabled>
+          <span class="bg-position-value" id="bgPosXValue">50%</span>
         </div>
         <div class="bg-position-slider-row">
           <label id="labelBgPosY" for="bgPosYSlider">縦位置</label>
-          <input type="range" id="bgPosYSlider" min="0" max="100" value="50" disabled>
+          <input type="range" id="bgPosYSlider" min="-100" max="200" step="1" value="50" disabled>
+          <span class="bg-position-value" id="bgPosYValue">50%</span>
         </div>
       </div>
 
@@ -876,6 +896,10 @@
       const ySlider = document.getElementById('bgPosYSlider');
       if (xSlider) xSlider.value = bgPositionX;
       if (ySlider) ySlider.value = bgPositionY;
+      const xValue = document.getElementById('bgPosXValue');
+      const yValue = document.getElementById('bgPosYValue');
+      if (xValue) xValue.textContent = `${bgPositionX}%`;
+      if (yValue) yValue.textContent = `${bgPositionY}%`;
       document.querySelectorAll('.bg-pos-btn').forEach(btn => {
         const isActive = Number(btn.dataset.x) === bgPositionX && Number(btn.dataset.y) === bgPositionY;
         btn.classList.toggle('active', isActive);
