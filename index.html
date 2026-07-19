@@ -302,6 +302,16 @@
     #resultView.has-custom-background #copyAllBtn {
       background: #fff;
     }
+    /* 白くする範囲：0=全体を画像（既定）、1=時刻エリアだけ白、2=時刻エリア＋ヘッダーを白 */
+    #resultView.has-custom-background.bg-white-range-1 .day-slot-row,
+    #resultView.has-custom-background.bg-white-range-2 .day-slot-row {
+      background: #fff;
+    }
+    #resultView.has-custom-background.bg-white-range-2 #resultHeader {
+      background: #fff;
+      border-bottom: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
     .bg-image-hint { font-size: 12px; color: #999; margin-top: 6px; }
     .bg-image-status { font-size: 12px; color: #4f8ef7; margin-top: 6px; font-weight: 600; }
     .bg-position-section { margin-top: 12px; }
@@ -329,6 +339,7 @@
     .bg-position-slider-row label { flex-shrink: 0; width: 56px; margin-bottom: 0; font-size: 13px; }
     .bg-position-slider-row input[type="range"] { flex: 1; }
     .bg-position-value { flex-shrink: 0; width: 52px; text-align: right; font-size: 12px; color: #777; font-variant-numeric: tabular-nums; }
+    .bg-white-range-value { flex-shrink: 0; font-size: 12px; color: #777; white-space: nowrap; }
 
     #backgroundSettingsView {
       min-height: 100vh; display: flex; align-items: stretch;
@@ -562,6 +573,14 @@
         </div>
       </div>
 
+      <div class="form-group" id="bgWhiteRangeSection">
+        <label id="labelBgWhiteRange">白くする範囲</label>
+        <div class="bg-position-slider-row">
+          <input type="range" id="bgWhiteRangeSlider" min="0" max="2" step="1" value="0" disabled>
+          <span class="bg-white-range-value" id="bgWhiteRangeValueText">全体を画像</span>
+        </div>
+      </div>
+
       <button type="button" class="btn-sub" id="removeBgImageBtn" style="display:none;" onclick="removeBackgroundImage()">背景画像を解除</button>
     </div>
   </div>
@@ -629,10 +648,13 @@
     const BG_DB_KEY = 'resultBackground';
     const BG_POS_X_KEY = 'sukima_bg_position_x';
     const BG_POS_Y_KEY = 'sukima_bg_position_y';
+    const BG_WHITE_RANGE_KEY = 'sukima_bg_white_range';
+    const BG_WHITE_RANGE_LABEL_KEYS = ['bgWhiteRangeFull', 'bgWhiteRangeTime', 'bgWhiteRangeHeader'];
     let bgImageObjectUrl = null;
     let lastBgImageErrorKey = null;
     let bgPositionX = 50;
     let bgPositionY = 50;
+    let bgWhiteRange = 0;
     // Incremented on any user-initiated select/remove so a slower,
     // already-in-flight restoreSavedBackground() can detect it was
     // superseded and avoid clobbering the newer state.
@@ -724,6 +746,30 @@
       return { x, y };
     }
 
+    function saveBgWhiteRangeToStorage() {
+      try {
+        localStorage.setItem(BG_WHITE_RANGE_KEY, String(bgWhiteRange));
+      } catch (e) {}
+    }
+
+    function clearBgWhiteRangeFromStorage() {
+      try {
+        localStorage.removeItem(BG_WHITE_RANGE_KEY);
+      } catch (e) {}
+    }
+
+    function loadBgWhiteRangeFromStorage() {
+      try {
+        const raw = localStorage.getItem(BG_WHITE_RANGE_KEY);
+        if (raw === null) return 0;
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0 || n > 2) return 0;
+        return n;
+      } catch (e) {
+        return 0;
+      }
+    }
+
     const I18N = {
       ja: {
         appTitle: 'スキマ',
@@ -789,6 +835,10 @@
         bgPositionLabel: '画像の表示位置',
         bgPosXLabel: '横位置',
         bgPosYLabel: '縦位置',
+        bgWhiteRangeLabel: '白くする範囲',
+        bgWhiteRangeFull: '全体を画像',
+        bgWhiteRangeTime: '時刻だけ白',
+        bgWhiteRangeHeader: 'ヘッダーも白',
         posTopLeft: '左上',
         posTop: '上',
         posTopRight: '右上',
@@ -867,6 +917,10 @@
         bgPositionLabel: 'Image position',
         bgPosXLabel: 'Horizontal position',
         bgPosYLabel: 'Vertical position',
+        bgWhiteRangeLabel: 'White area range',
+        bgWhiteRangeFull: 'Full image',
+        bgWhiteRangeTime: 'Time area white',
+        bgWhiteRangeHeader: 'Header also white',
         posTopLeft: 'Top left',
         posTop: 'Top',
         posTopRight: 'Top right',
@@ -977,6 +1031,11 @@
         btn.setAttribute('aria-label', label);
         btn.title = label;
       });
+
+      const labelBgWhiteRange = document.getElementById('labelBgWhiteRange');
+      if (labelBgWhiteRange) labelBgWhiteRange.textContent = t('bgWhiteRangeLabel');
+      const bgWhiteRangeValueText = document.getElementById('bgWhiteRangeValueText');
+      if (bgWhiteRangeValueText) bgWhiteRangeValueText.textContent = t(BG_WHITE_RANGE_LABEL_KEYS[bgWhiteRange]);
 
       const bgSettingsTitle = document.getElementById('bgSettingsTitle');
       if (bgSettingsTitle) bgSettingsTitle.textContent = t('bgSettingsTitle');
@@ -1094,6 +1153,33 @@
       updateBackgroundPosition();
     }
 
+    function applyBgWhiteRange() {
+      const resultView = document.getElementById('resultView');
+      if (resultView) {
+        resultView.classList.remove('bg-white-range-0', 'bg-white-range-1', 'bg-white-range-2');
+        resultView.classList.add(`bg-white-range-${bgWhiteRange}`);
+      }
+      updateBgWhiteRangeUI();
+      saveBgWhiteRangeToStorage();
+    }
+
+    function updateBgWhiteRangeUI() {
+      const slider = document.getElementById('bgWhiteRangeSlider');
+      if (slider) slider.value = bgWhiteRange;
+      const valueText = document.getElementById('bgWhiteRangeValueText');
+      if (valueText) valueText.textContent = t(BG_WHITE_RANGE_LABEL_KEYS[bgWhiteRange]);
+    }
+
+    function setBgWhiteRangeControlEnabled(enabled) {
+      const slider = document.getElementById('bgWhiteRangeSlider');
+      if (slider) slider.disabled = !enabled;
+    }
+
+    function handleBgWhiteRangeSliderInput() {
+      bgWhiteRange = Number(document.getElementById('bgWhiteRangeSlider').value);
+      applyBgWhiteRange();
+    }
+
     function applyBackgroundImageDom(objectUrl) {
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundImage = `url("${objectUrl}")`;
@@ -1123,6 +1209,8 @@
       bgPositionX = 50;
       bgPositionY = 50;
       updateBackgroundPosition();
+      setBgWhiteRangeControlEnabled(true);
+      applyBgWhiteRange();
       saveBackgroundImage(file).catch((err) => {
         console.warn('Failed to save background image to IndexedDB', err);
         setBgImageError('bgImageSaveFailed');
@@ -1154,6 +1242,7 @@
       const pos = loadBgPositionFromStorage();
       bgPositionX = pos.x;
       bgPositionY = pos.y;
+      bgWhiteRange = loadBgWhiteRangeFromStorage();
 
       if (bgImageObjectUrl) {
         URL.revokeObjectURL(bgImageObjectUrl);
@@ -1162,6 +1251,8 @@
       bgImageObjectUrl = objectUrl;
       applyBackgroundImageDom(bgImageObjectUrl);
       updateBackgroundPosition();
+      setBgWhiteRangeControlEnabled(true);
+      applyBgWhiteRange();
     }
 
     function removeBackgroundImage() {
@@ -1192,6 +1283,10 @@
       setBgPositionControlsEnabled(false);
       updateBackgroundPosition();
       clearBgPositionFromStorage();
+      bgWhiteRange = 0;
+      setBgWhiteRangeControlEnabled(false);
+      applyBgWhiteRange();
+      clearBgWhiteRangeFromStorage();
       deleteBackgroundImage().catch((err) => {
         console.warn('Failed to delete saved background image', err);
         setBgImageError('bgImageDeleteFailed');
@@ -2156,6 +2251,8 @@
     const bgPosYSliderEl = document.getElementById('bgPosYSlider');
     if (bgPosXSliderEl) bgPosXSliderEl.addEventListener('input', handleBgPositionSliderInput);
     if (bgPosYSliderEl) bgPosYSliderEl.addEventListener('input', handleBgPositionSliderInput);
+    const bgWhiteRangeSliderEl = document.getElementById('bgWhiteRangeSlider');
+    if (bgWhiteRangeSliderEl) bgWhiteRangeSliderEl.addEventListener('input', handleBgWhiteRangeSliderInput);
 
     const resultViewEl = document.getElementById('resultView');
     resultViewEl.addEventListener('pointerdown', handleResultPointerDown);
