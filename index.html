@@ -221,6 +221,107 @@
       outline: 2px solid #4f8ef7; outline-offset: 2px; border-radius: 4px;
     }
 
+    /* 背景画像プロトタイプ（試作） */
+    .bg-image-layer {
+      display: none;
+      position: fixed; inset: 0;
+      width: 100%; height: 100dvh;
+      background-size: cover; background-position: center; background-repeat: no-repeat;
+      pointer-events: none;
+      z-index: -2;
+    }
+    .bg-image-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      width: 100%; height: 100dvh;
+      background: rgba(10, 20, 35, 0.32);
+      pointer-events: none;
+      z-index: -1;
+    }
+    #resultView.has-custom-background .bg-image-layer,
+    #resultView.has-custom-background .bg-image-overlay {
+      display: block;
+    }
+    #resultView.has-custom-background {
+      position: relative;
+      z-index: 0;
+    }
+    #resultView.has-custom-background .daily-result-card {
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.32);
+    }
+    #resultView.has-custom-background .day-slot-row {
+      background: #fff;
+      border-radius: 10px;
+    }
+    #resultView.has-custom-background .day-card-date,
+    #resultView.has-custom-background .no-slots-message {
+      text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9), 0 1px 4px rgba(0, 0, 0, 0.25);
+    }
+    #resultView.has-custom-background .week-pos-dot {
+      box-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+    }
+    .bg-image-hint { font-size: 12px; color: #999; margin-top: 6px; }
+    .bg-image-status { font-size: 12px; color: #4f8ef7; margin-top: 6px; font-weight: 600; }
+    .bg-position-section { margin-top: 12px; }
+    .bg-position-label { font-size: 12px; font-weight: 600; color: #777; margin-bottom: 6px; }
+    .bg-position-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      max-width: 168px;
+      margin-bottom: 10px;
+    }
+    .bg-pos-btn {
+      aspect-ratio: 1;
+      min-height: 40px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fafafa;
+      color: #888;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .bg-pos-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .bg-pos-btn.active { border-color: #4f8ef7; background: #eef3ff; color: #4f8ef7; }
+    .bg-position-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .bg-position-slider-row label { flex-shrink: 0; width: 56px; margin-bottom: 0; font-size: 13px; }
+    .bg-position-slider-row input[type="range"] { flex: 1; }
+
+    #backgroundSettingsView {
+      min-height: 100vh; display: flex; align-items: stretch;
+      justify-content: center; padding: 0;
+    }
+    @media (min-width: 480px) {
+      #backgroundSettingsView { align-items: center; padding: 20px; }
+    }
+    .bg-settings-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+    }
+    #bgSettingsBackBtn {
+      background: none; border: none; color: #4f8ef7;
+      font-size: 15px; font-weight: 600; cursor: pointer; padding: 0;
+    }
+    #bgSettingsTitle { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+    .bg-preview {
+      width: 100%;
+      height: 220px;
+      margin-top: 6px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      background-color: #f0f4f8;
+      background-size: cover;
+      background-repeat: no-repeat;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .bg-preview-placeholder { font-size: 13px; color: #999; padding: 0 16px; }
+
     #startView {
       position: relative;
       min-height: 100vh;
@@ -323,6 +424,7 @@
           </div>
           <div id="calList" style="display:none;margin-top:10px;max-height:160px;overflow-y:auto;border:1px solid #ddd;border-radius:8px;padding:8px;"></div>
         </div>
+        <button type="button" class="btn-sub" id="openBgSettingsBtn" onclick="showBackgroundSettings()">背景画像を設定</button>
         <button class="btn" id="searchBtn" onclick="startSearch()">空き時間を検索する</button>
         <p class="login-info" id="loginInfo"></p>
         <button class="btn-sub" id="logoutBtn" onclick="logout()">別のアカウントでログインする</button>
@@ -336,7 +438,58 @@
     </div>
   </div>
 
+  <div id="backgroundSettingsView" style="display:none">
+    <div class="card">
+      <div class="bg-settings-header">
+        <button type="button" id="bgSettingsBackBtn" onclick="hideBackgroundSettings()">← 戻る</button>
+        <h2 id="bgSettingsTitle">背景画像設定</h2>
+      </div>
+
+      <div class="form-group">
+        <label id="labelBgImage">背景画像を選ぶ</label>
+        <input type="file" id="bgImageInput" accept="image/jpeg,image/png,image/webp">
+        <p class="bg-image-hint" id="bgImageHint">対応形式はJPG・PNG・WebPです</p>
+        <p class="bg-image-status" id="bgImageStatus" style="display:none;"></p>
+        <p class="status" id="bgImageError"></p>
+      </div>
+
+      <div class="form-group">
+        <label id="labelBgPreview">背景画像プレビュー</label>
+        <div class="bg-preview" id="bgPreview">
+          <span class="bg-preview-placeholder" id="bgPreviewPlaceholder">背景画像は選択されていません</span>
+        </div>
+      </div>
+
+      <div class="form-group" id="bgPositionSection">
+        <label class="bg-position-label" id="labelBgPosition">画像の表示位置</label>
+        <div class="bg-position-grid" id="bgPositionGrid">
+          <button type="button" class="bg-pos-btn" data-x="0" data-y="0" data-poskey="posTopLeft" disabled>↖</button>
+          <button type="button" class="bg-pos-btn" data-x="50" data-y="0" data-poskey="posTop" disabled>↑</button>
+          <button type="button" class="bg-pos-btn" data-x="100" data-y="0" data-poskey="posTopRight" disabled>↗</button>
+          <button type="button" class="bg-pos-btn" data-x="0" data-y="50" data-poskey="posLeft" disabled>←</button>
+          <button type="button" class="bg-pos-btn active" data-x="50" data-y="50" data-poskey="posCenter" disabled>●</button>
+          <button type="button" class="bg-pos-btn" data-x="100" data-y="50" data-poskey="posRight" disabled>→</button>
+          <button type="button" class="bg-pos-btn" data-x="0" data-y="100" data-poskey="posBottomLeft" disabled>↙</button>
+          <button type="button" class="bg-pos-btn" data-x="50" data-y="100" data-poskey="posBottom" disabled>↓</button>
+          <button type="button" class="bg-pos-btn" data-x="100" data-y="100" data-poskey="posBottomRight" disabled>↘</button>
+        </div>
+        <div class="bg-position-slider-row">
+          <label id="labelBgPosX" for="bgPosXSlider">横位置</label>
+          <input type="range" id="bgPosXSlider" min="0" max="100" value="50" disabled>
+        </div>
+        <div class="bg-position-slider-row">
+          <label id="labelBgPosY" for="bgPosYSlider">縦位置</label>
+          <input type="range" id="bgPosYSlider" min="0" max="100" value="50" disabled>
+        </div>
+      </div>
+
+      <button type="button" class="btn-sub" id="removeBgImageBtn" style="display:none;" onclick="removeBackgroundImage()">背景画像を解除</button>
+    </div>
+  </div>
+
   <div id="resultView">
+    <div class="bg-image-layer" id="bgImageLayer" aria-hidden="true"></div>
+    <div class="bg-image-overlay" aria-hidden="true"></div>
     <div id="resultHeader">
       <button id="backBtn" onclick="showSearch()">← 再検索</button>
       <span id="resultTitle">検索結果</span>
@@ -387,6 +540,14 @@
 
     const LANG_KEY = 'sukima_lang';
     let currentLang = localStorage.getItem(LANG_KEY) || 'ja';
+
+    // 背景画像プロトタイプ（試作・永続保存なし）
+    const BG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+    const BG_IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    let bgImageObjectUrl = null;
+    let lastBgImageErrorKey = null;
+    let bgPositionX = 50;
+    let bgPositionY = 50;
 
     const I18N = {
       ja: {
@@ -441,6 +602,29 @@
         startTagline: '予定の空き時間を、すぐ見つける。',
         startDesc: 'Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。',
         startBtn: 'はじめる',
+        bgImageLabel: '背景画像を選ぶ',
+        bgImageRemove: '背景画像を解除',
+        bgImageSelected: '選択中の画像',
+        bgImageFormats: '対応形式はJPG・PNG・WebPです',
+        bgImageUnsupported: '対応していない画像形式です（JPG・PNG・WebPのみ）',
+        bgImageTooLarge: '画像サイズが大きすぎます（10MBまで）',
+        bgPositionLabel: '画像の表示位置',
+        bgPosXLabel: '横位置',
+        bgPosYLabel: '縦位置',
+        posTopLeft: '左上',
+        posTop: '上',
+        posTopRight: '右上',
+        posLeft: '左',
+        posCenter: '中央',
+        posRight: '右',
+        posBottomLeft: '左下',
+        posBottom: '下',
+        posBottomRight: '右下',
+        bgSettingsTitle: '背景画像設定',
+        bgSettingsBack: '← 戻る',
+        openBgSettingsBtn: '背景画像を設定',
+        bgPreviewLabel: '背景画像プレビュー',
+        bgPreviewPlaceholder: '背景画像は選択されていません',
       },
       en: {
         appTitle: 'Sukima',
@@ -494,6 +678,29 @@
         startTagline: 'Find your free time, instantly.',
         startDesc: 'Check your free time from Google Calendar<br>and copy or add events instantly.',
         startBtn: 'Get Started',
+        bgImageLabel: 'Choose background image',
+        bgImageRemove: 'Remove background image',
+        bgImageSelected: 'Background image selected',
+        bgImageFormats: 'Supported formats: JPG, PNG and WebP',
+        bgImageUnsupported: 'Unsupported image format (JPG, PNG, WebP only)',
+        bgImageTooLarge: 'Image is too large (10MB max)',
+        bgPositionLabel: 'Image position',
+        bgPosXLabel: 'Horizontal position',
+        bgPosYLabel: 'Vertical position',
+        posTopLeft: 'Top left',
+        posTop: 'Top',
+        posTopRight: 'Top right',
+        posLeft: 'Left',
+        posCenter: 'Center',
+        posRight: 'Right',
+        posBottomLeft: 'Bottom left',
+        posBottom: 'Bottom',
+        posBottomRight: 'Bottom right',
+        bgSettingsTitle: 'Background image settings',
+        bgSettingsBack: '← Back',
+        openBgSettingsBtn: 'Set background image',
+        bgPreviewLabel: 'Background image preview',
+        bgPreviewPlaceholder: 'No background image selected',
       }
     };
 
@@ -561,6 +768,42 @@
       if (startDesc) startDesc.innerHTML = t('startDesc');
       const startBtn = document.getElementById('startBtn');
       if (startBtn) startBtn.textContent = t('startBtn');
+
+      const labelBgImage = document.getElementById('labelBgImage');
+      if (labelBgImage) labelBgImage.textContent = t('bgImageLabel');
+      const bgImageHint = document.getElementById('bgImageHint');
+      if (bgImageHint) bgImageHint.textContent = t('bgImageFormats');
+      const removeBgImageBtn = document.getElementById('removeBgImageBtn');
+      if (removeBgImageBtn) removeBgImageBtn.textContent = t('bgImageRemove');
+      const bgImageStatus = document.getElementById('bgImageStatus');
+      if (bgImageStatus && bgImageStatus.style.display !== 'none') bgImageStatus.textContent = t('bgImageSelected');
+      if (lastBgImageErrorKey) {
+        const bgImageError = document.getElementById('bgImageError');
+        if (bgImageError) bgImageError.textContent = t(lastBgImageErrorKey);
+      }
+
+      const labelBgPosition = document.getElementById('labelBgPosition');
+      if (labelBgPosition) labelBgPosition.textContent = t('bgPositionLabel');
+      const labelBgPosX = document.getElementById('labelBgPosX');
+      if (labelBgPosX) labelBgPosX.textContent = t('bgPosXLabel');
+      const labelBgPosY = document.getElementById('labelBgPosY');
+      if (labelBgPosY) labelBgPosY.textContent = t('bgPosYLabel');
+      document.querySelectorAll('.bg-pos-btn').forEach(btn => {
+        const label = t(btn.dataset.poskey);
+        btn.setAttribute('aria-label', label);
+        btn.title = label;
+      });
+
+      const bgSettingsTitle = document.getElementById('bgSettingsTitle');
+      if (bgSettingsTitle) bgSettingsTitle.textContent = t('bgSettingsTitle');
+      const bgSettingsBackBtn = document.getElementById('bgSettingsBackBtn');
+      if (bgSettingsBackBtn) bgSettingsBackBtn.textContent = t('bgSettingsBack');
+      const openBgSettingsBtn = document.getElementById('openBgSettingsBtn');
+      if (openBgSettingsBtn) openBgSettingsBtn.textContent = t('openBgSettingsBtn');
+      const labelBgPreview = document.getElementById('labelBgPreview');
+      if (labelBgPreview) labelBgPreview.textContent = t('bgPreviewLabel');
+      const bgPreviewPlaceholder = document.getElementById('bgPreviewPlaceholder');
+      if (bgPreviewPlaceholder) bgPreviewPlaceholder.textContent = t('bgPreviewPlaceholder');
     }
 
     function setCalMode(mode) {
@@ -611,6 +854,128 @@
         div.appendChild(label);
         container.appendChild(div);
       });
+    }
+
+    function setBgImageError(key) {
+      lastBgImageErrorKey = key || null;
+      const el = document.getElementById('bgImageError');
+      if (el) el.textContent = key ? t(key) : '';
+    }
+
+    function updateBackgroundPosition() {
+      const posStr = `${bgPositionX}% ${bgPositionY}%`;
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundPosition = posStr;
+      const preview = document.getElementById('bgPreview');
+      if (preview) preview.style.backgroundPosition = posStr;
+      updateBgPositionUI();
+    }
+
+    function updateBgPositionUI() {
+      const xSlider = document.getElementById('bgPosXSlider');
+      const ySlider = document.getElementById('bgPosYSlider');
+      if (xSlider) xSlider.value = bgPositionX;
+      if (ySlider) ySlider.value = bgPositionY;
+      document.querySelectorAll('.bg-pos-btn').forEach(btn => {
+        const isActive = Number(btn.dataset.x) === bgPositionX && Number(btn.dataset.y) === bgPositionY;
+        btn.classList.toggle('active', isActive);
+      });
+    }
+
+    function setBgPosition(x, y) {
+      bgPositionX = x;
+      bgPositionY = y;
+      updateBackgroundPosition();
+    }
+
+    function setBgPositionControlsEnabled(enabled) {
+      document.querySelectorAll('.bg-pos-btn').forEach(btn => { btn.disabled = !enabled; });
+      const xSlider = document.getElementById('bgPosXSlider');
+      const ySlider = document.getElementById('bgPosYSlider');
+      if (xSlider) xSlider.disabled = !enabled;
+      if (ySlider) ySlider.disabled = !enabled;
+    }
+
+    function handleBgPositionPresetClick(e) {
+      const btn = e.currentTarget;
+      setBgPosition(Number(btn.dataset.x), Number(btn.dataset.y));
+    }
+
+    function handleBgPositionSliderInput() {
+      bgPositionX = Number(document.getElementById('bgPosXSlider').value);
+      bgPositionY = Number(document.getElementById('bgPosYSlider').value);
+      updateBackgroundPosition();
+    }
+
+    function applyBackgroundImage(file) {
+      if (bgImageObjectUrl) {
+        URL.revokeObjectURL(bgImageObjectUrl);
+        bgImageObjectUrl = null;
+      }
+      bgImageObjectUrl = URL.createObjectURL(file);
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundImage = `url("${bgImageObjectUrl}")`;
+      const preview = document.getElementById('bgPreview');
+      if (preview) preview.style.backgroundImage = `url("${bgImageObjectUrl}")`;
+      const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
+      if (previewPlaceholder) previewPlaceholder.style.display = 'none';
+      document.getElementById('resultView').classList.add('has-custom-background');
+      const statusEl = document.getElementById('bgImageStatus');
+      if (statusEl) {
+        statusEl.textContent = t('bgImageSelected');
+        statusEl.style.display = 'block';
+      }
+      const removeBtn = document.getElementById('removeBgImageBtn');
+      if (removeBtn) removeBtn.style.display = 'block';
+      bgPositionX = 50;
+      bgPositionY = 50;
+      setBgPositionControlsEnabled(true);
+      updateBackgroundPosition();
+    }
+
+    function removeBackgroundImage() {
+      if (bgImageObjectUrl) {
+        URL.revokeObjectURL(bgImageObjectUrl);
+        bgImageObjectUrl = null;
+      }
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundImage = '';
+      const preview = document.getElementById('bgPreview');
+      if (preview) preview.style.backgroundImage = '';
+      const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
+      if (previewPlaceholder) previewPlaceholder.style.display = 'block';
+      document.getElementById('resultView').classList.remove('has-custom-background');
+      const statusEl = document.getElementById('bgImageStatus');
+      if (statusEl) {
+        statusEl.textContent = '';
+        statusEl.style.display = 'none';
+      }
+      const removeBtn = document.getElementById('removeBgImageBtn');
+      if (removeBtn) removeBtn.style.display = 'none';
+      const input = document.getElementById('bgImageInput');
+      if (input) input.value = '';
+      setBgImageError(null);
+      bgPositionX = 50;
+      bgPositionY = 50;
+      setBgPositionControlsEnabled(false);
+      updateBackgroundPosition();
+    }
+
+    function handleBgImageChange(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (!BG_IMAGE_ALLOWED_TYPES.includes(file.type)) {
+        setBgImageError('bgImageUnsupported');
+        e.target.value = '';
+        return;
+      }
+      if (file.size > BG_IMAGE_MAX_BYTES) {
+        setBgImageError('bgImageTooLarge');
+        e.target.value = '';
+        return;
+      }
+      setBgImageError(null);
+      applyBackgroundImage(file);
     }
 
     window.onload = () => {
@@ -722,12 +1087,24 @@
       document.getElementById('startView').style.display = 'none';
       document.getElementById('searchView').style.display = 'flex';
       document.getElementById('resultView').style.display = 'none';
+      document.getElementById('backgroundSettingsView').style.display = 'none';
+    }
+
+    function showBackgroundSettings() {
+      document.getElementById('searchView').style.display = 'none';
+      document.getElementById('backgroundSettingsView').style.display = 'flex';
+    }
+
+    function hideBackgroundSettings() {
+      document.getElementById('backgroundSettingsView').style.display = 'none';
+      document.getElementById('searchView').style.display = 'flex';
     }
 
     function showResult(html) {
       document.getElementById('resultContent').innerHTML = html;
       document.getElementById('startView').style.display = 'none';
       document.getElementById('searchView').style.display = 'none';
+      document.getElementById('backgroundSettingsView').style.display = 'none';
       document.getElementById('resultView').style.display = 'block';
       window.scrollTo(0, 0);
     }
@@ -1509,6 +1886,17 @@
       const el = document.getElementById('statusForm');
       if (el) el.textContent = msg;
     }
+
+    const bgImageInputEl = document.getElementById('bgImageInput');
+    if (bgImageInputEl) bgImageInputEl.addEventListener('change', handleBgImageChange);
+
+    document.querySelectorAll('.bg-pos-btn').forEach(btn => {
+      btn.addEventListener('click', handleBgPositionPresetClick);
+    });
+    const bgPosXSliderEl = document.getElementById('bgPosXSlider');
+    const bgPosYSliderEl = document.getElementById('bgPosYSlider');
+    if (bgPosXSliderEl) bgPosXSliderEl.addEventListener('input', handleBgPositionSliderInput);
+    if (bgPosYSliderEl) bgPosYSliderEl.addEventListener('input', handleBgPositionSliderInput);
 
     const resultViewEl = document.getElementById('resultView');
     resultViewEl.addEventListener('pointerdown', handleResultPointerDown);
