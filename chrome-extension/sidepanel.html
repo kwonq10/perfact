@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スキマ</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>スキマ</h1>
+    </header>
+
+    <main>
+      <section id="authView" aria-labelledby="authHeading">
+        <h2 id="authHeading">ログイン</h2>
+        <button id="loginBtn" type="button">Googleでログイン</button>
+        <p class="login-description">Googleカレンダーと連携して、空き時間を検索します</p>
+      </section>
+
+      <div id="status" role="status" aria-live="polite"></div>
+
+      <div id="dayView" hidden>
+        <nav class="date-navigation" aria-label="表示日の移動">
+          <div class="navigation-row">
+            <button id="prevDayBtn" type="button">← 前日</button>
+            <button id="nextDayBtn" type="button">→ 翌日</button>
+          </div>
+          <div class="navigation-row">
+            <button id="prevWeekBtn" type="button">↑ 前週</button>
+            <button id="nextWeekBtn" type="button">↓ 翌週</button>
+          </div>
+        </nav>
+
+        <section class="conditions">
+          <button
+            id="conditionsToggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="conditionsPanel"
+          >▼ 検索条件</button>
+
+          <div id="conditionsPanel" hidden>
+            <label for="duration">必要な空き時間</label>
+            <select id="duration">
+              <option value="30">30分</option>
+              <option value="60">60分</option>
+              <option value="90">90分</option>
+              <option value="120">120分</option>
+            </select>
+
+            <fieldset>
+              <legend>対象カレンダー</legend>
+              <label for="allCalendars">
+                <input id="allCalendars" type="checkbox" checked>
+                全カレンダー
+              </label>
+              <div id="calendarList" aria-live="polite"></div>
+            </fieldset>
+          </div>
+        </section>
+
+        <section class="date-header" aria-labelledby="displayDate">
+          <div class="date-title-row">
+            <h2 id="displayDate"></h2>
+            <span id="todayBadge" hidden>今日</span>
+          </div>
+        </section>
+
+        <section id="results" aria-label="空き時間" aria-live="polite"></section>
+        <button id="copyAllBtn" type="button" hidden>この日の空き枠を一括コピー</button>
+      </div>
+    </main>
+
+    <footer class="privacy-footer">
+      <a
+        href="https://kwonq10.github.io/sukima-extension-privacy/"
+        target="_blank"
+        rel="noopener"
+      >プライバシーポリシー</a>
+    </footer>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

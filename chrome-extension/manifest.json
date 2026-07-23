@@ -1,10 +1,17 @@
 {
   "manifest_version": 3,
   "name": "スキマ",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Googleカレンダーから空き時間を自動検索するツール",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icon-16.png",
       "48": "icon-48.png",
@@ -14,10 +21,19 @@
   "background": {
     "service_worker": "background.js"
   },
-  "icons": {
-    "16": "icon-16.png",
-    "48": "icon-48.png",
-    "128": "icon-128.png"
-  },
-  "permissions": []
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "356365978986-dr6jve9i4a7e493f01dm4i12g6kkkled.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events.readonly",
+      "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+    ]
+  }
 }

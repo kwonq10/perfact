@@ -1,3 +1,5 @@
-// スキマ Chrome拡張 MVP - background.js
-// Step 0: スケルトン（OAuth未実装）
-console.log('[スキマ] background service worker loaded');
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((error) => {
+    console.error("Failed to configure side panel behavior:", error);
+  });
