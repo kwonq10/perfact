@@ -8,6 +8,9 @@ let calendarList = [];
 
 const loginBtn = document.getElementById("loginBtn");
 const authView = document.getElementById("authView");
+const accountSection = document.getElementById("accountSection");
+const switchAccountBtn = document.getElementById("switchAccountBtn");
+const logoutBtn = document.getElementById("logoutBtn");
 const dayView = document.getElementById("dayView");
 const displayDateElement = document.getElementById("displayDate");
 const todayBadge = document.getElementById("todayBadge");
@@ -17,6 +20,7 @@ const nextDayBtn = document.getElementById("nextDayBtn");
 const nextWeekBtn = document.getElementById("nextWeekBtn");
 const conditionsToggle = document.getElementById("conditionsToggle");
 const conditionsPanel = document.getElementById("conditionsPanel");
+const searchBtn = document.getElementById("searchBtn");
 const durationSelect = document.getElementById("duration");
 const calendarListElement = document.getElementById("calendarList");
 const allCalendarsCheckbox = document.getElementById("allCalendars");
@@ -77,12 +81,30 @@ function setStatus(message, isError = false) {
   statusElement.classList.toggle("error", isError);
 }
 
-function showDayView() {
+// ログイン前の画面（Googleでログインボタンのみ）へ切り替える。
+function showLoggedOut() {
+  authView.hidden = false;
+  accountSection.hidden = true;
+  dayView.hidden = true;
+}
+
+// ログイン後の画面（接続表示・検索UI）へ切り替える。
+function showLoggedIn() {
   authView.hidden = true;
+  accountSection.hidden = false;
   dayView.hidden = false;
   updateDateHeader();
 }
 
+// token・カレンダー一覧・検索結果をまとめて初期状態に戻す。
+function resetSessionState() {
+  accessToken = null;
+  calendarList = [];
+  currentSlots = [];
+  calendarListElement.replaceChildren();
+  resultsElement.replaceChildren();
+  copyAllBtn.hidden = true;
+}
 
 // chrome.runtime.lastErrorを通常のErrorとして扱えるようにする。
 function getAuthToken(interactive) {
@@ -116,22 +138,114 @@ function removeCachedAuthToken(token) {
   });
 }
 
-// ログイン成功後の表示を更新する。
-function showLoggedIn() {
-  loginBtn.textContent = "ログイン済み";
-  loginBtn.disabled = true;
+// アカウント切り替え・ログアウト時に、このブラウザにキャッシュされた全トークンを破棄する。
+function clearAllCachedAuthTokens() {
+  return new Promise((resolve, reject) => {
+    chrome.identity.clearAllCachedAuthTokens(() => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
-// manifest.jsonのoauth2設定を使ってChromeからトークンを取得する。
+// Calendar APIのHTTPエラーを、ネットワークエラー等と区別するための専用エラー型。
+class CalendarApiError extends Error {
+  constructor(status) {
+    super("Calendar API error");
+    this.name = "CalendarApiError";
+    this.status = status;
+  }
+}
+
+// chrome.identity系のエラーを、原因ごとに分かりやすい文言へ変換する。
+// エラーの内部メッセージ（トークンを含みうる）はここでのみ判定に使い、画面には出さない。
+function classifyAuthError(error) {
+  const message =
+    error && typeof error.message === "string" ? error.message.toLowerCase() : "";
+
+  if (message.includes("did not approve")) {
+    return "ログインがキャンセルされました";
+  }
+  if (message.includes("not granted") || message.includes("revoked") || message.includes("denied")) {
+    return "Googleカレンダーへのアクセス権限が拒否されました";
+  }
+  if (message.includes("not signed in") || message.includes("no accounts") || message.includes("sign in")) {
+    return "Googleにログインしていません。ブラウザでGoogleアカウントにログインしてください";
+  }
+  return "ログインに失敗しました。しばらくしてから再度お試しください";
+}
+
+// Calendar API呼び出し中のエラーを、権限エラー/ネットワークエラー/その他に分類する。
+function describeRequestError(error) {
+  if (error instanceof CalendarApiError) {
+    if (error.status === 401 || error.status === 403) {
+      return "Googleカレンダーへのアクセス権限がありません";
+    }
+    return "カレンダー情報の取得に失敗しました";
+  }
+  if (typeof TypeError !== "undefined" && error instanceof TypeError) {
+    return "ネットワークエラーが発生しました。接続を確認してください";
+  }
+  return "予期しないエラーが発生しました";
+}
+
+// manifest.jsonのoauth2設定を使ってChromeからトークンを取得する（ユーザーがボタンを押した時のみ）。
 async function login() {
+  loginBtn.disabled = true;
   try {
     accessToken = await getAuthToken(true);
     showLoggedIn();
-    setStatus("Googleアカウントと連携しました");
-    await loadCalendarList();
+    setStatus("");
+    const loaded = await loadCalendarList();
+    if (loaded) {
+      searchCurrentDay();
+    }
   } catch (error) {
-    setStatus(`ログインに失敗しました: ${error.message}`, true);
+    showLoggedOut();
+    setStatus(classifyAuthError(error), true);
+  } finally {
+    loginBtn.disabled = false;
   }
+}
+
+// 現在のアカウントからログアウトし、別のGoogleアカウントで再認証する。
+async function switchAccount() {
+  switchAccountBtn.disabled = true;
+  try {
+    await clearAllCachedAuthTokens();
+    resetSessionState();
+    setStatus("アカウントを切り替えています…");
+    accessToken = await getAuthToken(true);
+    showLoggedIn();
+    setStatus("");
+    const loaded = await loadCalendarList();
+    if (loaded) {
+      searchCurrentDay();
+    }
+  } catch (error) {
+    resetSessionState();
+    showLoggedOut();
+    setStatus(classifyAuthError(error), true);
+  } finally {
+    switchAccountBtn.disabled = false;
+  }
+}
+
+// ログアウトする。ログアウト直後にinteractive認証は開始しない。
+async function logout() {
+  logoutBtn.disabled = true;
+  try {
+    await clearAllCachedAuthTokens();
+  } catch (error) {
+    // キャッシュ削除に失敗しても、ローカルの表示はログアウト状態へ進める。
+  }
+  resetSessionState();
+  showLoggedOut();
+  setStatus("ログアウトしました");
+  logoutBtn.disabled = false;
 }
 
 // APIが401を返した場合はキャッシュを削除し、1回だけ再認証して再送する。
@@ -153,7 +267,7 @@ async function fetchWithAuth(url, options = {}, retryOnUnauthorized = true) {
   }
 
   if (!retryOnUnauthorized) {
-    throw new Error("認証の更新後もCalendar APIが401を返しました");
+    throw new CalendarApiError(response.status);
   }
 
   const expiredToken = accessToken;
@@ -165,19 +279,24 @@ async function fetchWithAuth(url, options = {}, retryOnUnauthorized = true) {
   return fetchWithAuth(url, options, false);
 }
 
-// 既存のログイン状態があれば、操作なしでトークンを復元する。
+// 既存のログイン状態があれば、操作なし（非対話）でトークンを復元する。
+// 復元に失敗してもエラー扱いにはせず、未ログイン画面を表示するだけにする。
 async function initializeAuthentication() {
   try {
     accessToken = await getAuthToken(false);
     showLoggedIn();
-    setStatus("Googleアカウント連携済み");
-    await loadCalendarList();
+    const loaded = await loadCalendarList();
+    if (loaded) {
+      searchCurrentDay();
+    }
   } catch (error) {
-    accessToken = null;
+    resetSessionState();
+    showLoggedOut();
   }
 }
 
 // CalendarList APIから利用可能なカレンダーを取得する。
+// 成功時はtrue、失敗時はfalseを返す（呼び出し側は成功時だけ検索を続行する）。
 async function loadCalendarList() {
   try {
     const response = await fetchWithAuth(
@@ -185,7 +304,7 @@ async function loadCalendarList() {
     );
 
     if (!response.ok) {
-      throw new Error(`CalendarList API: ${response.status}`);
+      throw new CalendarApiError(response.status);
     }
 
     const data = await response.json();
@@ -196,12 +315,10 @@ async function loadCalendarList() {
         calendar.accessRole === "reader",
     );
     renderCalendarList();
-    if (dayView.hidden) {
-      showDayView();
-      searchCurrentDay();
-    }
+    return true;
   } catch (error) {
-    setStatus(`カレンダー一覧の取得に失敗しました: ${error.message}`, true);
+    setStatus(describeRequestError(error), true);
+    return false;
   }
 }
 
@@ -252,7 +369,7 @@ async function fetchEvents(calendarIds, timeMin, timeMax) {
     const response = await fetchWithAuth(endpoint);
 
     if (!response.ok) {
-      throw new Error(`Events API: ${response.status}`);
+      throw new CalendarApiError(response.status);
     }
 
     const data = await response.json();
@@ -406,7 +523,7 @@ async function searchCurrentDay() {
   } catch (error) {
     currentSlots = [];
     copyAllBtn.hidden = true;
-    setStatus(`エラーが発生しました: ${error.message}`, true);
+    setStatus(describeRequestError(error), true);
   }
 }
 
@@ -503,11 +620,15 @@ async function copyAllResults() {
 }
 
 loginBtn.addEventListener("click", login);
+switchAccountBtn.addEventListener("click", switchAccount);
+logoutBtn.addEventListener("click", logout);
 prevDayBtn.addEventListener("click", () => moveDisplayedDate(-1));
 prevWeekBtn.addEventListener("click", () => moveDisplayedDate(-7));
 nextDayBtn.addEventListener("click", () => moveDisplayedDate(1));
 nextWeekBtn.addEventListener("click", () => moveDisplayedDate(7));
 copyAllBtn.addEventListener("click", copyAllResults);
+
+searchBtn.addEventListener("click", searchCurrentDay);
 
 conditionsToggle.addEventListener("click", () => {
   const willOpen = conditionsPanel.hidden;

@@ -18,6 +18,14 @@
         <p class="login-description">Googleカレンダーと連携して、空き時間を検索します</p>
       </section>
 
+      <section id="accountSection" hidden aria-label="アカウント">
+        <p id="connectedInfo" class="login-info">Googleカレンダーに接続しました</p>
+        <div class="account-actions">
+          <button id="switchAccountBtn" type="button">アカウントを切り替える</button>
+          <button id="logoutBtn" type="button">ログアウト</button>
+        </div>
+      </section>
+
       <div id="status" role="status" aria-live="polite"></div>
 
       <div id="dayView" hidden>
@@ -59,6 +67,8 @@
             </fieldset>
           </div>
         </section>
+
+        <button id="searchBtn" type="button">空き時間を検索する</button>
 
         <section class="date-header" aria-labelledby="displayDate">
           <div class="date-title-row">

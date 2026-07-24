@@ -176,6 +176,35 @@ input[type="checkbox"] {
   font-size: 12px;
 }
 
+.login-info {
+  margin: 0;
+  color: #4f8ef7;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#switchAccountBtn,
+#logoutBtn {
+  color: #555;
+  background: #fff;
+  border-color: #ddd;
+  font-weight: 600;
+}
+
+#switchAccountBtn:hover,
+#logoutBtn:hover {
+  background: #f1f3f4;
+  border-color: #bdc1c6;
+}
+
 button {
   min-height: 40px;
   padding: 9px 12px;
@@ -206,7 +235,8 @@ button:disabled {
 
 #loginBtn,
 #nextDayBtn,
-#nextWeekBtn {
+#nextWeekBtn,
+#searchBtn {
   color: #fff;
   background: #4f8ef7;
   border-color: #4f8ef7;
@@ -215,9 +245,14 @@ button:disabled {
 
 #loginBtn:hover,
 #nextDayBtn:hover,
-#nextWeekBtn:hover {
+#nextWeekBtn:hover,
+#searchBtn:hover {
   background: #3a7de8;
   border-color: #3a7de8;
+}
+
+#searchBtn {
+  margin-bottom: 16px;
 }
 
 #prevDayBtn,
