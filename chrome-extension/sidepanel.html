@@ -29,17 +29,6 @@
       <div id="status" role="status" aria-live="polite"></div>
 
       <div id="dayView" hidden>
-        <nav class="date-navigation" aria-label="表示日の移動">
-          <div class="navigation-row">
-            <button id="prevDayBtn" type="button">← 前日</button>
-            <button id="nextDayBtn" type="button">→ 翌日</button>
-          </div>
-          <div class="navigation-row">
-            <button id="prevWeekBtn" type="button">↑ 前週</button>
-            <button id="nextWeekBtn" type="button">↓ 翌週</button>
-          </div>
-        </nav>
-
         <section class="conditions">
           <button
             id="conditionsToggle"
@@ -49,14 +38,6 @@
           >▼ 検索条件</button>
 
           <div id="conditionsPanel" hidden>
-            <label for="duration">必要な空き時間</label>
-            <select id="duration">
-              <option value="30">30分</option>
-              <option value="60">60分</option>
-              <option value="90">90分</option>
-              <option value="120">120分</option>
-            </select>
-
             <fieldset>
               <legend>対象カレンダー</legend>
               <label for="allCalendars">
@@ -65,17 +46,53 @@
               </label>
               <div id="calendarList" aria-live="polite"></div>
             </fieldset>
+
+            <label for="duration">必要な空き時間</label>
+            <select id="duration">
+              <option value="30">30分</option>
+              <option value="60">60分</option>
+              <option value="90">90分</option>
+              <option value="120">120分</option>
+            </select>
           </div>
         </section>
 
-        <button id="searchBtn" type="button">空き時間を検索する</button>
+        <section class="search-range" aria-label="検索期間">
+          <p class="search-range-heading">検索期間</p>
 
-        <section class="date-header" aria-labelledby="displayDate">
-          <div class="date-title-row">
+          <div id="customRangeInputs">
+            <label for="customStartDate">開始日</label>
+            <input id="customStartDate" type="date">
+            <label for="customEndDate">終了日</label>
+            <input id="customEndDate" type="date">
+          </div>
+
+          <div class="preset-buttons" role="group" aria-label="期間プリセット">
+            <button id="presetTodayBtn" type="button" class="preset-btn">今日</button>
+            <button id="presetThisWeekBtn" type="button" class="preset-btn">今週</button>
+            <button id="presetNextWeekBtn" type="button" class="preset-btn">来週</button>
+            <button id="presetThisMonthBtn" type="button" class="preset-btn">今月</button>
+            <button id="presetNextMonthBtn" type="button" class="preset-btn">来月</button>
+          </div>
+        </section>
+
+        <button id="searchBtn" type="button">
+          <span class="search-icon" aria-hidden="true"></span>空き時間を検索する
+        </button>
+
+        <nav class="date-navigation" aria-label="表示日の移動">
+          <button id="prevWeekBtn" type="button" class="nav-prev-week">↑ 前週</button>
+          <button id="prevDayBtn" type="button" class="nav-prev-day">← 前日</button>
+          <div class="nav-center">
             <h2 id="displayDate"></h2>
             <span id="todayBadge" hidden>今日</span>
           </div>
-        </section>
+          <button id="nextDayBtn" type="button" class="nav-next-day">→ 翌日</button>
+          <button id="nextWeekBtn" type="button" class="nav-next-week">↓ 翌週</button>
+        </nav>
+
+        <p id="periodPosition" class="period-position" hidden></p>
+        <p id="periodBoundaryMessage" class="period-boundary-message" aria-live="polite"></p>
 
         <section id="results" aria-label="空き時間" aria-live="polite"></section>
         <button id="copyAllBtn" type="button" hidden>この日の空き枠を一括コピー</button>
@@ -89,6 +106,8 @@
         rel="noopener"
       >プライバシーポリシー</a>
     </footer>
+
+    <div id="extensionToast" class="extension-toast" role="status" aria-live="polite"></div>
 
     <script src="sidepanel.js"></script>
   </body>

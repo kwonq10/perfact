@@ -44,33 +44,23 @@ section,
 }
 
 section {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 h2 {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   color: #5f6368;
   font-size: 14px;
   font-weight: 600;
 }
 
-.date-header {
-  margin: 2px 0 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #dadce0;
-}
-
-.date-title-row {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
 #displayDate {
   margin: 0;
   color: #202124;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 #displayDate.sunday {
@@ -82,8 +72,8 @@ h2 {
 }
 
 #todayBadge {
-  align-self: flex-start;
-  margin-top: 6px;
+  align-self: center;
+  margin-top: 4px;
   padding: 2px 8px;
   color: #1967d2;
   background: #e8f0fe;
@@ -92,19 +82,45 @@ h2 {
   font-weight: 600;
 }
 
+/* 十字配置: 上=前週, 左=前日, 中央=現在日付, 右=翌日, 下=翌週 */
 .date-navigation {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  grid-template-rows: minmax(35px, auto) minmax(39px, auto) minmax(35px, auto);
+  grid-template-areas:
+    ".        prev-week  ."
+    "prev-day center     next-day"
+    ".        next-week  .";
+  align-items: stretch;
+  gap: 6px;
   width: 100%;
-  gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
-.navigation-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  width: 100%;
+.nav-prev-week {
+  grid-area: prev-week;
+}
+
+.nav-next-week {
+  grid-area: next-week;
+}
+
+.nav-prev-day {
+  grid-area: prev-day;
+}
+
+.nav-next-day {
+  grid-area: next-day;
+}
+
+.nav-center {
+  grid-area: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
 }
 
 label,
@@ -144,8 +160,8 @@ button:focus-visible {
 fieldset {
   width: 100%;
   min-width: 0;
-  margin: 0;
-  padding: 10px;
+  margin: 0 0 8px;
+  padding: 8px;
   border: 1px solid #dadce0;
   border-radius: 6px;
 }
@@ -179,23 +195,30 @@ input[type="checkbox"] {
 .login-info {
   margin: 0;
   color: #4f8ef7;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .account-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 #switchAccountBtn,
 #logoutBtn {
+  flex: 1 1 50%;
+  min-height: 34px;
+  padding: 6px 8px;
   color: #555;
   background: #fff;
   border-color: #ddd;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -230,13 +253,36 @@ button:disabled {
   color: #9aa0a6;
   background: #e8eaed;
   border-color: #dadce0;
-  opacity: 1;
+  opacity: 0.6;
+}
+
+/* 期間検索中の境界ボタン: disabledではなくaria-disabledで見た目だけ無効化する */
+.date-navigation button[aria-disabled="true"] {
+  color: #9aa0a6;
+  background: #e8eaed;
+  border-color: #dadce0;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.date-navigation button[aria-disabled="true"]:hover {
+  background: #e8eaed;
+  border-color: #dadce0;
+}
+
+.nav-prev-week,
+.nav-next-week {
+  min-height: 35px;
+}
+
+.nav-prev-day,
+.nav-next-day {
+  min-height: 39px;
 }
 
 #loginBtn,
 #nextDayBtn,
-#nextWeekBtn,
-#searchBtn {
+#nextWeekBtn {
   color: #fff;
   background: #4f8ef7;
   border-color: #4f8ef7;
@@ -245,14 +291,178 @@ button:disabled {
 
 #loginBtn:hover,
 #nextDayBtn:hover,
-#nextWeekBtn:hover,
-#searchBtn:hover {
+#nextWeekBtn:hover {
   background: #3a7de8;
   border-color: #3a7de8;
 }
 
+/* 主要CTA: 検索条件エリアの中で一目で見つかるよう強調する */
 #searchBtn {
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  color: #fff;
+  background: #4f8ef7;
+  border-color: #4f8ef7;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(79, 142, 247, 0.35);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+#searchBtn:hover {
+  background: #3a7de8;
+  border-color: #3a7de8;
+  box-shadow: 0 3px 8px rgba(79, 142, 247, 0.45);
+}
+
+#searchBtn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 3px rgba(79, 142, 247, 0.35);
+}
+
+#searchBtn:focus-visible {
+  outline: 3px solid #8ab4f8;
+  outline-offset: 2px;
+}
+
+#searchBtn:disabled {
+  background: #b9cdf0;
+  border-color: #b9cdf0;
+  color: #fff;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+.search-icon {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.search-icon::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.search-icon::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 6px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.search-range {
+  margin-bottom: 12px;
+}
+
+.search-range-heading {
+  margin: 0 0 6px;
+  color: #3c4043;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.preset-btn {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 56px;
+  min-height: 32px;
+  padding: 4px 10px;
+  color: #4f8ef7;
+  background: #fff;
+  border-color: #4f8ef7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.preset-btn:hover {
+  background: #eef3ff;
+}
+
+.preset-btn.is-active {
+  color: #fff;
+  background: #4f8ef7;
+  border-color: #4f8ef7;
+}
+
+.preset-btn.is-active:hover {
+  background: #3a7de8;
+  border-color: #3a7de8;
+}
+
+#customRangeInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#customRangeInputs label {
+  margin-bottom: 0;
+}
+
+input[type="date"] {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  color: #202124;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  font: inherit;
+}
+
+input[type="date"]:focus {
+  outline: 2px solid #8ab4f8;
+  outline-offset: 2px;
+}
+
+.period-position {
+  align-self: center;
+  margin: 0 0 8px;
+  color: #5f6368;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* スクリーンリーダー向けの境界アナウンス専用。視覚的には表示しない（display:noneにはしない）。 */
+.period-boundary-message {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 #prevDayBtn,
@@ -269,7 +479,7 @@ button:disabled {
 }
 
 .conditions {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 #conditionsToggle {
@@ -285,13 +495,13 @@ button:disabled {
 }
 
 #conditionsPanel {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 #status {
   width: 100%;
   min-height: 21px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: #5f6368;
   overflow-wrap: anywhere;
 }
@@ -305,10 +515,52 @@ button:disabled {
   margin-bottom: 0;
 }
 
+/* 日ごとの結果カード: 日付ヘッダー + その日の空き時間一覧をひとまとめにする。 */
+.day-result-card {
+  width: 100%;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.day-result-header {
+  padding: 10px 12px;
+  background: #f3f6fc;
+  border-bottom: 1px solid #dadce0;
+}
+
+.day-result-date {
+  margin: 0;
+  color: #202124;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.day-result-date.sunday {
+  color: #c5221f;
+}
+
+.day-result-date.saturday {
+  color: #1a73e8;
+}
+
+.day-result-count {
+  margin: 2px 0 0;
+  color: #5f6368;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.day-result-body {
+  padding: 10px 12px;
+}
+
 .slot-card {
   width: 100%;
-  margin-bottom: 10px;
-  padding: 12px;
+  margin-bottom: 8px;
+  padding: 10px;
   overflow-wrap: anywhere;
   background: #fff;
   border: 1px solid #dadce0;
@@ -326,8 +578,55 @@ button:disabled {
   margin-bottom: 0;
 }
 
-.slot-card button {
-  margin-top: 10px;
+/* 日カード内では、個々の空き時間を入れ子カードに見せず、薄い区切り線＋余白だけにする。 */
+.day-result-body .slot-card {
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.day-result-body .slot-card + .slot-card {
+  border-top: 1px solid #eef0f2;
+}
+
+.day-result-body .slot-card:first-child {
+  padding-top: 0;
+}
+
+.slot-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.slot-actions button {
+  width: auto;
+  min-height: 38px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot-actions .btn-copy {
+  flex: 0 0 35%;
+}
+
+.slot-actions .btn-calendar {
+  flex: 1 1 65%;
+}
+
+@media (max-width: 260px) {
+  .slot-actions {
+    flex-direction: column;
+  }
+
+  .slot-actions .btn-copy,
+  .slot-actions .btn-calendar {
+    flex: 1 1 auto;
+    width: 100%;
+  }
 }
 
 .btn-copy {
@@ -384,4 +683,28 @@ button:disabled {
 .privacy-footer a:hover {
   color: #4f8ef7;
   text-decoration: underline;
+}
+
+.extension-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 1000;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  color: #fff;
+  background: rgba(32, 33, 36, 0.92);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease;
+}
+
+.extension-toast.is-visible {
+  opacity: 1;
 }
