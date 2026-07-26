@@ -1,11 +1,12 @@
 # スキマ Chrome拡張 Chrome Web Store 掲載情報（下書き）
 
 作成日：2026-07-25
+最終更新：2026-07-26
 ステータス：下書き・未提出。Chrome Web Storeへの提出はまだ行っていない。
 
 このファイルは調査・文章作成のみを目的とした下書きです。`chrome-extension/manifest.json` の実装内容（permissions / host_permissions / oauth2.scopes）と突き合わせて作成しています。
 
-現在DNS移行中のため、本ファイル内のURLは提出前に到達確認が必要です（今回は確認していません）。
+本ファイル内の公開URL（拡張機能紹介ページ・プライバシーポリシー・利用規約）は、2026-07-26に読み取り専用のHTTP GETで到達確認済みです。いずれも404ではありません。結果は「18. 公開URLの到達確認結果」を参照してください。
 
 ---
 
@@ -125,7 +126,7 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 ```
 本拡張機能は、取得したカレンダーデータ（予定内容・空き時間の検索結果）を、サイドパネルを閉じたり再読み込みしたりした後まで保持する永続的な保存は行っていません。検索結果はその時点のセッション内でのみメモリ上に保持され、拡張機能側のデータベースやサーバーには保存されません。
 
-（注：現在のmanifest.jsonには "storage" 権限が宣言されていますが、実装コード内で chrome.storage の呼び出しは確認されていません。公開前に、実際に使用するかどうかを判断し、不要であれば権限から削除することを推奨します。詳細は本ファイル末尾「17. 公開前チェックリスト」参照。）
+（補足：manifest.json の "storage" 権限は削除済みです。現在の permissions は ["sidePanel", "identity"] のみで、実装コード内に chrome.storage の呼び出しはありません。未使用権限の確認と削除は完了しています。）
 ```
 
 ---
@@ -214,10 +215,10 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 ## 17. 公開前チェックリスト
 
 ```
-□ manifest.jsonの "storage" 権限が実際に使用されているか再確認し、未使用であれば削除を検討する（今回のコード確認では chrome.storage の呼び出しは見つからなかった）
-□ permissions / host_permissions が実装上必要な最小限になっているか最終確認する
+☑ manifest.jsonの "storage" 権限は削除済み（実装コード内に chrome.storage の呼び出しがないことを確認）。現在の permissions は ["sidePanel", "identity"]
+☑ permissions / host_permissions が実装上必要な最小限であることを確認済み（2026-07-26）
 □ OAuthクライアントが公開用（本番）設定になっているか、Google Cloud Console側で確認する（本ファイル作成時点では未確認・未操作）
-□ 紹介ページ（https://sukimacalendar.com/extension）、プライバシーポリシー（https://sukimacalendar.com/extension/privacy）、利用規約（https://sukimacalendar.com/terms）が、DNS移行完了後に実際に到達可能であることを確認する（現在DNS移行中のため今回は未確認）
+☑ 紹介ページ（https://sukimacalendar.com/extension）、プライバシーポリシー（https://sukimacalendar.com/extension/privacy）、利用規約（https://sukimacalendar.com/terms）の到達確認済み（2026-07-26、いずれもHTTP 200・404ではない）
 □ スクリーンショットを、個人情報が写り込まない状態で撮り直す
 □ Chrome Web Store Developer Dashboardのプライバシー診断項目（データ利用目的の申告）と、本ファイルの記載内容が一致していることを確認する
 □ Chrome Web Store デベロッパー登録（初回登録料）が完了しているか確認する
@@ -228,10 +229,27 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 
 ---
 
-## 参考：本ファイル作成時に確認した実装情報（chrome-extension/manifest.json）
+## 18. 公開URLの到達確認結果
+
+確認日：2026-07-26
+確認方法：読み取り専用のHTTP GET（設定変更は行っていない。Cloudflare・DNS・Netlifyは未操作）
+
+| URL | ステータス | リダイレクト | 最終URL | ページタイトル |
+|-----|-----------|-------------|---------|----------------|
+| https://sukimacalendar.com/extension | 301 → 200 | `/extension/` へ301 | https://sukimacalendar.com/extension/ | スキマ Chrome拡張 - Googleカレンダーの空き時間を検索 |
+| https://sukimacalendar.com/extension/privacy | 200 | なし | https://sukimacalendar.com/extension/privacy | プライバシーポリシー（Chrome拡張機能） - スキマ |
+| https://sukimacalendar.com/terms | 200 | なし | https://sukimacalendar.com/terms | 利用規約 - スキマ |
+
+3件とも404ではなく、意図したページが配信されていることを確認済み。DNS移行に起因する到達不可の状態は解消している。
+
+補足：`/extension` は末尾スラッシュ付きの `/extension/` へ301リダイレクトされる。Chrome Web Storeへ登録する際は、リダイレクトを避けるため `https://sukimacalendar.com/extension/` を使うか、301のままで問題ないことを確認したうえで `/extension` を使う。
+
+---
+
+## 参考：現在の実装情報（chrome-extension/manifest.json）
 
 ```json
-"permissions": ["sidePanel", "storage", "identity"],
+"permissions": ["sidePanel", "identity"],
 "host_permissions": ["https://www.googleapis.com/*"],
 "oauth2": {
   "scopes": [
@@ -241,4 +259,4 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 }
 ```
 
-manifest.jsonは今回のファイル作成にあたって読み取りのみ行い、変更していません。
+"storage" 権限の削除はコミット 8b17ad7 で実施済みです。本ファイルの更新にあたって manifest.json は読み取りのみ行い、変更していません。
