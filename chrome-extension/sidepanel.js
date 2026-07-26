@@ -131,6 +131,44 @@ function hideToastImmediately() {
   extensionToastElement.classList.remove("is-visible");
 }
 
+const COPY_FEEDBACK_MS = 2000;
+// ボタンごとに { timerId, originalText } を保持する。
+// 再描画で破棄されたボタンを参照し続けないようWeakMapを使う。
+const copyFeedbackStates = new WeakMap();
+
+// コピー成功時に、押されたボタンの文言だけを一時的に切り替える。
+// 連続クリック時は最初の文言を保持したまま表示時間をリセットする。
+function showCopyFeedback(button, message = "コピーしました") {
+  const pending = copyFeedbackStates.get(button);
+
+  if (pending) {
+    clearTimeout(pending.timerId);
+  }
+
+  const originalText = pending ? pending.originalText : button.textContent;
+  button.textContent = message;
+
+  const timerId = setTimeout(() => {
+    button.textContent = originalText;
+    copyFeedbackStates.delete(button);
+  }, COPY_FEEDBACK_MS);
+
+  copyFeedbackStates.set(button, { timerId, originalText });
+}
+
+// 表示中のコピー完了文言を即座に元へ戻す（ログアウト等、状態リセット時に使用）。
+function resetCopyFeedback(button) {
+  const pending = copyFeedbackStates.get(button);
+
+  if (!pending) {
+    return;
+  }
+
+  clearTimeout(pending.timerId);
+  button.textContent = pending.originalText;
+  copyFeedbackStates.delete(button);
+}
+
 // 日付の比較に使うため、時刻部分を0時に揃える。
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -268,6 +306,7 @@ function resetSessionState() {
   clearWeekNavigationHint();
   clearBoundaryAriaState();
   hideToastImmediately();
+  resetCopyFeedback(copyAllBtn);
   resetDateInputsToDefault();
 }
 
@@ -884,7 +923,9 @@ function buildSlotCard(slot) {
     try {
       await navigator.clipboard.writeText(slotToText(slot));
       setStatus("コピーしました");
+      showCopyFeedback(copyButton);
     } catch (error) {
+      console.error("Failed to copy slot:", error);
       setStatus(`コピーに失敗しました: ${error.message}`, true);
     }
   });
@@ -949,7 +990,9 @@ async function copyAllResults() {
     const text = currentSlots.map(slotToText).join("\n");
     await navigator.clipboard.writeText(text);
     setStatus("全件コピーしました");
+    showCopyFeedback(copyAllBtn);
   } catch (error) {
+    console.error("Failed to copy all slots:", error);
     setStatus(`コピーに失敗しました: ${error.message}`, true);
   }
 }
