@@ -269,10 +269,28 @@ function renderDateHeaderText() {
   todayBadge.hidden = !isToday;
 }
 
+const STATUS_AUTO_CLEAR_MS = 3000;
+// 自動消去のタイマーは常に1本だけ保持する。
+let statusAutoClearTimer = null;
+
 // 状態メッセージとエラー表示を一箇所で切り替える。
-function setStatus(message, isError = false) {
+// autoClearMs を指定したときだけ、その時間後に自動で消す。
+// 表示を切り替えるたびに前のタイマーを破棄するため、古いタイマーが新しい表示を消すことはない。
+function setStatus(message, isError = false, autoClearMs = 0) {
+  if (statusAutoClearTimer !== null) {
+    clearTimeout(statusAutoClearTimer);
+    statusAutoClearTimer = null;
+  }
+
   statusElement.textContent = message;
   statusElement.classList.toggle("error", isError);
+
+  if (autoClearMs > 0 && message !== "") {
+    statusAutoClearTimer = setTimeout(() => {
+      statusAutoClearTimer = null;
+      setStatus("");
+    }, autoClearMs);
+  }
 }
 
 // ログイン前の画面（Googleでログインボタンのみ）へ切り替える。
@@ -448,7 +466,7 @@ async function logout() {
   }
   resetSessionState();
   showLoggedOut();
-  setStatus("ログアウトしました");
+  setStatus("ログアウトしました", false, STATUS_AUTO_CLEAR_MS);
   logoutBtn.disabled = false;
 }
 
