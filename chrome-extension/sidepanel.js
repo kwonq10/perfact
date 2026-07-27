@@ -961,8 +961,16 @@ function renderDayResultCard(day) {
 
   const countElement = document.createElement("p");
   countElement.className = "day-result-count";
-  countElement.textContent =
-    day.slots.length > 0 ? `空き時間 ${day.slots.length}件` : "空き時間なし";
+  if (day.slots.length > 0) {
+    // 件数だけを太字にするため、数値部分だけを span で包む。
+    const countValue = document.createElement("span");
+    countValue.className = "day-result-count-value";
+    countValue.textContent = `${day.slots.length}件`;
+    countElement.append("空き時間 ", countValue);
+  } else {
+    countElement.classList.add("is-empty");
+    countElement.textContent = "空き時間なし";
+  }
 
   header.append(dateElement, countElement);
   card.appendChild(header);

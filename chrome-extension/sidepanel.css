@@ -546,11 +546,26 @@ input[type="date"]:focus {
   color: #1a73e8;
 }
 
+/* 件数はテキスト幅ぶんだけの小さなバッジにする。ボタンより弱い薄い青で、折り返さない。 */
 .day-result-count {
-  margin: 2px 0 0;
+  display: inline-block;
+  margin: 4px 0 0;
+  padding: 2px 8px;
+  color: #1967d2;
+  background: #e8f0fe;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.day-result-count.is-empty {
   color: #5f6368;
-  font-size: 12px;
-  font-weight: 600;
+  background: #f1f3f4;
+}
+
+.day-result-count-value {
+  font-weight: 700;
 }
 
 .day-result-body {
