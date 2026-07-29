@@ -586,7 +586,7 @@ async function fetchEvents(calendarIds, timeMin, timeMax) {
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events` +
       `?timeMin=${encodeURIComponent(timeMin)}` +
       `&timeMax=${encodeURIComponent(timeMax)}` +
-      "&singleEvents=true&orderBy=startTime";
+      "&singleEvents=true&orderBy=startTime&showDeleted=false";
 
     const response = await fetchWithAuth(endpoint);
 
@@ -595,10 +595,18 @@ async function fetchEvents(calendarIds, timeMin, timeMax) {
     }
 
     const data = await response.json();
-    const events = (data.items || []).map((event) => ({
-      start: event.start.dateTime || event.start.date,
-      end: event.end.dateTime || event.end.date,
-    }));
+    // 削除済み（cancelled）と「予定なし」（transparency: transparent）は時間を塞がないため除外する。
+    // transparencyは既定値opaqueのとき省略されるため、!== "transparent" で判定する。
+    // startを持たない要素があるため、start/endを読む前に除外する。
+    const events = (data.items || [])
+      .filter(
+        (event) =>
+          event.status !== "cancelled" && event.transparency !== "transparent",
+      )
+      .map((event) => ({
+        start: event.start.dateTime || event.start.date,
+        end: event.end.dateTime || event.end.date,
+      }));
     allEvents = allEvents.concat(events);
   }
 
