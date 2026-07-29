@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "スキマ",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Googleカレンダーから空き時間を自動検索するツール",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkaHPjBXiMfDjYF+gVxrxN1Ntb3PVtDZb80Cnfg83jl03WVS5UhNyWsPfRGRWBCVQPyNVuvk26rAJ8S9A4Y6Q+m4aDnzOVNJSJM4NSGS2h+FfGOPOOeVux/WlbHApj2lLrRT3UUvVZwpNnwaQiiLi6NRFJUlLYUBq/S+SSuTRYuMYwrV2UMe2nov3VKDIR/Yh8j0xneRNU3y6wOb8I9XZJUJJAtRRd1udclKX+YTOq1nCwabdr1fipalD219f9herqyeaKs4dpWIbRSvcjU9MZ7FPtU4xqAV68jr0nuu6i3p/DdKsnzGgCwdCdxuauMN/2XgHRCD1Ns2LU91xPNrS/QIDAQAB",
   "icons": {
     "16": "icon-16.png",
     "48": "icon-48.png",
@@ -29,7 +30,7 @@
     "https://www.googleapis.com/*"
   ],
   "oauth2": {
-    "client_id": "356365978986-dr6jve9i4a7e493f01dm4i12g6kkkled.apps.googleusercontent.com",
+    "client_id": "356365978986-4m0qrnk9f84le0p7mk09bdb1l92rcp5e.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/calendar.events.readonly",
       "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
