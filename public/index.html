@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スキマ</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4f8ef7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="スキマ">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; }
+
+    #searchView {
+      min-height: 100vh; display: flex; align-items: stretch;
+      justify-content: center; padding: 0;
+    }
+    .card {
+      background: white; border-radius: 0;
+      padding: 48px 24px 32px;
+      width: 100%; min-height: 100vh;
+      box-shadow: none; flex: 1;
+    }
+    #langToggle {
+      position: absolute; top: 12px; right: 16px;
+      display: flex; align-items: center; gap: 2px;
+    }
+    #langToggle button {
+      background: none; border: none; font-size: 12px; font-weight: 600;
+      cursor: pointer; padding: 2px 4px; color: #bbb; border-radius: 4px;
+    }
+    #langToggle button.active { color: #4f8ef7; }
+    #langToggle .sep { font-size: 11px; color: #ddd; user-select: none; }
+    @media (min-width: 480px) {
+      #searchView { align-items: center; padding: 20px; }
+      .card { border-radius: 16px; min-height: auto; max-width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); flex: none; }
+    }
+    h1 { font-size: 26px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; text-align: center; }
+    .subtitle { text-align: left; color: #555; font-size: 14px; margin-bottom: 32px; line-height: 1.6; }
+    .app-footer {
+      text-align: center; padding: 40px 20px; background: #e8eef3;
+      border-top: 1px solid #d1dbe5; width: 100%; margin-top: auto;
+    }
+    .app-footer-text { margin-bottom: 12px; font-size: 14px; color: #555; font-weight: 600; }
+    .app-footer-link {
+      color: #4f8ef7; font-size: 15px; font-weight: bold; text-decoration: underline;
+    }
+    .app-footer-copy { margin-top: 16px; font-size: 12px; color: #888; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    input[type="date"], select {
+      width: 100%; padding: 10px 14px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 15px; color: #333; background: #fafafa; outline: none;
+    }
+    input[type="date"]:focus, select:focus { border-color: #4f8ef7; background: white; }
+    .btn {
+      width: 100%; padding: 14px; background: #4f8ef7; color: white;
+      border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+      cursor: pointer; margin-top: 8px;
+    }
+    .btn:hover { background: #3a7de8; }
+    .btn:disabled { background: #aaa; cursor: not-allowed; }
+    .btn-sub {
+      width: 100%; padding: 10px; background: none; color: #aaa;
+      border: 1px solid #ddd; border-radius: 8px; font-size: 13px;
+      cursor: pointer; margin-top: 12px;
+    }
+    .status { text-align: center; margin-top: 16px; font-size: 14px; color: #666; min-height: 20px; }
+    .login-info { text-align: center; font-size: 13px; color: #4f8ef7; margin-top: 12px; font-weight: 600; }
+
+    #resultView { display: none; min-height: 100vh; background: #f0f4f8; touch-action: pan-y; user-select: none; }
+    #resultHeader {
+      background: white; padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 10;
+    }
+    #backBtn {
+      background: none; border: none; color: #4f8ef7;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    #resultTitle { font-size: 16px; font-weight: 600; color: #1a1a2e; }
+    #copyAllBtn {
+      background: none; border: 1px solid #4f8ef7; color: #4f8ef7;
+      padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    #copyAllBtn:active { background: #eef3ff; }
+    #resultContent { padding: 20px 8px; touch-action: pan-y; user-select: none; cursor: grab; overflow: hidden; }
+    #resultContent:active { cursor: grabbing; }
+    @media (min-width: 600px) {
+      #resultContent { padding: 20px; max-width: 600px; margin: 0 auto; }
+    }
+
+    .slot-card {
+      background: white; border-radius: 14px; padding: 20px 24px;
+      margin-bottom: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .slot-date { font-size: 13px; font-weight: 600; color: #4f8ef7; margin-bottom: 4px; }
+    .slot-time {
+      font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+      color: #1a1a2e; margin-bottom: 14px;
+    }
+    .slot-time span { color: #aaa; margin: 0 8px; font-weight: 400; }
+    .slot-actions { display: flex; gap: 8px; }
+    .btn-copy, .btn-calendar {
+      flex: 1; padding: 8px; border-radius: 8px; font-size: 13px;
+      font-weight: 600; cursor: pointer; border: none; text-align: center;
+    }
+    .btn-copy { background: #f0f4f8; color: #555; }
+    .btn-copy:active { background: #e0e8f0; }
+    .btn-calendar { background: #4f8ef7; color: white; }
+    .btn-calendar:active { background: #3a7de8; }
+
+    #installBanner {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 0.5px solid #ddd;
+      padding: 16px 20px;
+      z-index: 200;
+      box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+    #installBanner p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 12px;
+    }
+    #installBanner .banner-btns {
+      display: flex;
+      gap: 8px;
+    }
+    #installBanner .btn-install {
+      flex: 1;
+      padding: 10px;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #installBanner .btn-dismiss {
+      padding: 10px 16px;
+      background: none;
+      color: #aaa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .copy-toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #1a1a2e; color: white; padding: 10px 20px;
+      border-radius: 20px; font-size: 14px; opacity: 0;
+      transition: opacity 0.3s; pointer-events: none; z-index: 100;
+    }
+    .copy-toast.show { opacity: 1; }
+
+    .day-card-date { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
+    .day-slot-row { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #eee; }
+    .day-slot-row:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .no-slots-message { text-align: center; color: #888; font-size: 14px; padding: 24px 0; }
+
+    .swipe-intro-hint {
+      text-align: center; font-size: 12px; color: #999;
+      padding: 8px 20px 0;
+    }
+    .daily-result-card {
+      will-change: transform;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (max-width: 599px) {
+      .daily-result-card { min-height: calc(100dvh - 180px); }
+    }
+    .daily-result-card > .btn { margin-top: auto; }
+    .swipe-hint {
+      pointer-events: none; user-select: none;
+      color: #b8c2cf; font-size: 12px; font-weight: 600;
+    }
+    .swipe-hint-week {
+      text-align: center;
+    }
+    /* 週内位置インジケーター（極小ドット7つ） */
+    .week-pos-dots {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      margin-bottom: 12px;
+    }
+    .week-pos-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #d8e0ea;
+      flex-shrink: 0;
+    }
+    .week-pos-dot.active {
+      width: 5px;
+      height: 5px;
+    }
+    /* 曜日色 */
+    .day-card-date.dow-sun { color: #c0574f; }
+    .day-card-date.dow-sat { color: #4a72c4; }
+    .week-swipe-zone {
+      touch-action: none;
+      min-height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 8px;
+      cursor: grab;
+    }
+    .week-swipe-zone:active { cursor: grabbing; }
+    .week-swipe-zone:focus-visible {
+      outline: 2px solid #4f8ef7; outline-offset: 2px; border-radius: 4px;
+    }
+
+    /* 背景画像プロトタイプ（試作） */
+    .bg-image-layer {
+      display: none;
+      position: fixed; inset: 0;
+      width: 100%; height: 100dvh;
+      background-size: cover; background-position: center; background-repeat: no-repeat;
+      pointer-events: none;
+      z-index: -2;
+    }
+    .bg-image-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      width: 100%; height: 100dvh;
+      background: transparent;
+      pointer-events: none;
+      z-index: -1;
+    }
+    #resultView.has-custom-background .bg-image-layer,
+    #resultView.has-custom-background .bg-image-overlay {
+      display: block;
+    }
+    #resultView.has-custom-background {
+      position: relative;
+      z-index: 0;
+    }
+    #resultView.has-custom-background .daily-result-card {
+      background: transparent;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.32);
+    }
+    #resultView.has-custom-background .day-slot-row {
+      background: transparent;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      border-radius: 10px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    }
+    #resultView.has-custom-background .day-card-date,
+    #resultView.has-custom-background .no-slots-message {
+      text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9), 0 1px 4px rgba(0, 0, 0, 0.25);
+    }
+    #resultView.has-custom-background .slot-date {
+      text-shadow:
+        -1px -1px 0 rgba(255, 255, 255, 0.95),
+         1px -1px 0 rgba(255, 255, 255, 0.95),
+        -1px  1px 0 rgba(255, 255, 255, 0.95),
+         1px  1px 0 rgba(255, 255, 255, 0.95),
+         0 2px 4px rgba(0, 0, 0, 0.25);
+    }
+    #resultView.has-custom-background .slot-time {
+      color: #111827;
+      -webkit-text-stroke: 0.6px rgba(255, 255, 255, 0.95);
+      paint-order: stroke fill;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+    #resultView.has-custom-background .slot-time span {
+      color: #f8fafc;
+      -webkit-text-stroke: 0.6px rgba(17, 24, 39, 0.65);
+      paint-order: stroke fill;
+    }
+    #resultView.has-custom-background .week-pos-dot {
+      box-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+    }
+    #resultView.has-custom-background #resultHeader {
+      background: transparent;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+      box-shadow: none;
+    }
+    #resultView.has-custom-background #backBtn,
+    #resultView.has-custom-background #resultTitle {
+      text-shadow:
+        -1px -1px 0 rgba(255, 255, 255, 0.95),
+         1px -1px 0 rgba(255, 255, 255, 0.95),
+        -1px  1px 0 rgba(255, 255, 255, 0.95),
+         1px  1px 0 rgba(255, 255, 255, 0.95),
+         0 2px 4px rgba(0, 0, 0, 0.25);
+    }
+    #resultView.has-custom-background #copyAllBtn {
+      background: #fff;
+    }
+    /* 白くする範囲：0=全体を画像（既定）、1=時刻エリアだけ白、2=時刻エリア＋ヘッダーを白 */
+    #resultView.has-custom-background.bg-white-range-1 .day-slot-row,
+    #resultView.has-custom-background.bg-white-range-2 .day-slot-row {
+      background: #fff;
+    }
+    #resultView.has-custom-background.bg-white-range-2 #resultHeader {
+      background: #fff;
+      border-bottom: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .bg-image-hint { font-size: 12px; color: #999; margin-top: 6px; }
+    .bg-image-status { font-size: 12px; color: #4f8ef7; margin-top: 6px; font-weight: 600; }
+    .bg-position-slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .bg-position-slider-row input[type="range"] { flex: 1; }
+    .bg-white-range-value { flex-shrink: 0; font-size: 12px; color: #777; white-space: nowrap; }
+
+    #backgroundSettingsView {
+      min-height: 100vh; display: flex; align-items: stretch;
+      justify-content: center; padding: 0;
+    }
+    @media (min-width: 480px) {
+      #backgroundSettingsView { align-items: center; padding: 20px; }
+    }
+    .bg-settings-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+    }
+    #bgSettingsBackBtn {
+      background: none; border: none; color: #4f8ef7;
+      font-size: 15px; font-weight: 600; cursor: pointer; padding: 0;
+    }
+    #bgSettingsTitle { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+    #bgImageInput {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .bg-preview {
+      position: relative;
+      width: 100%;
+      height: 220px;
+      margin-top: 6px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      background-color: #f0f4f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      overflow: hidden;
+      transition: transform 0.15s ease, filter 0.15s ease;
+    }
+    .bg-preview:hover { filter: brightness(1.03); }
+    .bg-preview:active { transform: scale(0.995); }
+    .bg-preview:focus-visible {
+      outline: 3px solid rgba(79, 142, 247, 0.45);
+      outline-offset: 3px;
+    }
+    .bg-preview-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+    }
+    .bg-preview-highlight {
+      position: absolute;
+      border: 2px solid rgba(255, 255, 255, 0.95);
+      border-radius: 10px;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 6px;
+      pointer-events: auto;
+      touch-action: none;
+      cursor: grab;
+    }
+    .bg-preview-highlight.dragging { cursor: grabbing; }
+    .bg-preview-highlight-label {
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .bg-preview-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #999;
+      padding: 0 16px;
+    }
+    .bg-preview-subtext { font-size: 11px; color: #b3b3b3; }
+    .bg-preview-badge {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    #startView {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      padding: 48px 32px;
+      text-align: center;
+    }
+    #startTitle {
+      font-size: 44px;
+      font-weight: 800;
+      color: #1a1a2e;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+    }
+    #startTagline {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1a1a2e;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    #startDesc {
+      font-size: 14px;
+      color: #777;
+      line-height: 1.8;
+      margin-bottom: 52px;
+      max-width: 280px;
+    }
+    #startBtn {
+      width: 100%;
+      max-width: 280px;
+      padding: 16px;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+    }
+    #startBtn:hover { background: #3a7de8; }
+    #startBtn:active { background: #2d6dd4; }
+  </style>
+</head>
+<body>
+
+  <div id="startView">
+    <div id="langToggle">
+      <button id="langJa" onclick="setLang('ja')">日本語</button>
+      <span class="sep">|</span>
+      <button id="langEn" onclick="setLang('en')">English</button>
+    </div>
+    <p id="startTitle">スキマ</p>
+    <p id="startTagline">予定の空き時間を、すぐ見つける。</p>
+    <p id="startDesc">Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。</p>
+    <button id="startBtn" onclick="showSearch()">はじめる</button>
+  </div>
+
+  <div id="searchView" style="display:none">
+    <div class="card">
+      <h1>スキマ</h1>
+      <p class="subtitle">スキマは、あなたのGoogleカレンダーから指定した期間の空き時間を自動で検索し、簡単に抽出・共有できるツールです。面倒な日程調整の時間を大幅に削減します。</p>
+
+      <div id="loginSection">
+        <button class="btn" id="loginBtn" onclick="doLogin()">Googleでログイン</button>
+        <p class="status" id="status"></p>
+      </div>
+      <p style="text-align: center; margin-top: 15px;">
+        <a href="/privacy.html" style="font-size: 14px; color: #666; text-decoration: none;">プライバシー ポリシー</a>
+      </p>
+
+      <div id="formSection" style="display:none;">
+        <div class="form-group">
+          <label>検索開始日</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="form-group">
+          <label>検索終了日</label>
+          <input type="date" id="endDate">
+        </div>
+        <div class="form-group">
+          <label>希望する空き時間</label>
+          <select id="duration">
+            <option value="30">30分</option>
+            <option value="60" selected>1時間</option>
+            <option value="90">1時間30分</option>
+            <option value="120">2時間</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>カレンダー</label>
+          <div id="calModeToggle" style="display:flex;gap:8px;">
+            <button id="btnModeAll" onclick="setCalMode('all')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#4f8ef7;color:white;border:none;">全カレンダー</button>
+            <button id="btnModeSelect" onclick="setCalMode('select')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#f0f4f8;color:#555;border:1px solid #ddd;">選んで使う</button>
+          </div>
+          <div id="calList" style="display:none;margin-top:10px;max-height:160px;overflow-y:auto;border:1px solid #ddd;border-radius:8px;padding:8px;"></div>
+        </div>
+        <button type="button" class="btn-sub" id="openBgSettingsBtn" onclick="showBackgroundSettings()">背景画像を設定</button>
+        <button class="btn" id="searchBtn" onclick="startSearch()">空き時間を検索する</button>
+        <p class="login-info" id="loginInfo"></p>
+        <button class="btn-sub" id="logoutBtn" onclick="logout()">別のアカウントでログインする</button>
+        <p class="status" id="statusForm"></p>
+      </div>
+
+      <footer class="app-footer" style="margin-top: 32px; border-radius: 0 0 16px 16px;">
+        <p class="app-footer-text">スキマのご利用について</p>
+        <p class="app-footer-copy">&copy; スキマ</p>
+      </footer>
+    </div>
+  </div>
+
+  <div id="backgroundSettingsView" style="display:none">
+    <div class="card">
+      <div class="bg-settings-header">
+        <button type="button" id="bgSettingsBackBtn" onclick="hideBackgroundSettings()">← 戻る</button>
+        <h2 id="bgSettingsTitle">背景画像設定</h2>
+      </div>
+
+      <div class="form-group">
+        <label id="labelBgPreview">背景画像プレビュー</label>
+        <input type="file" id="bgImageInput" accept="image/jpeg,image/png,image/webp">
+        <div class="bg-preview" id="bgPreview" role="button" tabindex="0" aria-label="背景画像を選択" title="背景画像を選択">
+          <img id="bgPreviewImg" class="bg-preview-img" alt="" style="display:none;">
+          <span class="bg-preview-placeholder" id="bgPreviewPlaceholder">
+            <span id="bgPreviewMainText">タップして背景画像を選択</span>
+            <span class="bg-preview-subtext" id="bgPreviewSubText">JPG・PNG・WebP、10MBまで</span>
+          </span>
+          <div class="bg-preview-highlight" id="bgPreviewHighlight" style="display:none;">
+            <span class="bg-preview-highlight-label" id="bgPreviewHighlightLabel">カード表示範囲</span>
+          </div>
+          <span class="bg-preview-badge" id="bgPreviewBadge" style="display:none;">タップして画像を変更</span>
+        </div>
+        <p class="status" id="bgImageError"></p>
+      </div>
+
+      <div class="form-group" id="bgWhiteRangeSection">
+        <label id="labelBgWhiteRange">白くする範囲</label>
+        <div class="bg-position-slider-row">
+          <input type="range" id="bgWhiteRangeSlider" min="0" max="2" step="1" value="0" disabled>
+          <span class="bg-white-range-value" id="bgWhiteRangeValueText">全体を画像</span>
+        </div>
+      </div>
+
+      <button type="button" class="btn-sub" id="removeBgImageBtn" style="display:none;" onclick="removeBackgroundImage()">背景画像を解除</button>
+    </div>
+  </div>
+
+  <div id="resultView">
+    <div class="bg-image-layer" id="bgImageLayer" aria-hidden="true"></div>
+    <div class="bg-image-overlay" aria-hidden="true"></div>
+    <div id="resultHeader">
+      <button id="backBtn" onclick="showSearch()">← 再検索</button>
+      <span id="resultTitle">検索結果</span>
+      <button id="copyAllBtn" onclick="copyAll()">全部コピー</button>
+    </div>
+    <p class="swipe-intro-hint">カードを左右にスワイプして日付を移動できます</p>
+    <div id="resultContent"></div>
+  </div>
+
+  <div class="copy-toast" id="toast"></div>
+
+  <div id="installBanner">
+    <p>ホーム画面に追加してアプリとして使えます</p>
+    <div class="banner-btns">
+      <button class="btn-install" id="installBtn">ホーム画面に追加</button>
+      <button class="btn-dismiss" onclick="dismissInstall()">後で</button>
+    </div>
+  </div>
+
+  <script>
+    const CLIENT_ID = '356365978986-kuvg67sktqngrtjmoci8nqef58rnsom3.apps.googleusercontent.com';
+    const SCOPES = 'https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+    const TOKEN_KEY = 'gtoken';
+    const TOKEN_EXPIRY_KEY = 'gtoken_expiry';
+    const RESULT_KEY = 'last_result';
+    const SEARCH_RANGE_KEY = 'last_search_range';
+    const DAY_START = 9;
+    const DAY_END = 22;
+    const STEP_MIN = 30;
+
+    let tokenClient;
+    let accessToken = null;
+    let currentSlots = [];
+    let currentDailyResults = [];
+    let currentDayIndex = 0;
+    let calMode = 'all';
+    let calendarList = [];
+    let swipeState = null;
+    let weekSwipeState = null;
+    let isSearching = false;
+    let isAnimating = false;
+    const SWIPE_MIN_DISTANCE = 50;
+    const SWIPE_DIRECTION_RATIO = 1.5;
+    const DAY_SWIPE_DIRECTION_RATIO = 1.0;
+    const DRAG_AXIS_LOCK_THRESHOLD = 10;
+    const CARD_BOUNDARY_RESISTANCE = 0.25;
+    const CARD_TRANSITION_MS = 250;
+
+    const LANG_KEY = 'sukima_lang';
+    let currentLang = localStorage.getItem(LANG_KEY) || 'ja';
+
+    // 背景画像（画像本体はIndexedDB、位置はlocalStorageへ永続化）
+    const BG_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+    const BG_IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    const BG_DB_NAME = 'sukima-settings';
+    const BG_DB_VERSION = 1;
+    const BG_DB_STORE = 'backgrounds';
+    const BG_DB_KEY = 'resultBackground';
+    const BG_POS_X_KEY = 'sukima_bg_position_x';
+    const BG_POS_Y_KEY = 'sukima_bg_position_y';
+    const BG_WHITE_RANGE_KEY = 'sukima_bg_white_range';
+    const BG_WHITE_RANGE_LABEL_KEYS = ['bgWhiteRangeFull', 'bgWhiteRangeTime', 'bgWhiteRangeHeader'];
+    let bgImageObjectUrl = null;
+    let lastBgImageErrorKey = null;
+    let bgPositionX = 50;
+    let bgPositionY = 50;
+    let bgWhiteRange = 0;
+    // Incremented on any user-initiated select/remove so a slower,
+    // already-in-flight restoreSavedBackground() can detect it was
+    // superseded and avoid clobbering the newer state.
+    let bgRestoreGeneration = 0;
+    // Recomputed by updateBgPreviewHighlight(): the actual rendered image
+    // bounds within #bgPreview (accounting for object-fit:contain letterboxing)
+    // and how far the highlight can slide inside them. Reused by the drag
+    // handlers so the movable-area math lives in a single place.
+    let bgPreviewMovableBounds = null;
+    let bgPreviewDragState = null;
+
+    function openBackgroundDatabase() {
+      return new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) {
+          reject(new Error('IndexedDB is not supported'));
+          return;
+        }
+        const req = indexedDB.open(BG_DB_NAME, BG_DB_VERSION);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(BG_DB_STORE)) {
+            db.createObjectStore(BG_DB_STORE, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveBackgroundImage(file) {
+      const db = await openBackgroundDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(BG_DB_STORE, 'readwrite');
+        tx.objectStore(BG_DB_STORE).put({
+          id: BG_DB_KEY,
+          blob: file,
+          type: file.type,
+          name: file.name,
+          updatedAt: Date.now()
+        });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      });
+    }
+
+    async function loadBackgroundImage() {
+      const db = await openBackgroundDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(BG_DB_STORE, 'readonly');
+        const req = tx.objectStore(BG_DB_STORE).get(BG_DB_KEY);
+        req.onsuccess = () => { db.close(); resolve(req.result || null); };
+        req.onerror = () => { db.close(); reject(req.error); };
+      });
+    }
+
+    async function deleteBackgroundImage() {
+      const db = await openBackgroundDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(BG_DB_STORE, 'readwrite');
+        tx.objectStore(BG_DB_STORE).delete(BG_DB_KEY);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+        tx.onabort = () => { db.close(); reject(tx.error); };
+      });
+    }
+
+    function saveBgPositionToStorage() {
+      try {
+        localStorage.setItem(BG_POS_X_KEY, String(bgPositionX));
+        localStorage.setItem(BG_POS_Y_KEY, String(bgPositionY));
+      } catch (e) {}
+    }
+
+    function clearBgPositionFromStorage() {
+      try {
+        localStorage.removeItem(BG_POS_X_KEY);
+        localStorage.removeItem(BG_POS_Y_KEY);
+      } catch (e) {}
+    }
+
+    function loadBgPositionFromStorage() {
+      const clamp = (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < -100 || n > 200) return 50;
+        return n;
+      };
+      let x = 50, y = 50;
+      try {
+        const rawX = localStorage.getItem(BG_POS_X_KEY);
+        const rawY = localStorage.getItem(BG_POS_Y_KEY);
+        if (rawX !== null) x = clamp(rawX);
+        if (rawY !== null) y = clamp(rawY);
+      } catch (e) {}
+      return { x, y };
+    }
+
+    function saveBgWhiteRangeToStorage() {
+      try {
+        localStorage.setItem(BG_WHITE_RANGE_KEY, String(bgWhiteRange));
+      } catch (e) {}
+    }
+
+    function clearBgWhiteRangeFromStorage() {
+      try {
+        localStorage.removeItem(BG_WHITE_RANGE_KEY);
+      } catch (e) {}
+    }
+
+    function loadBgWhiteRangeFromStorage() {
+      try {
+        const raw = localStorage.getItem(BG_WHITE_RANGE_KEY);
+        if (raw === null) return 0;
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0 || n > 2) return 0;
+        return n;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    const I18N = {
+      ja: {
+        appTitle: 'スキマ',
+        subtitle: 'スキマは、あなたのGoogleカレンダーから指定した期間の空き時間を自動で検索し、簡単に抽出・共有できるツールです。面倒な日程調整の時間を大幅に削減します。',
+        privacyPolicy: 'プライバシー ポリシー',
+        loginBtn: 'Googleでログイン',
+        labelStart: '検索開始日',
+        labelEnd: '検索終了日',
+        labelDuration: '希望する空き時間',
+        labelCalendar: 'カレンダー',
+        calModeAll: '全カレンダー',
+        calModeSelect: '選んで使う',
+        dur30: '30分', dur60: '1時間', dur90: '1時間30分', dur120: '2時間',
+        searchBtn: '空き時間を検索する',
+        logoutBtn: '別のアカウントでログインする',
+        footerTitle: 'スキマのご利用について',
+        backBtn: '← 再検索',
+        resultTitle: '検索結果',
+        copyAllBtn: '全部コピー',
+        swipeHint: 'カードを左右にスワイプして日付を移動できます',
+        installMsg: 'ホーム画面に追加してアプリとして使えます',
+        installBtn: 'ホーム画面に追加',
+        installLater: '後で',
+        loggedIn: 'Googleアカウント連携済み',
+        loadingGoogle: 'Googleの読み込み中です...',
+        loggedOut: 'ログアウトしました',
+        calListError: 'カレンダー一覧の取得に失敗しました',
+        noDate: '日付を入力してください',
+        invalidDate: '終了日は開始日より後にしてください',
+        loggingIn: 'Googleにログインしています...',
+        loadingCal: 'カレンダーを取得中...',
+        sessionExpired: 'セッションが切れました。再度ログインしてください。',
+        calculating: '空き時間を計算中...',
+        errorPrefix: 'エラーが発生しました: ',
+        noSlotsMsg: '該当する空き時間がありませんでした。<br>条件を変更してお試しください。',
+        slotsFound: (n) => `${n}件の空き時間が見つかりました`,
+        copySlot: 'この枠をコピー',
+        addCalendar: '予定を追加',
+        noAvailability: '空き時間なし',
+        available: '空き時間',
+        copyDay: 'この日をコピー',
+        nextWeek: '↓ 翌週',
+        nextWeekAria: '翌週へ移動',
+        nextWeekFail: '翌週の検索に失敗しました',
+        copied: 'コピーしました',
+        copiedDay: 'この日をコピーしました',
+        copiedAll: '全件コピーしました',
+        loginFailed: 'ログインに失敗しました',
+        days: ['日', '月', '火', '水', '木', '金', '土'],
+        months: null,
+        startTagline: '予定の空き時間を、すぐ見つける。',
+        startDesc: 'Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。',
+        startBtn: 'はじめる',
+        bgImageLabel: '背景画像を選択',
+        bgImageRemove: '背景画像を解除',
+        bgImageSelected: 'タップして画像を変更',
+        bgImageFormats: 'JPG・PNG・WebP、10MBまで',
+        bgPreviewTapToChoose: 'タップして背景画像を選択',
+        bgImageUnsupported: '対応していない画像形式です（JPG・PNG・WebPのみ）',
+        bgImageTooLarge: '画像サイズが大きすぎます（10MBまで）',
+        bgImageSaveFailed: 'この画像を保存できませんでした',
+        bgImageDeleteFailed: '保存した背景画像を削除できませんでした',
+        bgWhiteRangeLabel: '白くする範囲',
+        bgWhiteRangeFull: '全体を画像',
+        bgWhiteRangeTime: '時刻だけ白',
+        bgWhiteRangeHeader: 'ヘッダーも白',
+        bgSettingsTitle: '背景画像設定',
+        bgSettingsBack: '← 戻る',
+        openBgSettingsBtn: '背景画像を設定',
+        bgPreviewLabel: '背景画像プレビュー',
+        bgPreviewHighlightLabel: 'カード表示範囲',
+      },
+      en: {
+        appTitle: 'Sukima',
+        subtitle: 'Sukima searches your Google Calendar for available time slots and makes it easy to extract and share them. Spend less time on scheduling.',
+        privacyPolicy: 'Privacy Policy',
+        loginBtn: 'Login with Google',
+        labelStart: 'Start Date',
+        labelEnd: 'End Date',
+        labelDuration: 'Duration',
+        labelCalendar: 'Calendar',
+        calModeAll: 'All Calendars',
+        calModeSelect: 'Select',
+        dur30: '30 min', dur60: '1 hour', dur90: '1.5 hours', dur120: '2 hours',
+        searchBtn: 'Search',
+        logoutBtn: 'Switch Account',
+        footerTitle: 'About Sukima',
+        backBtn: '← Search',
+        resultTitle: 'Results',
+        copyAllBtn: 'Copy All',
+        swipeHint: 'Swipe left / right to change day',
+        installMsg: 'Add to home screen to use as an app',
+        installBtn: 'Add to Home Screen',
+        installLater: 'Later',
+        loggedIn: 'Google Account connected',
+        loadingGoogle: 'Loading Google...',
+        loggedOut: 'Logged out',
+        calListError: 'Failed to load calendar list',
+        noDate: 'Please enter dates',
+        invalidDate: 'End date must be after start date',
+        loggingIn: 'Logging in to Google...',
+        loadingCal: 'Loading calendar...',
+        sessionExpired: 'Session expired. Please login again.',
+        calculating: 'Calculating...',
+        errorPrefix: 'Error: ',
+        noSlotsMsg: 'No available times found.<br>Try changing the conditions.',
+        slotsFound: (n) => `Found ${n} available time(s)`,
+        copySlot: 'Copy',
+        addCalendar: 'Add to Calendar',
+        noAvailability: 'No availability',
+        available: 'Available',
+        copyDay: 'Copy Day',
+        nextWeek: '↓ Next Week',
+        nextWeekAria: 'Go to next week',
+        nextWeekFail: 'Failed to load next week',
+        copied: 'Copied',
+        copiedDay: 'Copied day',
+        copiedAll: 'Copied all',
+        loginFailed: 'Login failed',
+        days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+        startTagline: 'Find your free time, instantly.',
+        startDesc: 'Check your free time from Google Calendar<br>and copy or add events instantly.',
+        startBtn: 'Get Started',
+        bgImageLabel: 'Choose background image',
+        bgImageRemove: 'Remove background image',
+        bgImageSelected: 'Tap to change image',
+        bgImageFormats: 'JPG, PNG or WebP, up to 10MB',
+        bgPreviewTapToChoose: 'Tap to choose a background image',
+        bgImageUnsupported: 'Unsupported image format (JPG, PNG, WebP only)',
+        bgImageTooLarge: 'Image is too large (10MB max)',
+        bgImageSaveFailed: 'The image could not be saved',
+        bgImageDeleteFailed: 'The saved background image could not be removed',
+        bgWhiteRangeLabel: 'White area range',
+        bgWhiteRangeFull: 'Full image',
+        bgWhiteRangeTime: 'Time area white',
+        bgWhiteRangeHeader: 'Header also white',
+        bgSettingsTitle: 'Background image settings',
+        bgSettingsBack: '← Back',
+        openBgSettingsBtn: 'Set background image',
+        bgPreviewLabel: 'Background image preview',
+        bgPreviewHighlightLabel: 'Card visible area',
+      }
+    };
+
+    function t(key, arg) {
+      const dict = I18N[currentLang] || I18N.ja;
+      const val = dict[key] !== undefined ? dict[key] : (I18N.ja[key] !== undefined ? I18N.ja[key] : key);
+      if (typeof val === 'function') return val(arg);
+      return val;
+    }
+
+    function setLang(lang) {
+      currentLang = lang;
+      localStorage.setItem(LANG_KEY, lang);
+      applyLang();
+    }
+
+    function applyLang() {
+      const q = (sel) => document.querySelector(sel);
+      document.getElementById('langJa').classList.toggle('active', currentLang === 'ja');
+      document.getElementById('langEn').classList.toggle('active', currentLang === 'en');
+
+      q('#searchView h1').textContent = t('appTitle');
+      q('#searchView .subtitle').textContent = t('subtitle');
+      const privLink = q('#searchView a[href="/privacy.html"]');
+      if (privLink) privLink.textContent = t('privacyPolicy');
+      document.getElementById('loginBtn').textContent = t('loginBtn');
+
+      const labels = document.querySelectorAll('#searchView .form-group label');
+      if (labels[0]) labels[0].textContent = t('labelStart');
+      if (labels[1]) labels[1].textContent = t('labelEnd');
+      if (labels[2]) labels[2].textContent = t('labelDuration');
+      if (labels[3]) labels[3].textContent = t('labelCalendar');
+
+      document.getElementById('btnModeAll').textContent = t('calModeAll');
+      document.getElementById('btnModeSelect').textContent = t('calModeSelect');
+      const durEl = document.getElementById('duration');
+      if (durEl) {
+        durEl.querySelector('option[value="30"]').textContent = t('dur30');
+        durEl.querySelector('option[value="60"]').textContent = t('dur60');
+        durEl.querySelector('option[value="90"]').textContent = t('dur90');
+        durEl.querySelector('option[value="120"]').textContent = t('dur120');
+      }
+      document.getElementById('searchBtn').textContent = t('searchBtn');
+      document.getElementById('logoutBtn').textContent = t('logoutBtn');
+      const footerTitle = q('#searchView .app-footer-text');
+      if (footerTitle) footerTitle.textContent = t('footerTitle');
+
+      document.getElementById('backBtn').textContent = t('backBtn');
+      document.getElementById('resultTitle').textContent = t('resultTitle');
+      document.getElementById('copyAllBtn').textContent = t('copyAllBtn');
+      const hint = q('.swipe-intro-hint');
+      if (hint) hint.textContent = t('swipeHint');
+
+      const bannerP = q('#installBanner > p');
+      if (bannerP) bannerP.textContent = t('installMsg');
+      document.getElementById('installBtn').textContent = t('installBtn');
+      const dismissBtn = q('#installBanner .btn-dismiss');
+      if (dismissBtn) dismissBtn.textContent = t('installLater');
+
+      const startTitle = q('#startTitle');
+      if (startTitle) startTitle.textContent = t('appTitle');
+      const startTagline = q('#startTagline');
+      if (startTagline) startTagline.textContent = t('startTagline');
+      const startDesc = q('#startDesc');
+      if (startDesc) startDesc.innerHTML = t('startDesc');
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.textContent = t('startBtn');
+
+      const removeBgImageBtn = document.getElementById('removeBgImageBtn');
+      if (removeBgImageBtn) removeBgImageBtn.textContent = t('bgImageRemove');
+      const bgPreviewEl2 = document.getElementById('bgPreview');
+      if (bgPreviewEl2) {
+        bgPreviewEl2.setAttribute('aria-label', t('bgImageLabel'));
+        bgPreviewEl2.title = t('bgImageLabel');
+      }
+      const bgPreviewMainText = document.getElementById('bgPreviewMainText');
+      if (bgPreviewMainText) bgPreviewMainText.textContent = t('bgPreviewTapToChoose');
+      const bgPreviewSubText = document.getElementById('bgPreviewSubText');
+      if (bgPreviewSubText) bgPreviewSubText.textContent = t('bgImageFormats');
+      const bgPreviewBadge = document.getElementById('bgPreviewBadge');
+      if (bgPreviewBadge && bgPreviewBadge.style.display !== 'none') bgPreviewBadge.textContent = t('bgImageSelected');
+      if (lastBgImageErrorKey) {
+        const bgImageError = document.getElementById('bgImageError');
+        if (bgImageError) bgImageError.textContent = t(lastBgImageErrorKey);
+      }
+
+      const bgPreviewHighlightLabel = document.getElementById('bgPreviewHighlightLabel');
+      if (bgPreviewHighlightLabel) bgPreviewHighlightLabel.textContent = t('bgPreviewHighlightLabel');
+
+      const labelBgWhiteRange = document.getElementById('labelBgWhiteRange');
+      if (labelBgWhiteRange) labelBgWhiteRange.textContent = t('bgWhiteRangeLabel');
+      const bgWhiteRangeValueText = document.getElementById('bgWhiteRangeValueText');
+      if (bgWhiteRangeValueText) bgWhiteRangeValueText.textContent = t(BG_WHITE_RANGE_LABEL_KEYS[bgWhiteRange]);
+
+      const bgSettingsTitle = document.getElementById('bgSettingsTitle');
+      if (bgSettingsTitle) bgSettingsTitle.textContent = t('bgSettingsTitle');
+      const bgSettingsBackBtn = document.getElementById('bgSettingsBackBtn');
+      if (bgSettingsBackBtn) bgSettingsBackBtn.textContent = t('bgSettingsBack');
+      const openBgSettingsBtn = document.getElementById('openBgSettingsBtn');
+      if (openBgSettingsBtn) openBgSettingsBtn.textContent = t('openBgSettingsBtn');
+      const labelBgPreview = document.getElementById('labelBgPreview');
+      if (labelBgPreview) labelBgPreview.textContent = t('bgPreviewLabel');
+    }
+
+    function setCalMode(mode) {
+      calMode = mode;
+      document.getElementById('btnModeAll').style.background = mode === 'all' ? '#4f8ef7' : '#f0f4f8';
+      document.getElementById('btnModeAll').style.color = mode === 'all' ? 'white' : '#555';
+      document.getElementById('btnModeAll').style.border = mode === 'all' ? 'none' : '1px solid #ddd';
+      document.getElementById('btnModeSelect').style.background = mode === 'select' ? '#4f8ef7' : '#f0f4f8';
+      document.getElementById('btnModeSelect').style.color = mode === 'select' ? 'white' : '#555';
+      document.getElementById('btnModeSelect').style.border = mode === 'select' ? 'none' : '1px solid #ddd';
+      document.getElementById('calList').style.display = mode === 'select' ? 'block' : 'none';
+      if (mode === 'select' && accessToken && calendarList.length === 0) loadCalendarList();
+    }
+
+    async function loadCalendarList() {
+      try {
+        const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const data = await res.json();
+        calendarList = (data.items || []).filter(c => c.accessRole === 'owner' || c.accessRole === 'writer' || c.accessRole === 'reader');
+        renderCalendarList();
+      } catch(e) {
+        setStatus(t('calListError'));
+      }
+    }
+
+    function renderCalendarList() {
+      const container = document.getElementById('calList');
+      container.innerHTML = '';
+      calendarList.forEach(cal => {
+        const div = document.createElement('div');
+        div.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.id = 'cal_' + cal.id;
+        cb.value = cal.id;
+        cb.checked = true;
+        cb.style.cssText = 'width:16px;height:16px;cursor:pointer;';
+        const label = document.createElement('label');
+        label.htmlFor = 'cal_' + cal.id;
+        label.style.cssText = 'font-size:13px;color:#333;cursor:pointer;flex:1;';
+        label.textContent = cal.summary;
+        const dot = document.createElement('span');
+        dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${cal.backgroundColor || '#4f8ef7'};flex-shrink:0;`;
+        div.appendChild(cb);
+        div.appendChild(dot);
+        div.appendChild(label);
+        container.appendChild(div);
+      });
+    }
+
+    function setBgImageError(key) {
+      lastBgImageErrorKey = key || null;
+      const el = document.getElementById('bgImageError');
+      if (el) el.textContent = key ? t(key) : '';
+    }
+
+    function updateBackgroundPosition() {
+      const posStr = `${bgPositionX}% ${bgPositionY}%`;
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundPosition = posStr;
+      updateBgPreviewHighlight();
+      saveBgPositionToStorage();
+    }
+
+    // Used while dragging the preview highlight: keeps the result background
+    // in sync on every pointermove without writing to localStorage on every
+    // frame (that only happens once, on pointerup).
+    function applyBgPositionRealtime() {
+      const posStr = `${bgPositionX}% ${bgPositionY}%`;
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundPosition = posStr;
+    }
+
+    function updateBgPreviewHighlight() {
+      const preview = document.getElementById('bgPreview');
+      const img = document.getElementById('bgPreviewImg');
+      const highlight = document.getElementById('bgPreviewHighlight');
+      if (!preview || !img || !highlight) return;
+      if (img.style.display === 'none' || !img.naturalWidth || !img.naturalHeight) {
+        highlight.style.display = 'none';
+        bgPreviewMovableBounds = null;
+        return;
+      }
+      const containerW = preview.clientWidth;
+      const containerH = preview.clientHeight;
+      if (!containerW || !containerH) {
+        highlight.style.display = 'none';
+        bgPreviewMovableBounds = null;
+        return;
+      }
+      const imgRatio = img.naturalWidth / img.naturalHeight;
+      const containerRatio = containerW / containerH;
+      let renderW, renderH;
+      if (imgRatio > containerRatio) {
+        renderW = containerW;
+        renderH = containerW / imgRatio;
+      } else {
+        renderH = containerH;
+        renderW = containerH * imgRatio;
+      }
+      const renderLeft = (containerW - renderW) / 2;
+      const renderTop = (containerH - renderH) / 2;
+      const highlightW = renderW * 0.75;
+      const highlightH = renderH * 0.45;
+      const movableW = renderW - highlightW;
+      const movableH = renderH - highlightH;
+      // -100 -> 0% (left/top edge), 50 -> 50% (center), 200 -> 100% (right/bottom edge)
+      const fracX = Math.min(Math.max((bgPositionX + 100) / 300, 0), 1);
+      const fracY = Math.min(Math.max((bgPositionY + 100) / 300, 0), 1);
+      const highlightLeft = renderLeft + fracX * movableW;
+      const highlightTop = renderTop + fracY * movableH;
+      bgPreviewMovableBounds = { renderLeft, renderTop, movableW, movableH };
+      highlight.style.width = `${highlightW}px`;
+      highlight.style.height = `${highlightH}px`;
+      highlight.style.left = `${highlightLeft}px`;
+      highlight.style.top = `${highlightTop}px`;
+      highlight.style.display = 'flex';
+    }
+
+    function handleBgPreviewHighlightPointerDown(e) {
+      if (!bgPreviewMovableBounds) return;
+      if (e.isPrimary === false) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (bgPreviewDragState) return;
+      // The user is now driving the position directly; a slower, already
+      // in-flight restore must not clobber this once it resolves.
+      bgRestoreGeneration++;
+      const highlight = document.getElementById('bgPreviewHighlight');
+      bgPreviewDragState = {
+        pointerId: e.pointerId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startLeft: parseFloat(highlight.style.left) || 0,
+        startTop: parseFloat(highlight.style.top) || 0
+      };
+      highlight.classList.add('dragging');
+      if (highlight.setPointerCapture) {
+        try { highlight.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+      e.preventDefault();
+    }
+
+    function handleBgPreviewHighlightPointerMove(e) {
+      if (!bgPreviewDragState || e.pointerId !== bgPreviewDragState.pointerId) return;
+      if (!bgPreviewMovableBounds) return;
+      const b = bgPreviewMovableBounds;
+      const deltaX = e.clientX - bgPreviewDragState.startClientX;
+      const deltaY = e.clientY - bgPreviewDragState.startClientY;
+      let newLeft = bgPreviewDragState.startLeft + deltaX;
+      let newTop = bgPreviewDragState.startTop + deltaY;
+      newLeft = Math.min(Math.max(newLeft, b.renderLeft), b.renderLeft + b.movableW);
+      newTop = Math.min(Math.max(newTop, b.renderTop), b.renderTop + b.movableH);
+
+      const highlight = document.getElementById('bgPreviewHighlight');
+      highlight.style.left = `${newLeft}px`;
+      highlight.style.top = `${newTop}px`;
+
+      const fracX = b.movableW > 0 ? (newLeft - b.renderLeft) / b.movableW : 0.5;
+      const fracY = b.movableH > 0 ? (newTop - b.renderTop) / b.movableH : 0.5;
+      bgPositionX = -100 + fracX * 300;
+      bgPositionY = -100 + fracY * 300;
+      applyBgPositionRealtime();
+    }
+
+    function endBgPreviewHighlightDrag(e) {
+      if (!bgPreviewDragState || e.pointerId !== bgPreviewDragState.pointerId) return;
+      const highlight = document.getElementById('bgPreviewHighlight');
+      if (highlight && highlight.hasPointerCapture && highlight.hasPointerCapture(e.pointerId)) {
+        try { highlight.releasePointerCapture(e.pointerId); } catch (err) {}
+      }
+      if (highlight) highlight.classList.remove('dragging');
+      bgPreviewDragState = null;
+      saveBgPositionToStorage();
+    }
+
+    function handleBgPreviewHighlightPointerUp(e) {
+      endBgPreviewHighlightDrag(e);
+    }
+
+    function handleBgPreviewHighlightPointerCancel(e) {
+      endBgPreviewHighlightDrag(e);
+    }
+
+    function applyBgWhiteRange() {
+      const resultView = document.getElementById('resultView');
+      if (resultView) {
+        resultView.classList.remove('bg-white-range-0', 'bg-white-range-1', 'bg-white-range-2');
+        resultView.classList.add(`bg-white-range-${bgWhiteRange}`);
+      }
+      updateBgWhiteRangeUI();
+      saveBgWhiteRangeToStorage();
+    }
+
+    function updateBgWhiteRangeUI() {
+      const slider = document.getElementById('bgWhiteRangeSlider');
+      if (slider) slider.value = bgWhiteRange;
+      const valueText = document.getElementById('bgWhiteRangeValueText');
+      if (valueText) valueText.textContent = t(BG_WHITE_RANGE_LABEL_KEYS[bgWhiteRange]);
+    }
+
+    function setBgWhiteRangeControlEnabled(enabled) {
+      const slider = document.getElementById('bgWhiteRangeSlider');
+      if (slider) slider.disabled = !enabled;
+    }
+
+    function handleBgWhiteRangeSliderInput() {
+      bgWhiteRange = Number(document.getElementById('bgWhiteRangeSlider').value);
+      applyBgWhiteRange();
+    }
+
+    function applyBackgroundImageDom(objectUrl) {
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundImage = `url("${objectUrl}")`;
+      const previewImg = document.getElementById('bgPreviewImg');
+      if (previewImg) {
+        previewImg.style.display = 'block';
+        previewImg.src = objectUrl;
+      }
+      const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
+      if (previewPlaceholder) previewPlaceholder.style.display = 'none';
+      document.getElementById('resultView').classList.add('has-custom-background');
+      const previewBadge = document.getElementById('bgPreviewBadge');
+      if (previewBadge) {
+        previewBadge.textContent = t('bgImageSelected');
+        previewBadge.style.display = 'inline-block';
+      }
+      const removeBtn = document.getElementById('removeBgImageBtn');
+      if (removeBtn) removeBtn.style.display = 'block';
+    }
+
+    function applyBackgroundImage(file) {
+      bgRestoreGeneration++;
+      if (bgImageObjectUrl) {
+        URL.revokeObjectURL(bgImageObjectUrl);
+        bgImageObjectUrl = null;
+      }
+      bgImageObjectUrl = URL.createObjectURL(file);
+      applyBackgroundImageDom(bgImageObjectUrl);
+      bgPositionX = 50;
+      bgPositionY = 50;
+      updateBackgroundPosition();
+      setBgWhiteRangeControlEnabled(true);
+      applyBgWhiteRange();
+      saveBackgroundImage(file).catch((err) => {
+        console.warn('Failed to save background image to IndexedDB', err);
+        setBgImageError('bgImageSaveFailed');
+      });
+    }
+
+    async function restoreSavedBackground() {
+      const generationAtStart = bgRestoreGeneration;
+      let record = null;
+      try {
+        record = await loadBackgroundImage();
+      } catch (e) {
+        console.warn('Failed to load saved background image', e);
+        return;
+      }
+      // The user already selected or removed a background while this load
+      // was in flight; the newer state must win, so drop this stale result.
+      if (bgRestoreGeneration !== generationAtStart) return;
+      if (!record || !(record.blob instanceof Blob)) return;
+
+      let objectUrl;
+      try {
+        objectUrl = URL.createObjectURL(record.blob);
+      } catch (e) {
+        console.warn('Failed to create object URL for saved background image', e);
+        return;
+      }
+
+      const pos = loadBgPositionFromStorage();
+      bgPositionX = pos.x;
+      bgPositionY = pos.y;
+      bgWhiteRange = loadBgWhiteRangeFromStorage();
+
+      if (bgImageObjectUrl) {
+        URL.revokeObjectURL(bgImageObjectUrl);
+        bgImageObjectUrl = null;
+      }
+      bgImageObjectUrl = objectUrl;
+      applyBackgroundImageDom(bgImageObjectUrl);
+      updateBackgroundPosition();
+      setBgWhiteRangeControlEnabled(true);
+      applyBgWhiteRange();
+    }
+
+    function removeBackgroundImage() {
+      bgRestoreGeneration++;
+      if (bgImageObjectUrl) {
+        URL.revokeObjectURL(bgImageObjectUrl);
+        bgImageObjectUrl = null;
+      }
+      const layer = document.getElementById('bgImageLayer');
+      if (layer) layer.style.backgroundImage = '';
+      const previewImg = document.getElementById('bgPreviewImg');
+      if (previewImg) {
+        previewImg.style.display = 'none';
+        previewImg.src = '';
+      }
+      const previewHighlight = document.getElementById('bgPreviewHighlight');
+      if (previewHighlight) {
+        previewHighlight.style.display = 'none';
+        previewHighlight.classList.remove('dragging');
+        if (bgPreviewDragState && previewHighlight.hasPointerCapture && previewHighlight.hasPointerCapture(bgPreviewDragState.pointerId)) {
+          try { previewHighlight.releasePointerCapture(bgPreviewDragState.pointerId); } catch (err) {}
+        }
+      }
+      // Removing the background mid-drag hides the highlight, which implicitly
+      // releases pointer capture; a later pointerup/cancel for that gesture may
+      // never reach us. Clear the drag state now so it can't get stuck and
+      // block every future drag attempt.
+      bgPreviewDragState = null;
+      const previewPlaceholder = document.getElementById('bgPreviewPlaceholder');
+      if (previewPlaceholder) previewPlaceholder.style.display = 'flex';
+      document.getElementById('resultView').classList.remove('has-custom-background');
+      const previewBadge = document.getElementById('bgPreviewBadge');
+      if (previewBadge) {
+        previewBadge.textContent = '';
+        previewBadge.style.display = 'none';
+      }
+      const removeBtn = document.getElementById('removeBgImageBtn');
+      if (removeBtn) removeBtn.style.display = 'none';
+      const input = document.getElementById('bgImageInput');
+      if (input) input.value = '';
+      setBgImageError(null);
+      bgPositionX = 50;
+      bgPositionY = 50;
+      updateBackgroundPosition();
+      clearBgPositionFromStorage();
+      bgWhiteRange = 0;
+      setBgWhiteRangeControlEnabled(false);
+      applyBgWhiteRange();
+      clearBgWhiteRangeFromStorage();
+      deleteBackgroundImage().catch((err) => {
+        console.warn('Failed to delete saved background image', err);
+        setBgImageError('bgImageDeleteFailed');
+      });
+    }
+
+    function handleBgImageChange(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (!BG_IMAGE_ALLOWED_TYPES.includes(file.type)) {
+        setBgImageError('bgImageUnsupported');
+        e.target.value = '';
+        return;
+      }
+      if (file.size > BG_IMAGE_MAX_BYTES) {
+        setBgImageError('bgImageTooLarge');
+        e.target.value = '';
+        return;
+      }
+      setBgImageError(null);
+      applyBackgroundImage(file);
+    }
+
+    function openBgImagePicker() {
+      const input = document.getElementById('bgImageInput');
+      if (input) input.click();
+    }
+
+    function handleBgPreviewKeyDown(e) {
+      if (e.key === 'Enter') {
+        openBgImagePicker();
+      } else if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        openBgImagePicker();
+      }
+    }
+
+    window.onload = () => {
+      restoreSavedBackground();
+
+      const today = new Date();
+      const toLocalDateStr = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        return `${y}-${m}-${day}`;
+      };
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      document.getElementById('startDate').value = toLocalDateStr(today);
+      document.getElementById('endDate').value = toLocalDateStr(nextWeek);
+
+      const cached = localStorage.getItem(TOKEN_KEY);
+      const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+      if (cached && expiry && Date.now() < parseInt(expiry)) {
+        accessToken = cached;
+        showLoggedIn();
+      }
+
+      const savedResult = sessionStorage.getItem(RESULT_KEY);
+      const savedSlots = sessionStorage.getItem('last_slots');
+      if (savedResult && savedSlots) {
+        let restoredSlots = [];
+        try {
+          const parsed = JSON.parse(savedSlots);
+          restoredSlots = Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          restoredSlots = [];
+        }
+        currentSlots = restoredSlots;
+
+        let restoredRange = null;
+        const savedRangeRaw = sessionStorage.getItem(SEARCH_RANGE_KEY);
+        if (savedRangeRaw) {
+          try {
+            const parsedRange = JSON.parse(savedRangeRaw);
+            if (parsedRange && typeof parsedRange.startDate === 'string' && typeof parsedRange.endDate === 'string' &&
+                toLocalMidnight(parsedRange.startDate) && toLocalMidnight(parsedRange.endDate)) {
+              restoredRange = parsedRange;
+            }
+          } catch (e) {
+            restoredRange = null;
+          }
+        }
+
+        if (restoredRange) {
+          currentDailyResults = buildDailyResults(restoredSlots, restoredRange.startDate, restoredRange.endDate);
+          currentDayIndex = 0;
+          if (currentDailyResults.length > 0) {
+            document.getElementById('startDate').value = restoredRange.startDate;
+            document.getElementById('endDate').value = restoredRange.endDate;
+            showResult(renderDailyResultHtml());
+          } else {
+            showResult(savedResult);
+          }
+        } else {
+          const restoredGroups = groupSlotsByDay(restoredSlots);
+          if (restoredGroups.length > 0) {
+            currentDailyResults = buildDailyResults(restoredSlots, restoredGroups[0].date, restoredGroups[restoredGroups.length - 1].date);
+            currentDayIndex = 0;
+            showResult(renderDailyResultHtml());
+          } else {
+            currentDailyResults = [];
+            currentDayIndex = 0;
+            showResult(savedResult);
+          }
+        }
+      }
+
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+      applyLang();
+    };
+
+    function showLoggedIn() {
+      document.getElementById('loginSection').style.display = 'none';
+      document.getElementById('formSection').style.display = 'block';
+      document.getElementById('loginInfo').textContent = t('loggedIn');
+    }
+
+    function doLogin() {
+      if (typeof google === 'undefined' || !google.accounts) {
+        setStatus(t('loadingGoogle'));
+        waitForGoogle().then(() => {
+          if (!tokenClient) initTokenClient();
+          tokenClient.requestAccessToken();
+        });
+        return;
+      }
+      if (!tokenClient) initTokenClient();
+      tokenClient.requestAccessToken();
+    }
+
+    function logout() {
+      accessToken = null;
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_EXPIRY_KEY);
+      calendarList = [];
+      document.getElementById('loginSection').style.display = 'block';
+      document.getElementById('formSection').style.display = 'none';
+      sessionStorage.removeItem(RESULT_KEY);
+      sessionStorage.removeItem('last_slots');
+      setStatus(t('loggedOut'));
+    }
+
+    function showSearch() {
+      document.getElementById('startView').style.display = 'none';
+      document.getElementById('searchView').style.display = 'flex';
+      document.getElementById('resultView').style.display = 'none';
+      document.getElementById('backgroundSettingsView').style.display = 'none';
+    }
+
+    function showBackgroundSettings() {
+      document.getElementById('searchView').style.display = 'none';
+      document.getElementById('backgroundSettingsView').style.display = 'flex';
+      // The preview may have been sized while hidden (e.g. a background was
+      // restored before this view was ever opened), so its bounds could be
+      // stale or missing. Recompute now that the container has real layout.
+      updateBgPreviewHighlight();
+    }
+
+    function hideBackgroundSettings() {
+      document.getElementById('backgroundSettingsView').style.display = 'none';
+      document.getElementById('searchView').style.display = 'flex';
+    }
+
+    function showResult(html) {
+      document.getElementById('resultContent').innerHTML = html;
+      document.getElementById('startView').style.display = 'none';
+      document.getElementById('searchView').style.display = 'none';
+      document.getElementById('backgroundSettingsView').style.display = 'none';
+      document.getElementById('resultView').style.display = 'block';
+      window.scrollTo(0, 0);
+    }
+
+    function initTokenClient() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID, scope: SCOPES,
+        callback: async (response) => {
+          if (response.error) {
+            setStatus(t('loginFailed'));
+            document.getElementById('searchBtn').disabled = false;
+            return;
+          }
+          accessToken = response.access_token;
+          localStorage.setItem(TOKEN_KEY, accessToken);
+          localStorage.setItem(TOKEN_EXPIRY_KEY, Date.now() + 3500 * 1000);
+          showLoggedIn();
+          if (calMode === 'select') await loadCalendarList();
+        }
+      });
+    }
+
+    function waitForGoogle() {
+      return new Promise((resolve) => {
+        const check = setInterval(() => {
+          if (typeof google !== 'undefined' && google.accounts) { clearInterval(check); resolve(); }
+        }, 200);
+      });
+    }
+
+    async function startSearch() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      if (!startDate || !endDate) { setStatusForm(t('noDate')); return; }
+      if (startDate > endDate) { setStatusForm(t('invalidDate')); return; }
+      document.getElementById('searchBtn').disabled = true;
+      if (accessToken) { await fetchAndCalc(); return; }
+      if (typeof google === 'undefined' || !google.accounts) {
+        setStatus(t('loadingGoogle'));
+        await waitForGoogle();
+      }
+      if (!tokenClient) initTokenClient();
+      setStatusForm(t('loggingIn'));
+      tokenClient.requestAccessToken();
+    }
+
+    async function fetchAndCalc() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const duration = parseInt(document.getElementById('duration').value);
+      const btn = document.getElementById('searchBtn');
+      setStatusForm(t('loadingCal'));
+      try {
+        const timeMin = startDate + 'T00:00:00+09:00';
+        const timeMax = endDate + 'T23:59:59+09:00';
+
+        // 使用するカレンダーIDを決定
+        let calIds = ['primary'];
+        if (calMode === 'select') {
+          if (calendarList.length === 0) await loadCalendarList();
+          const checked = Array.from(document.querySelectorAll('#calList input[type=checkbox]:checked')).map(cb => cb.value);
+          calIds = checked.length > 0 ? checked : ['primary'];
+        } else {
+          // 全カレンダー取得
+          try {
+            const listRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (listRes.ok) {
+              const listData = await listRes.json();
+              calIds = (listData.items || []).map(c => c.id);
+              if (calIds.length === 0) calIds = ['primary'];
+            }
+          } catch(e) {}
+        }
+
+        // 各カレンダーのイベントを取得
+        let allEvents = [];
+        for (const calId of calIds) {
+          try {
+            const calRes = await fetch(
+              `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            if (calRes.status === 401) {
+              accessToken = null;
+              localStorage.removeItem(TOKEN_KEY);
+              localStorage.removeItem(TOKEN_EXPIRY_KEY);
+              document.getElementById('loginInfo').textContent = '';
+              document.getElementById('logoutBtn').style.display = 'none';
+              if (!tokenClient) initTokenClient();
+              setStatusForm(t('sessionExpired'));
+              tokenClient.requestAccessToken();
+              return;
+            }
+            if (calRes.ok) {
+              const calData = await calRes.json();
+              const items = (calData.items || [])
+                .filter(e => e.transparency !== 'transparent' && e.status !== 'cancelled')
+                .map(e => ({
+                  start: e.start.dateTime || e.start.date,
+                  end: e.end.dateTime || e.end.date
+                }));
+              allEvents = allEvents.concat(items);
+            }
+          } catch(e) {}
+        }
+        const events = allEvents;
+        setStatusForm(t('calculating'));
+        currentSlots = findFreeSlots(startDate, endDate, duration, events);
+        currentDailyResults = buildDailyResults(currentSlots, startDate, endDate);
+        currentDayIndex = 0;
+        const html = renderDailyResultHtml();
+        sessionStorage.setItem(RESULT_KEY, html);
+        sessionStorage.setItem('last_slots', JSON.stringify(currentSlots));
+        sessionStorage.setItem(SEARCH_RANGE_KEY, JSON.stringify({ startDate, endDate }));
+        showResult(html);
+        setStatusForm('');
+      } catch (e) {
+        setStatusForm(t('errorPrefix') + e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function findFreeSlots(startDate, endDate, duration, events) {
+      const slots = [];
+      const [sy, sm, sd] = startDate.split('-').map(Number);
+      const [ey, em, ed] = endDate.split('-').map(Number);
+      const start = new Date(sy, sm - 1, sd);
+      const end = new Date(ey, em - 1, ed);
+
+      const now = new Date();
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const isToday = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+        let dayStart;
+        if (isToday) {
+          // 現在時刻を30分単位で切り捨て（14:32→14:30、14:45→14:30）
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          const roundedMinutes = Math.floor(nowMinutes / STEP_MIN) * STEP_MIN;
+          const startMinutes = Math.max(DAY_START * 60, roundedMinutes);
+          dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(startMinutes / 60), startMinutes % 60, 0);
+        } else {
+          dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_START, 0, 0);
+        }
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_END, 0, 0);
+        const dayEvents = events
+          .map(e => ({ start: new Date(e.start), end: new Date(e.end) }))
+          .filter(e => e.start < dayEnd && e.end > dayStart)
+          .sort((a, b) => a.start - b.start);
+
+        let cur = new Date(dayStart);
+        let bStart = null;
+        while (cur < dayEnd) {
+          const next = new Date(cur.getTime() + STEP_MIN * 60000);
+          const hit = dayEvents.some(e => e.start < next && e.end > cur);
+          if (!hit) {
+            if (bStart === null) bStart = new Date(cur);
+            cur = next;
+          } else {
+            if (bStart !== null && (cur - bStart) >= duration * 60000) {
+              slots.push({ start: new Date(bStart), end: new Date(cur) });
+            }
+            bStart = null;
+            const blocking = dayEvents.filter(e => e.start < next && e.end > cur);
+            const maxEnd = new Date(Math.max(...blocking.map(e => e.end)));
+            cur = maxEnd > next ? maxEnd : next;
+          }
+        }
+        if (bStart !== null && (cur - bStart) >= duration * 60000) {
+          slots.push({ start: new Date(bStart), end: new Date(cur < dayEnd ? cur : dayEnd) });
+        }
+      }
+      return slots;
+    }
+
+    function groupSlotsByDay(slots) {
+      const toValidDate = (v) => {
+        const d = (v instanceof Date) ? v : new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const normalized = [];
+      for (const s of slots) {
+        if (!s) continue;
+        const start = toValidDate(s.start);
+        const end = toValidDate(s.end);
+        if (!start || !end) continue;
+        normalized.push({ start, end });
+      }
+
+      normalized.sort((a, b) => a.start - b.start);
+
+      const dateKeyOf = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const groupsByKey = new Map();
+      for (const slot of normalized) {
+        const key = dateKeyOf(slot.start);
+        if (!groupsByKey.has(key)) {
+          const dayDate = new Date(slot.start.getFullYear(), slot.start.getMonth(), slot.start.getDate());
+          groupsByKey.set(key, { date: dayDate, dateKey: key, slots: [] });
+        }
+        groupsByKey.get(key).slots.push(slot);
+      }
+
+      return Array.from(groupsByKey.values()).sort((a, b) => a.date - b.date);
+    }
+
+    function toLocalMidnight(v) {
+      if (v instanceof Date) {
+        return isNaN(v.getTime()) ? null : new Date(v.getFullYear(), v.getMonth(), v.getDate());
+      }
+      if (typeof v === 'string') {
+        const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) {
+          const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+          return isNaN(d.getTime()) ? null : d;
+        }
+        const parsed = new Date(v);
+        return isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      }
+      return null;
+    }
+
+    function getTodayLocalMidnight() {
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+
+    function dateToLocalDateStr(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function buildDailyResults(slots, startDate, endDate) {
+      const today = getTodayLocalMidnight();
+      let start = toLocalMidnight(startDate);
+      const end = toLocalMidnight(endDate);
+      if (!start || !end) return [];
+      if (start < today) start = new Date(today.getTime());
+      if (start > end) return [];
+
+      const dateKeyOf = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const grouped = groupSlotsByDay(slots);
+      const groupedByKey = new Map(grouped.map(g => [g.dateKey, g]));
+
+      const results = [];
+      for (let cursor = new Date(start.getTime()); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+        const dayDate = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+        const key = dateKeyOf(dayDate);
+        const existing = groupedByKey.get(key);
+        results.push({
+          date: dayDate,
+          dateKey: key,
+          slots: existing ? existing.slots.slice() : []
+        });
+      }
+      return results;
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function slotToCalendarUrl(slot) {
+      const fmt = (d) =>
+        `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&dates=${fmt(slot.start)}/${fmt(slot.end)}`;
+    }
+
+    function slotToText(slot) {
+      const days = t('days');
+      const dow = slot.start.getDay();
+      const startT = `${pad(slot.start.getHours())}:${pad(slot.start.getMinutes())}`;
+      const endT = `${pad(slot.end.getHours())}:${pad(slot.end.getMinutes())}`;
+      let dateStr;
+      if (currentLang === 'en') {
+        const months = t('months');
+        dateStr = `${months[slot.start.getMonth()]} ${slot.start.getDate()} (${days[dow]})`;
+      } else {
+        dateStr = `${slot.start.getMonth()+1}月${slot.start.getDate()}日(${days[dow]})`;
+      }
+      return `${dateStr} ${startT}〜${endT}`;
+    }
+
+
+
+    function formatResult(slots) {
+      const days = t('days');
+      if (slots.length === 0) {
+        return `<div style="text-align:center;padding:60px 20px;color:#888;">${t('noSlotsMsg')}</div>`;
+      }
+      let html = `<p style="text-align:center;color:#888;font-size:14px;margin-bottom:20px;">${t('slotsFound', slots.length)}</p>`;
+      slots.forEach((s, i) => {
+        let dateStr;
+        if (currentLang === 'en') {
+          const months = t('months');
+          dateStr = `${months[s.start.getMonth()]} ${s.start.getDate()} (${days[s.start.getDay()]})`;
+        } else {
+          dateStr = `${s.start.getMonth()+1}月${s.start.getDate()}日 (${days[s.start.getDay()]})`;
+        }
+        const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
+        const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
+        html += `
+          <div class="slot-card">
+            <div class="slot-date">${dateStr}</div>
+            <div class="slot-time">${startT}<span>〜</span>${endT}</div>
+            <div class="slot-actions">
+              <button class="btn-copy" onclick="copySlot(${i})">${t('copySlot')}</button>
+              <button class="btn-calendar" onclick="openCalendar(${i})">${t('addCalendar')}</button>
+            </div>
+          </div>`;
+      });
+      return html;
+    }
+
+    function dateKeyOfDate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function renderWeekPosIndicator(dow) {
+      const dots = [];
+      for (let i = 0; i < 7; i++) {
+        const isActive = i === dow;
+        let activeStyle = '';
+        if (isActive) {
+          const color = i === 0 ? '#c0574f' : i === 6 ? '#4a72c4' : '#7a8a9b';
+          activeStyle = ` style="background:${color}"`;
+        }
+        dots.push(`<span class="week-pos-dot${isActive ? ' active' : ''}"${activeStyle}></span>`);
+      }
+      return `<div class="week-pos-dots" aria-hidden="true">${dots.join('')}</div>`;
+    }
+
+    function renderDailyCard(day) {
+      const days = t('days');
+      const dow = day.date.getDay();
+      let dateStr;
+      if (currentLang === 'en') {
+        const months = t('months');
+        dateStr = `${months[day.date.getMonth()]} ${day.date.getDate()}, ${day.date.getFullYear()} (${days[dow]})`;
+      } else {
+        dateStr = `${day.date.getFullYear()}年${day.date.getMonth() + 1}月${day.date.getDate()}日（${days[dow]}）`;
+      }
+      // 曜日ごとの水平位置（日曜=左 → 土曜=右）
+      const DOW_LEFT_OFFSETS = ['0%', '4%', '7%', '11%', '15%', '19%', '22%'];
+      const dateColorClass = dow === 0 ? ' dow-sun' : dow === 6 ? ' dow-sat' : '';
+
+      let slotsHtml;
+      if (day.slots.length === 0) {
+        slotsHtml = `<div class="no-slots-message">${t('noAvailability')}</div>`;
+      } else {
+        slotsHtml = day.slots.map((s, i) => {
+          const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
+          const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
+          return `
+            <div class="day-slot-row">
+              <div class="slot-date">${t('available')}</div>
+              <div class="slot-time">${startT}<span>〜</span>${endT}</div>
+              <div class="slot-actions">
+                <button class="btn-copy" onclick="copySlot(${i})">${t('copySlot')}</button>
+                <button class="btn-calendar" onclick="openCalendar(${i})">${t('addCalendar')}</button>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      return `
+        <div class="slot-card daily-result-card" data-day-card>
+          ${renderWeekPosIndicator(dow)}
+          <div class="day-card-date${dateColorClass}" style="padding-left:${DOW_LEFT_OFFSETS[dow]}">${dateStr}</div>
+          ${slotsHtml}
+          <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>${t('copyDay')}</button>
+        </div>
+        <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="${t('nextWeekAria')}">
+          <div class="swipe-hint swipe-hint-week" aria-hidden="true">${t('nextWeek')}</div>
+        </div>`;
+    }
+
+    function renderDailyResultHtml() {
+      if (!currentDailyResults || currentDailyResults.length === 0) {
+        return `<div style="text-align:center;padding:60px 20px;color:#888;">${t('noSlotsMsg')}</div>`;
+      }
+      if (currentDayIndex < 0) currentDayIndex = 0;
+      if (currentDayIndex > currentDailyResults.length - 1) currentDayIndex = currentDailyResults.length - 1;
+      return renderDailyCard(currentDailyResults[currentDayIndex]);
+    }
+
+    function renderCurrentDay() {
+      showResult(renderDailyResultHtml());
+    }
+
+    function showPreviousDay() {
+      if (isSearching) return;
+      if (currentDayIndex <= 0) return;
+      currentDayIndex -= 1;
+      renderCurrentDay();
+    }
+
+    function showNextDay() {
+      if (isSearching) return;
+      if (currentDayIndex >= currentDailyResults.length - 1) return;
+      currentDayIndex += 1;
+      renderCurrentDay();
+    }
+
+    async function goToNextWeek() {
+      if (isSearching || isAnimating) return;
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const start = toLocalMidnight(startDate);
+      const end = toLocalMidnight(endDate);
+      if (!start || !end) return;
+
+      const nextStart = new Date(start.getTime());
+      nextStart.setDate(nextStart.getDate() + 7);
+      const nextEnd = new Date(end.getTime());
+      nextEnd.setDate(nextEnd.getDate() + 7);
+      const nextStartStr = dateToLocalDateStr(nextStart);
+      const nextEndStr = dateToLocalDateStr(nextEnd);
+
+      const previousSlots = currentSlots;
+      const previousDailyResults = currentDailyResults;
+      const previousDayIndex = currentDayIndex;
+
+      isSearching = true;
+      const searchBtn = document.getElementById('searchBtn');
+      if (searchBtn) searchBtn.disabled = true;
+      renderCurrentDay();
+
+      document.getElementById('startDate').value = nextStartStr;
+      document.getElementById('endDate').value = nextEndStr;
+
+      try {
+        await fetchAndCalc();
+        const succeeded = currentDailyResults.length > 0 && currentDailyResults[0].dateKey === nextStartStr;
+        if (!succeeded) {
+          currentSlots = previousSlots;
+          currentDailyResults = previousDailyResults;
+          currentDayIndex = previousDayIndex;
+          document.getElementById('startDate').value = startDate;
+          document.getElementById('endDate').value = endDate;
+          showToast(t('nextWeekFail'));
+        }
+      } catch (e) {
+        currentSlots = previousSlots;
+        currentDailyResults = previousDailyResults;
+        currentDayIndex = previousDayIndex;
+        document.getElementById('startDate').value = startDate;
+        document.getElementById('endDate').value = endDate;
+        showToast(t('nextWeekFail'));
+      } finally {
+        isSearching = false;
+        const searchBtnEl = document.getElementById('searchBtn');
+        if (searchBtnEl) searchBtnEl.disabled = false;
+        if (currentDailyResults.length > 0) {
+          renderCurrentDay();
+        }
+      }
+    }
+
+    function isSwipeExcludedTarget(target) {
+      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone]'));
+    }
+
+    function isWeekSwipeZoneTarget(target) {
+      return !!(target && target.closest && target.closest('[data-week-swipe-zone]'));
+    }
+
+    function releaseSwipePointer(e) {
+      if (swipeState && e.currentTarget && e.currentTarget.hasPointerCapture && e.currentTarget.hasPointerCapture(swipeState.pointerId)) {
+        try { e.currentTarget.releasePointerCapture(swipeState.pointerId); } catch (err) {}
+      }
+      swipeState = null;
+    }
+
+    function getDayCardEl() {
+      return document.querySelector('[data-day-card]');
+    }
+
+    function prefersReducedMotion() {
+      return typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    function resetCardTransform(cardEl) {
+      if (!cardEl) return;
+      cardEl.style.transition = '';
+      cardEl.style.transform = '';
+    }
+
+    function runCardTransition(cardEl, targetTransform, duration, onDone) {
+      if (!cardEl) { if (onDone) onDone(); return; }
+      if (duration <= 0) {
+        cardEl.style.transition = '';
+        cardEl.style.transform = targetTransform;
+        if (onDone) onDone();
+        return;
+      }
+      cardEl.style.transition = `transform ${duration}ms ease`;
+      void cardEl.offsetWidth; // force reflow so the transition picks up the current transform
+      cardEl.style.transform = targetTransform;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        cardEl.removeEventListener('transitionend', onTransitionEnd);
+        if (onDone) onDone();
+      };
+      const onTransitionEnd = (ev) => {
+        if (ev.target !== cardEl || ev.propertyName !== 'transform') return;
+        finish();
+      };
+      cardEl.addEventListener('transitionend', onTransitionEnd);
+      setTimeout(finish, duration + 100); // safety net in case transitionend never fires
+    }
+
+    function snapCardToCenter(cardEl) {
+      const duration = prefersReducedMotion() ? 0 : CARD_TRANSITION_MS;
+      runCardTransition(cardEl, 'translateX(0)', duration, () => {
+        resetCardTransform(cardEl);
+        isAnimating = false;
+      });
+    }
+
+    function animateDayChange(direction, cardEl) {
+      const duration = prefersReducedMotion() ? 0 : CARD_TRANSITION_MS;
+      const exitTarget = direction === 'next' ? 'translateX(-100%)' : 'translateX(100%)';
+      runCardTransition(cardEl, exitTarget, duration, () => {
+        if (direction === 'next') { showNextDay(); } else { showPreviousDay(); }
+        const newCardEl = getDayCardEl();
+        if (!newCardEl) { isAnimating = false; return; }
+        const enterFrom = direction === 'next' ? 'translateX(100%)' : 'translateX(-100%)';
+        newCardEl.style.transition = 'none';
+        newCardEl.style.transform = enterFrom;
+        runCardTransition(newCardEl, 'translateX(0)', duration, () => {
+          resetCardTransform(newCardEl);
+          isAnimating = false;
+        });
+      });
+    }
+
+    function jumpToDayIndex(targetIndex, cardEl) {
+      if (targetIndex < 0 || targetIndex >= currentDailyResults.length) { isAnimating = false; return; }
+      const direction = targetIndex > currentDayIndex ? 'next' : 'previous';
+      const duration = prefersReducedMotion() ? 0 : CARD_TRANSITION_MS;
+      const exitTarget = direction === 'next' ? 'translateX(-100%)' : 'translateX(100%)';
+      runCardTransition(cardEl, exitTarget, duration, () => {
+        currentDayIndex = targetIndex;
+        renderCurrentDay();
+        const newCardEl = getDayCardEl();
+        if (!newCardEl) { isAnimating = false; return; }
+        const enterFrom = direction === 'next' ? 'translateX(100%)' : 'translateX(-100%)';
+        newCardEl.style.transition = 'none';
+        newCardEl.style.transform = enterFrom;
+        runCardTransition(newCardEl, 'translateX(0)', duration, () => {
+          resetCardTransform(newCardEl);
+          isAnimating = false;
+        });
+      });
+    }
+
+    function triggerDateNav(dateKey) {
+      if (isSearching || isAnimating) return;
+      if (!dateKey) return;
+      const targetIndex = currentDailyResults.findIndex(d => d.dateKey === dateKey);
+      if (targetIndex === -1 || targetIndex === currentDayIndex) return;
+      const cardEl = getDayCardEl();
+      isAnimating = true;
+      jumpToDayIndex(targetIndex, cardEl);
+    }
+
+    // Card body swipe handler. Allows left/right gestures started anywhere on
+    // the card body to move the day, as long as the gesture is clearly
+    // horizontal. touch-action: pan-y stays in effect here, so
+    // ambiguous/diagonal gestures hand off to native vertical scrolling.
+    function handleResultPointerDown(e) {
+      if (isSearching || isAnimating) return;
+      if (e.isPrimary === false) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (isSwipeExcludedTarget(e.target)) return;
+      if (swipeState) return;
+      swipeState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        axisLock: null
+      };
+      if (e.currentTarget.setPointerCapture) {
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+
+    function handleResultPointerMove(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const deltaX = e.clientX - swipeState.startX;
+      const deltaY = e.clientY - swipeState.startY;
+
+      if (!swipeState.axisLock) {
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+        if (Math.max(absX, absY) < DRAG_AXIS_LOCK_THRESHOLD) return;
+        if (absX <= absY) {
+          // Not clearly horizontal: treat as scrolling and get out of the way.
+          releaseSwipePointer(e);
+          return;
+        }
+        swipeState.axisLock = 'x';
+      }
+
+      const cardEl = getDayCardEl();
+      if (!cardEl) return;
+      const atFirst = currentDayIndex <= 0;
+      const atLast = currentDayIndex >= currentDailyResults.length - 1;
+      let adjusted = deltaX;
+      if ((deltaX > 0 && atFirst) || (deltaX < 0 && atLast)) {
+        adjusted = deltaX * CARD_BOUNDARY_RESISTANCE;
+      }
+      cardEl.style.transition = 'none';
+      cardEl.style.transform = `translateX(${adjusted}px)`;
+    }
+
+    function handleResultPointerUp(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const deltaX = e.clientX - swipeState.startX;
+      const axisLock = swipeState.axisLock;
+      const cardEl = getDayCardEl();
+      releaseSwipePointer(e);
+
+      if (isSearching || isAnimating) {
+        resetCardTransform(cardEl);
+        return;
+      }
+
+      if (axisLock !== 'x') return; // vertical/ambiguous gesture already handed off in pointermove
+
+      const absX = Math.abs(deltaX);
+      const atFirst = currentDayIndex <= 0;
+      const atLast = currentDayIndex >= currentDailyResults.length - 1;
+      const wantsNext = deltaX < 0;
+      const wantsPrev = deltaX > 0;
+      const blocked = (wantsNext && atLast) || (wantsPrev && atFirst);
+      const committed = absX >= SWIPE_MIN_DISTANCE;
+
+      isAnimating = true;
+      if (committed && !blocked) {
+        animateDayChange(wantsNext ? 'next' : 'previous', cardEl);
+      } else {
+        snapCardToCenter(cardEl);
+      }
+    }
+
+    function handleResultPointerCancel(e) {
+      if (!swipeState || e.pointerId !== swipeState.pointerId) return;
+      const cardEl = getDayCardEl();
+      releaseSwipePointer(e);
+      resetCardTransform(cardEl);
+    }
+
+    function resetWeekSwipeState(e) {
+      if (weekSwipeState && e && e.currentTarget && e.currentTarget.hasPointerCapture && e.currentTarget.hasPointerCapture(weekSwipeState.pointerId)) {
+        try { e.currentTarget.releasePointerCapture(weekSwipeState.pointerId); } catch (err) {}
+      }
+      weekSwipeState = null;
+    }
+
+    function handleWeekSwipePointerDown(e) {
+      if (isSearching || isAnimating) return;
+      if (e.isPrimary === false) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (!isWeekSwipeZoneTarget(e.target)) return;
+      if (weekSwipeState) return;
+      weekSwipeState = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY };
+      if (e.currentTarget.setPointerCapture) {
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+    }
+
+    function handleWeekSwipePointerMove(e) {
+      if (!weekSwipeState || e.pointerId !== weekSwipeState.pointerId) return;
+      // The dedicated zone uses touch-action: none, so no card-follow
+      // transform is needed here; the final decision happens at pointerup.
+      if (e.cancelable) e.preventDefault();
+    }
+
+    function triggerNextWeekNav() {
+      if (isSearching || isAnimating) return;
+      goToNextWeek();
+    }
+
+    function handleWeekSwipePointerUp(e) {
+      if (!weekSwipeState || e.pointerId !== weekSwipeState.pointerId) return;
+      const deltaX = e.clientX - weekSwipeState.startX;
+      const deltaY = e.clientY - weekSwipeState.startY;
+      resetWeekSwipeState(e);
+      if (isSearching || isAnimating) return;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      // Short, near-stationary press: treat as a tap.
+      if (absX < DRAG_AXIS_LOCK_THRESHOLD && absY < DRAG_AXIS_LOCK_THRESHOLD) {
+        triggerNextWeekNav();
+        return;
+      }
+
+      // Otherwise, evaluate the existing down-swipe condition only.
+      if (deltaY > 0 && absY >= SWIPE_MIN_DISTANCE && absY >= absX * SWIPE_DIRECTION_RATIO) {
+        goToNextWeek();
+      }
+    }
+
+    function handleWeekSwipePointerCancel(e) {
+      if (!weekSwipeState || e.pointerId !== weekSwipeState.pointerId) return;
+      resetWeekSwipeState(e);
+    }
+
+    function handleWeekSwipeKeyDown(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!isWeekSwipeZoneTarget(e.target)) return;
+      e.preventDefault();
+      triggerNextWeekNav();
+    }
+
+    function openCalendar(i) {
+      const day = currentDailyResults[currentDayIndex];
+      if (!day || !day.slots[i]) return;
+      const url = slotToCalendarUrl(day.slots[i]);
+      window.open(url, '_blank');
+    }
+
+    function copySlot(i) {
+      const day = currentDailyResults[currentDayIndex];
+      if (!day || !day.slots[i]) return;
+      const text = slotToText(day.slots[i]);
+      navigator.clipboard.writeText(text).then(() => showToast(t('copied')));
+    }
+
+    function copyCurrentDay() {
+      const day = currentDailyResults[currentDayIndex];
+      if (!day || day.slots.length === 0) return;
+      const text = day.slots.map(slotToText).join('\n');
+      navigator.clipboard.writeText(text).then(() => showToast(t('copiedDay')));
+    }
+
+    function copyAll() {
+      const slots = currentDailyResults.length > 0
+        ? currentDailyResults.flatMap(day => day.slots)
+        : groupSlotsByDay(currentSlots).flatMap(day => day.slots);
+      if (slots.length === 0) return;
+      const text = slots.map(slotToText).join('\n');
+      navigator.clipboard.writeText(text).then(() => showToast(t('copiedAll')));
+    }
+
+
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function setStatus(msg) { document.getElementById('status').textContent = msg; }
+    function setStatusForm(msg) {
+      const el = document.getElementById('statusForm');
+      if (el) el.textContent = msg;
+    }
+
+    const bgImageInputEl = document.getElementById('bgImageInput');
+    if (bgImageInputEl) bgImageInputEl.addEventListener('change', handleBgImageChange);
+
+    const bgPreviewEl = document.getElementById('bgPreview');
+    if (bgPreviewEl) {
+      bgPreviewEl.addEventListener('click', openBgImagePicker);
+      bgPreviewEl.addEventListener('keydown', handleBgPreviewKeyDown);
+    }
+    const bgPreviewImgEl = document.getElementById('bgPreviewImg');
+    if (bgPreviewImgEl) bgPreviewImgEl.addEventListener('load', updateBgPreviewHighlight);
+    window.addEventListener('resize', () => {
+      if (!bgPreviewDragState) updateBgPreviewHighlight();
+    });
+    const bgPreviewHighlightEl = document.getElementById('bgPreviewHighlight');
+    if (bgPreviewHighlightEl) {
+      bgPreviewHighlightEl.addEventListener('pointerdown', handleBgPreviewHighlightPointerDown);
+      bgPreviewHighlightEl.addEventListener('pointermove', handleBgPreviewHighlightPointerMove);
+      bgPreviewHighlightEl.addEventListener('pointerup', handleBgPreviewHighlightPointerUp);
+      bgPreviewHighlightEl.addEventListener('pointercancel', handleBgPreviewHighlightPointerCancel);
+    }
+
+    const bgWhiteRangeSliderEl = document.getElementById('bgWhiteRangeSlider');
+    if (bgWhiteRangeSliderEl) bgWhiteRangeSliderEl.addEventListener('input', handleBgWhiteRangeSliderInput);
+
+    const resultViewEl = document.getElementById('resultView');
+    resultViewEl.addEventListener('pointerdown', handleResultPointerDown);
+    resultViewEl.addEventListener('pointermove', handleResultPointerMove);
+    resultViewEl.addEventListener('pointerup', handleResultPointerUp);
+    resultViewEl.addEventListener('pointercancel', handleResultPointerCancel);
+    resultViewEl.addEventListener('pointerdown', handleWeekSwipePointerDown);
+    resultViewEl.addEventListener('pointermove', handleWeekSwipePointerMove);
+    resultViewEl.addEventListener('pointerup', handleWeekSwipePointerUp);
+    resultViewEl.addEventListener('pointercancel', handleWeekSwipePointerCancel);
+    resultViewEl.addEventListener('keydown', handleWeekSwipeKeyDown);
+
+    let deferredPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (!localStorage.getItem('install_dismissed')) {
+        document.getElementById('installBanner').style.display = 'block';
+      }
+    });
+
+    document.getElementById('installBtn').addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const result = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      document.getElementById('installBanner').style.display = 'none';
+    });
+
+    function dismissInstall() {
+      document.getElementById('installBanner').style.display = 'none';
+      localStorage.setItem('install_dismissed', '1');
+    }
+
+    window.addEventListener('appinstalled', () => {
+      document.getElementById('installBanner').style.display = 'none';
+      deferredPrompt = null;
+    });
+  </script>
+</body>
+</html>

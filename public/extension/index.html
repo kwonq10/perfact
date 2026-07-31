@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スキマ Chrome拡張 - Googleカレンダーの空き時間を検索</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      line-height: 1.8;
+    }
+
+    header {
+      background: #4f8ef7;
+      color: white;
+      padding: 20px 24px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header p {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 24px 64px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      font-size: 14px;
+      color: #555;
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+
+    .updated {
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 32px;
+    }
+
+    a {
+      color: #4f8ef7;
+      text-decoration: none;
+    }
+
+    .card li,
+    .card a {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .lead {
+      font-size: 15px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #eef3ff;
+      color: #4f8ef7;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+
+    .link-list {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .link-list li {
+      margin-bottom: 10px;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .back-link a {
+      font-size: 14px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>スキマ Chrome拡張</h1>
+    <p>Chrome Extension（サイドパネル版）</p>
+  </header>
+
+  <div class="container">
+
+    <div class="card">
+      <span class="badge">公開準備中</span>
+      <h2>概要</h2>
+      <p class="lead">スキマ Chrome拡張は、Googleカレンダーから指定した期間の空き時間を検索する、ブラウザのサイドパネルで動作する拡張機能です。</p>
+      <p>Web版の「スキマ」（<a href="/">sukimacalendar.com</a>）と同じ空き時間検索の考え方をもとに、Chromeのサイドパネル上でそのまま利用できるようにしたものです。</p>
+    </div>
+
+    <div class="card">
+      <h2>主な機能</h2>
+      <ul>
+        <li>開始日・終了日を直接指定した検索</li>
+        <li>「今日」「今週」「来週」「今月」「来月」のプリセット選択</li>
+        <li>検索期間は最大31日まで</li>
+        <li>対象カレンダーの個別選択（全カレンダー／個別選択の切り替え）</li>
+        <li>必要な空き時間（30分／60分／90分／120分）の選択</li>
+        <li>日ごとの検索結果表示</li>
+        <li>空き時間の個別コピー</li>
+        <li>「この日の空き枠を一括コピー」</li>
+        <li>Googleカレンダーへの予定作成画面をワンタップで表示</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>データの取り扱いについて</h2>
+      <p>本拡張機能は、検索のために取得したカレンダーの予定情報・カレンダー一覧情報を、開発者のサーバーへ送信することはありません。</p>
+      <p>Googleカレンダーへのアクセスは読み取り専用の権限のみを使用しており、予定の作成・変更・削除は行いません。</p>
+      <p>詳細は<a href="/extension/privacy">プライバシーポリシー</a>をご確認ください。</p>
+    </div>
+
+    <div class="card">
+      <h2>入手方法</h2>
+      <p>現在、Chrome Web Storeでの公開に向けて準備を進めています。公開までしばらくお待ちください。</p>
+    </div>
+
+    <div class="card">
+      <h2>関連リンク</h2>
+      <ul class="link-list">
+        <li><a href="/extension/privacy">プライバシーポリシー（拡張機能用）</a></li>
+        <li><a href="/terms">利用規約</a></li>
+        <li>お問い合わせ：<a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></li>
+      </ul>
+    </div>
+
+    <p class="back-link"><a href="/">← スキマ トップページに戻る</a></p>
+
+  </div>
+
+</body>
+
+</html>

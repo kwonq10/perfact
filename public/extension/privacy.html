@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>プライバシーポリシー（Chrome拡張機能） - スキマ</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      line-height: 1.8;
+    }
+
+    header {
+      background: #4f8ef7;
+      color: white;
+      padding: 20px 24px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header p {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 24px 64px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      font-size: 14px;
+      color: #555;
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+
+    .updated {
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 32px;
+    }
+
+    a {
+      color: #4f8ef7;
+      text-decoration: none;
+    }
+
+    .card li,
+    .card a {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .back-link a {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #777;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>スキマ Chrome拡張 - プライバシーポリシー</h1>
+    <p>Privacy Policy for Chrome Extension</p>
+  </header>
+
+  <div class="container">
+
+    <div class="card">
+      <h2>1. はじめに</h2>
+      <p>本ページは、Chromeのサイドパネルで動作する拡張機能「スキマ」（以下「本拡張機能」）における情報の取り扱いについて説明するプライバシーポリシーです。</p>
+      <p>Web版「スキマ」（sukimacalendar.com）のプライバシーポリシーとは別に、本拡張機能専用のものとして本ページを設けています。Web版をご利用の場合は、Web版のプライバシーポリシー（<a href="/privacy">/privacy</a>）をご確認ください。</p>
+    </div>
+
+    <div class="card">
+      <h2>2. 取得する情報</h2>
+      <p>本拡張機能は、ユーザーがGoogleアカウントでログインした際に、Googleカレンダーのカレンダー一覧情報と予定の日時情報のみを取得します。</p>
+      <p>メールアドレスその他の個人情報を取得することはありません。</p>
+    </div>
+
+    <div class="card">
+      <h2>3. Googleカレンダーから取得する情報</h2>
+      <p>本拡張機能がGoogle Calendar APIから取得する情報は以下のとおりです。</p>
+      <ul>
+        <li>カレンダー一覧：カレンダー名、カレンダーID、アクセス権限（オーナー／編集者／閲覧者）</li>
+        <li>予定情報：開始日時、終了日時のみ</li>
+      </ul>
+      <p>予定のタイトル、参加者、場所、詳細説明などの情報は、空き時間の計算には利用しません。</p>
+    </div>
+
+    <div class="card">
+      <h2>4. 情報の利用目的</h2>
+      <p>取得した情報は、ユーザーが指定した期間における空き時間の計算と表示のためだけに利用します。</p>
+      <p>上記以外の目的には利用しません。</p>
+    </div>
+
+    <div class="card">
+      <h2>5. 情報の保存</h2>
+      <p>本拡張機能は、取得したカレンダー情報を <code>chrome.storage</code>、<code>localStorage</code>、<code>sessionStorage</code>、<code>IndexedDB</code> のいずれにも保存しません。</p>
+      <p>取得した情報は拡張機能のサイドパネルを表示している間のみ、ブラウザのメモリ上で一時的に扱われ、サイドパネルを閉じるとその内容は破棄されます。</p>
+    </div>
+
+    <div class="card">
+      <h2>6. 外部送信</h2>
+      <p>本拡張機能が通信を行う先は、Google Calendar API（googleapis.com）のみです。</p>
+      <p>開発者が運営する自社サーバーやデータベースへ、取得した情報を送信することはありません。</p>
+    </div>
+
+    <div class="card">
+      <h2>7. アクセストークンの扱い</h2>
+      <p>Google Calendar APIへのアクセスに使用するアクセストークンは、拡張機能内のJavaScriptのメモリ上にのみ保持されます。</p>
+      <p>トークンの認証キャッシュ自体は、Chromeの <code>chrome.identity</code> 機構が管理しており、本拡張機能側で独自に永続化することはありません。サイドパネルを閉じると、拡張機能側で保持していたメモリ上の値は破棄されます。</p>
+    </div>
+
+    <div class="card">
+      <h2>8. 第三者提供</h2>
+      <p>取得した情報を第三者に販売・提供・共有することは一切ありません。</p>
+    </div>
+
+    <div class="card">
+      <h2>9. 広告・解析・トラッキング</h2>
+      <p>本拡張機能は、広告配信、アクセス解析、行動トラッキングのいずれも行いません。</p>
+    </div>
+
+    <div class="card">
+      <h2>10. Cookie</h2>
+      <p>本拡張機能はCookieを使用しません。</p>
+    </div>
+
+    <div class="card">
+      <h2>11. 権限の取り消しとログアウト</h2>
+      <p>本拡張機能にはログアウト機能があり、いつでもログアウトできます。</p>
+      <p>また、Googleアカウントの権限管理ページからも、本拡張機能へのアクセス権限をいつでも取り消すことができます。</p>
+      <p><a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/permissions</a></p>
+    </div>
+
+    <div class="card">
+      <h2>12. セキュリティ</h2>
+      <p>Google Calendar APIとの通信はHTTPSで行われます。</p>
+      <p>本拡張機能は、閲覧中のWebページの内容を取得する権限を持たず、実際に取得も行いません。アクセス先はGoogle Calendar API（googleapis.com）に限定されています。</p>
+    </div>
+
+    <div class="card">
+      <h2>13. Google API Services User Data Policy</h2>
+      <p>本拡張機能は、<a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>に準拠して開発しています。</p>
+    </div>
+
+    <div class="card">
+      <h2>14. Limited Useへの準拠</h2>
+      <p>本拡張機能によるGoogleユーザーデータの利用は、<a href="https://developers.google.com/terms/api-services-user-data-policy#additional_requirements_for_specific_api_scopes" target="_blank" rel="noopener noreferrer">Limited Use requirements</a>に準拠しています。取得した情報は空き時間の計算・表示という本来の機能提供のためにのみ利用し、それ以外の目的（広告、AIモデルの学習等）には利用しません。</p>
+    </div>
+
+    <div class="card">
+      <h2>15. ポリシーの変更</h2>
+      <p>本ポリシーの内容は、本拡張機能の仕様変更等に応じて、予告なく変更する場合があります。変更後の内容は本ページに掲載した時点で効力を持つものとします。</p>
+    </div>
+
+    <div class="card">
+      <h2>16. お問い合わせ</h2>
+      <p>本ポリシーに関するご質問は以下までお問い合わせください。</p>
+      <p>メール：<a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></p>
+    </div>
+
+    <p class="updated">最終更新日：2026年7月25日</p>
+
+    <p class="back-link"><a href="/extension">← 拡張機能紹介ページに戻る</a></p>
+    <p class="back-link"><a href="/">スキマ トップページに戻る</a></p>
+
+  </div>
+
+</body>
+
+</html>
