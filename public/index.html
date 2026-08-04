@@ -479,6 +479,7 @@
     <p id="startTagline">予定の空き時間を、すぐ見つける。</p>
     <p id="startDesc">Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。</p>
     <button id="startBtn" onclick="showSearch()">はじめる</button>
+    <p style="margin-top: 20px;"><a class="app-footer-link" id="startAboutLink" href="/about/">スキマとは</a></p>
   </div>
 
   <div id="searchView" style="display:none">
@@ -814,6 +815,7 @@
         startTagline: '予定の空き時間を、すぐ見つける。',
         startDesc: 'Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。',
         startBtn: 'はじめる',
+        aboutLink: 'スキマとは',
         bgImageLabel: '背景画像を選択',
         bgImageRemove: '背景画像を解除',
         bgImageSelected: 'タップして画像を変更',
@@ -885,6 +887,7 @@
         startTagline: 'Find your free time, instantly.',
         startDesc: 'Check your free time from Google Calendar<br>and copy or add events instantly.',
         startBtn: 'Get Started',
+        aboutLink: 'About Sukima',
         bgImageLabel: 'Choose background image',
         bgImageRemove: 'Remove background image',
         bgImageSelected: 'Tap to change image',
@@ -970,6 +973,8 @@
       if (startDesc) startDesc.innerHTML = t('startDesc');
       const startBtn = document.getElementById('startBtn');
       if (startBtn) startBtn.textContent = t('startBtn');
+      const startAboutLink = document.getElementById('startAboutLink');
+      if (startAboutLink) startAboutLink.textContent = t('aboutLink');
 
       const removeBgImageBtn = document.getElementById('removeBgImageBtn');
       if (removeBgImageBtn) removeBgImageBtn.textContent = t('bgImageRemove');
