@@ -5,7 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>スキマとは - スキマ</title>
-  <meta name="theme-color" content="#4f8ef7">
+  <meta name="description" content="Googleカレンダーから、必要な長さの空き時間をすぐに確認。見つけた候補日時は、そのままコピーできます。">
+  <meta name="theme-color" content="#071f4a">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <style>
     * {
@@ -14,232 +15,1108 @@
       padding: 0;
     }
 
+    :root {
+      --navy: #071f4a;
+      --navy-2: #0c2a5e;
+      --navy-3: #123a78;
+      --blue: #1358c8;
+      --gold: #e4a624;
+      --gold-2: #f0b93c;
+      --pale: #f2f6fc;
+      --text: #0b1f40;
+      --muted: #5a6b87;
+      --line: #e0e7f3;
+      --grey: #f1f3f7;
+      --grey-line: #e2e6ee;
+      --maxw: 1120px;
+      --readw: 620px;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f0f4f8;
-      color: #333;
-      line-height: 1.8;
+      font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif;
+      background: #ffffff;
+      color: var(--muted);
+      line-height: 1.9;
+      overflow-x: hidden;
     }
 
-    header {
-      background: #4f8ef7;
-      color: white;
-      padding: 20px 24px;
+    .wrap {
+      max-width: var(--maxw);
+      margin: 0 auto;
+      padding: 0 24px;
     }
 
-    header h1 {
-      font-size: 20px;
-      font-weight: 600;
+    .read {
+      max-width: var(--readw);
     }
 
-    header p {
-      font-size: 13px;
-      opacity: 0.85;
-      margin-top: 4px;
+    section {
+      padding: 96px 0;
     }
 
-    .container {
-      max-width: 720px;
-      margin: 32px auto;
-      padding: 0 24px 64px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 14px;
-      padding: 32px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    .sec-pale {
+      background: var(--pale);
     }
 
     h2 {
-      font-size: 16px;
-      font-weight: 600;
-      color: #1a1a2e;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #eee;
+      font-size: clamp(26px, 4.2vw, 40px);
+      line-height: 1.45;
+      font-weight: 700;
+      color: var(--navy);
+      letter-spacing: -0.01em;
+      margin-bottom: 28px;
+    }
+
+    /* 見出しを意味のまとまりで折り返す（語中改行の防止） */
+    h1 .hl,
+    h2 .hl,
+    .lead .hl,
+    .result-note .hl {
+      display: inline-block;
     }
 
     p {
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* 「10秒」の強調 */
+    .n10 {
+      color: var(--gold);
+      font-size: 1.4em;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .gold-chip {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(228, 166, 36, 0.14);
+      border: 1px solid rgba(228, 166, 36, 0.55);
+      color: #96690c;
       font-size: 14px;
-      color: #555;
-      margin-bottom: 10px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      line-height: 1.4;
+      margin-bottom: 18px;
     }
 
-    ul,
-    ol {
-      font-size: 14px;
-      color: #555;
-      padding-left: 20px;
-      margin-bottom: 10px;
+    /* 説明用UIであることを示すラベル */
+    .mock-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(7, 31, 74, 0.05);
+      border: 1px solid rgba(7, 31, 74, 0.16);
+      color: #7c8aa5;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      line-height: 1.7;
+      white-space: nowrap;
     }
 
-    ul li,
-    ol li {
-      margin-bottom: 6px;
+    .mock-note {
+      text-align: right;
+      line-height: 1;
     }
 
-    .updated {
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .gold-bar {
+      display: block;
+      width: 44px;
+      height: 4px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--gold-2), var(--gold));
+      margin-bottom: 24px;
+    }
+
+    /* ---------- CTA ---------- */
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 62px;
+      min-width: 320px;
+      padding: 16px 36px;
+      border-radius: 14px;
+      background: var(--navy);
+      color: #ffffff;
+      border: 2px solid var(--gold);
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.4;
+      letter-spacing: 0.01em;
       text-align: center;
-      font-size: 12px;
-      color: #aaa;
-      margin-top: 32px;
+      text-decoration: none;
+      box-shadow: 0 14px 30px rgba(7, 31, 74, 0.28);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     }
 
-    a {
-      color: #4f8ef7;
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      background: var(--navy-2);
+      box-shadow: 0 20px 38px rgba(7, 31, 74, 0.34);
+    }
+
+    .cta-sub {
+      display: inline-block;
+      margin-top: 20px;
+      color: var(--navy);
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      border-bottom: 2px solid rgba(228, 166, 36, 0.8);
+      padding-bottom: 2px;
+    }
+
+    /* ---------- トップバー ---------- */
+    .topbar {
+      background: var(--navy);
+    }
+
+    .topbar .wrap {
+      display: flex;
+      align-items: center;
+      padding-top: 16px;
+      padding-bottom: 16px;
+    }
+
+    .topbar .mark {
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       text-decoration: none;
     }
 
-    .card li,
-    .card a {
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
-
-    .lead {
-      font-size: 15px;
-      color: #333;
-      margin-bottom: 8px;
-    }
-
-    .badge {
+    .topbar .mark::before {
+      content: "";
       display: inline-block;
-      background: #eef3ff;
-      color: #4f8ef7;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 999px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gold);
+      margin-right: 9px;
+      vertical-align: middle;
+    }
+
+    /* ---------- 1. ファーストビュー ---------- */
+    .hero {
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+      gap: 56px;
+      align-items: center;
+      padding: 80px 0 96px;
+    }
+
+    .hero h1 {
+      font-size: clamp(32px, 5vw, 54px);
+      line-height: 1.34;
+      font-weight: 700;
+      color: var(--navy);
+      letter-spacing: -0.02em;
+      margin-bottom: 26px;
+    }
+
+    .hero p {
+      color: var(--muted);
+      font-size: clamp(15px, 2vw, 17px);
+      max-width: var(--readw);
+    }
+
+    .hero-actions {
+      margin-top: 40px;
+    }
+
+    /* ヒーロー内 Before / After ミニ表現 */
+    .ba-mini {
+      display: grid;
+      gap: 12px;
+      max-width: 400px;
+      margin-left: auto;
+    }
+
+    .ba-card {
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .ba-before {
+      background: var(--grey);
+      border: 1px solid var(--grey-line);
+    }
+
+    .ba-after {
+      background: #ffffff;
+      border: 1px solid #d9e4f7;
+      box-shadow: 0 16px 34px rgba(7, 31, 74, 0.12);
+    }
+
+    .ba-tag {
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: #8a96a9;
       margin-bottom: 12px;
     }
 
-    .link-list {
-      list-style: none;
-      padding-left: 0;
+    .ba-after .ba-tag {
+      color: var(--blue);
     }
 
-    .link-list li {
-      margin-bottom: 10px;
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
     }
 
-    .back-link {
+    .mini-grid i {
+      display: block;
+      height: 15px;
+      border-radius: 4px;
+      background: #ccd3df;
+    }
+
+    .mini-grid i.b {
+      background: #9fabbf;
+    }
+
+    .ba-arrow {
       text-align: center;
+      color: var(--gold);
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .mini-results {
+      list-style: none;
+    }
+
+    .mini-results li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid #eef2f9;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .mini-results li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .mini-copy {
+      flex: none;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: rgba(228, 166, 36, 0.16);
+      border: 1px solid rgba(228, 166, 36, 0.5);
+      color: #8a6009;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    /* ---------- 2. いつもの面倒（Before） ---------- */
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 56px;
+      align-items: start;
+    }
+
+    .flow {
+      list-style: none;
+      position: relative;
+      padding-left: 30px;
+      margin: 0 0 32px;
+      max-width: var(--readw);
+    }
+
+    .flow::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 14px;
+      bottom: 14px;
+      width: 2px;
+      background: linear-gradient(180deg, #c2cfe4, #e9eef7);
+    }
+
+    .flow li {
+      position: relative;
+      font-size: clamp(16px, 2.4vw, 19px);
+      color: var(--navy);
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .flow li:last-child {
+      margin-bottom: 0;
+    }
+
+    .flow li::before {
+      content: "";
+      position: absolute;
+      left: -30px;
+      top: 13px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #96a5bd;
+    }
+
+    .note {
+      max-width: var(--readw);
+      font-size: clamp(16px, 2.3vw, 19px);
+      line-height: 1.85;
+      color: var(--navy);
+      font-weight: 600;
+      border-left: 4px solid var(--gold);
+      padding-left: 20px;
+    }
+
+    .before-panel {
+      background: var(--grey);
+      border: 1px solid var(--grey-line);
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    .panel-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: #8a96a9;
+    }
+
+    .cal-head,
+    .cal-body {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+
+    .cal-head span {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #8a96a9;
+      line-height: 1.6;
+    }
+
+    .cal-body {
       margin-top: 8px;
     }
 
-    .back-link a {
-      font-size: 14px;
-      font-weight: 600;
+    .cal-col i {
+      display: block;
+      height: 22px;
+      border-radius: 5px;
+      background: #c5cdda;
+      margin-bottom: 6px;
     }
 
-    .qr {
+    .cal-col i.tall {
+      height: 38px;
+    }
+
+    .cal-col i.free {
+      background: transparent;
+      border: 1px dashed #b9c4d4;
+    }
+
+    .before-notes {
+      list-style: none;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--grey-line);
+    }
+
+    .before-notes li {
+      position: relative;
+      padding-left: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #6a7690;
+      line-height: 2;
+    }
+
+    .before-notes li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 8px;
+      height: 2px;
+      background: #9fabbf;
+    }
+
+    /* ---------- 3. スキマを使う（After） ---------- */
+    .steps-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin: 48px 0 56px;
+    }
+
+    .steps-row::before {
+      content: "";
+      position: absolute;
+      top: 28px;
+      left: 17%;
+      right: 17%;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(228, 166, 36, 0.25), var(--gold), rgba(228, 166, 36, 0.25));
+      z-index: 0;
+    }
+
+    .step {
+      position: relative;
+      z-index: 1;
       text-align: center;
     }
 
-    .qr img {
+    .step-num {
+      width: 58px;
+      height: 58px;
+      margin: 0 auto 14px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold-2), var(--gold));
+      color: var(--navy);
+      font-size: 21px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 18px rgba(228, 166, 36, 0.38);
+      border: 4px solid var(--pale);
+    }
+
+    .step-label {
+      display: inline-block;
+      background: var(--pale);
+      padding: 0 10px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.6;
+    }
+
+    .after-block {
+      max-width: var(--readw);
+      margin: 40px auto 0;
+    }
+
+    .after-block h3 {
+      font-size: clamp(19px, 2.6vw, 24px);
+      line-height: 1.5;
+      font-weight: 700;
+      color: var(--navy);
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .after-panel {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 16px 36px rgba(7, 31, 74, 0.10);
+      overflow: hidden;
+    }
+
+    .search-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 18px 20px;
+      background: #fafcff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .field {
+      background: #ffffff;
+      border: 1px solid #d9e2f2;
+      border-radius: 10px;
+      padding: 8px 12px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #8b98ae;
+      line-height: 1.6;
+    }
+
+    .field-value {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.6;
+    }
+
+    .result-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 13px 20px;
+      background: #f7faff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .result-head .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #d6e0f0;
+    }
+
+    .result-head .label {
+      margin-left: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: #7c8aa5;
+    }
+
+    .result-list {
+      list-style: none;
+    }
+
+    .result-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .result-list li:last-child {
+      border-bottom: none;
+    }
+
+    .result-list .slot {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.5;
+    }
+
+    .result-list .copy {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: rgba(228, 166, 36, 0.16);
+      border: 1px solid rgba(228, 166, 36, 0.55);
+      color: #8a6009;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .result-note {
+      max-width: var(--readw);
+      margin: 20px auto 0;
+      text-align: center;
+      font-size: 15px;
+    }
+
+    .cta-panel {
+      margin: 56px auto 0;
+      max-width: var(--readw);
+      background: linear-gradient(150deg, var(--navy) 0%, var(--navy-2) 100%);
+      border-radius: 22px;
+      padding: 40px 32px;
+      text-align: center;
+      border-top: 3px solid var(--gold);
+    }
+
+    /* ---------- 4-5. 本文セクション ---------- */
+    .lead {
+      font-size: clamp(17px, 2.4vw, 20px);
+      color: var(--navy);
+      font-weight: 600;
+      line-height: 1.85;
+      margin-bottom: 20px;
+    }
+
+    .sizes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 4px 0 28px;
+    }
+
+    .sizes span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 84px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: var(--pale);
+      border: 1px solid #dbe5f6;
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .centered {
+      text-align: center;
+    }
+
+    .centered .read {
+      margin: 0 auto;
+    }
+
+    .centered .gold-bar {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ---------- 6. 最終CTA ---------- */
+    .final {
+      background: linear-gradient(160deg, var(--navy-2) 0%, var(--navy-3) 100%);
+      border-top: 3px solid var(--gold);
+      text-align: center;
+    }
+
+    .final h2 {
+      color: #ffffff;
+    }
+
+    .final p {
+      color: rgba(255, 255, 255, 0.86);
+      max-width: var(--readw);
+      margin-left: auto;
+      margin-right: auto;
+      font-size: clamp(15px, 2.2vw, 18px);
+    }
+
+    .final-actions {
+      margin-top: 44px;
+    }
+
+    .qr-block {
+      margin: 56px auto 0;
+      max-width: 210px;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 16px;
+      padding: 18px 16px 16px;
+    }
+
+    .qr-block h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.78);
+      margin-bottom: 12px;
+      letter-spacing: 0.04em;
+    }
+
+    .qr-block img {
+      display: block;
       width: 100%;
-      max-width: 180px;
+      max-width: 140px;
       height: auto;
+      margin: 0 auto;
       border-radius: 8px;
+      background: #ffffff;
+    }
+
+    /* ---------- 7. フッター ---------- */
+    footer {
+      background: var(--navy);
+      border-top: 3px solid var(--gold);
+      padding: 52px 0 60px;
+    }
+
+    .foot-links {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px 32px;
+      margin-bottom: 26px;
+    }
+
+    .foot-links a {
+      color: #cfdcf3;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .foot-links a:hover {
+      color: #ffffff;
+      text-decoration: underline;
+    }
+
+    .foot-back {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    /* ---------- レスポンシブ ---------- */
+    @media (max-width: 860px) {
+      section {
+        padding: 72px 0;
+      }
+
+      .hero-grid,
+      .split {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 40px;
+      }
+
+      .hero-grid {
+        padding: 56px 0 72px;
+      }
+
+      .ba-mini {
+        margin-left: 0;
+        max-width: none;
+      }
+
+      .steps-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 26px;
+        margin: 40px 0 48px;
+      }
+
+      .steps-row::before {
+        top: 20px;
+        bottom: 20px;
+        left: 50%;
+        right: auto;
+        width: 3px;
+        height: auto;
+        transform: translateX(-50%);
+        background: linear-gradient(180deg, rgba(228, 166, 36, 0.25), var(--gold), rgba(228, 166, 36, 0.25));
+      }
+    }
+
+    @media (max-width: 480px) {
+      .wrap {
+        padding: 0 20px;
+      }
+
+      section {
+        padding: 60px 0;
+      }
+
+      .cta-btn {
+        display: flex;
+        width: 100%;
+        min-width: 0;
+        padding: 17px 20px;
+      }
+
+      .cta-panel {
+        padding: 34px 20px;
+        border-radius: 18px;
+      }
+
+      .before-panel {
+        padding: 18px;
+      }
+
+      .search-bar {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .result-list li {
+        padding: 16px;
+        gap: 10px;
+      }
+
+      .result-list .slot {
+        font-size: 15px;
+      }
+
+      .result-list .copy {
+        padding: 7px 12px;
+        font-size: 12px;
+      }
+
+      .foot-links {
+        gap: 12px 24px;
+      }
     }
   </style>
 </head>
 
 <body>
 
-  <header>
-    <h1>スキマ - スキマとは</h1>
-    <p>About</p>
-  </header>
+  <div class="topbar">
+    <div class="wrap"><a class="mark" href="/">スキマ</a></div>
+  </div>
 
-  <div class="container">
+  <!-- 1. ファーストビュー -->
+  <header class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
 
-    <div class="card">
-      <h2>スキマとは</h2>
-      <p class="lead">スキマは、Googleカレンダーの予定をもとに、空いている時間をすばやく確認できるWebツールです。</p>
-      <p>期間や必要な時間の長さを指定すると、予定の入っていない時間帯を一覧で確認できます。見つけた空き時間は、そのままコピーして日程調整などに使えます。</p>
-    </div>
+        <div>
+          <h1><span class="hl">空き時間探し、</span><br><span class="hl"><span class="n10">10秒</span>で終わる。</span></h1>
+          <p>
+            Googleカレンダーから、必要な長さの空き時間をすぐに確認。<br>
+            見つけた候補日時は、そのままコピーできます。
+          </p>
+          <div class="hero-actions">
+            <span class="gold-bar"></span>
+            <a class="cta-btn" href="/">無料で空き時間を探す</a>
+            <div><a class="cta-sub" href="#how-it-works">使い方を見る</a></div>
+          </div>
+        </div>
 
-    <div class="card">
-      <h2>こんな方に</h2>
-      <ul>
-        <li>Googleカレンダーを使って日程を管理している方</li>
-        <li>打ち合わせや面談の日程調整が多い方</li>
-        <li>複数のカレンダーを見比べることがある方</li>
-        <li>空き時間を手早く確認したい方</li>
-      </ul>
-    </div>
+        <div class="ba-mini">
+          <div class="mock-note"><span class="mock-tag">イメージ</span></div>
 
-    <div class="card">
-      <h2>主な機能</h2>
-      <ul>
-        <li>検索する期間を指定</li>
-        <li>必要な空き時間の長さを指定</li>
-        <li>対象にするカレンダーを選択</li>
-        <li>空いている時間帯を一覧で確認</li>
-        <li>見つけた空き時間をコピー</li>
-      </ul>
-    </div>
+          <div class="ba-card ba-before">
+            <span class="ba-tag">BEFORE</span>
+            <div class="mini-grid">
+              <i class="b"></i><i></i><i class="b"></i><i class="b"></i><i></i><i class="b"></i>
+              <i></i><i class="b"></i><i class="b"></i><i></i><i class="b"></i><i class="b"></i>
+              <i class="b"></i><i class="b"></i><i></i><i class="b"></i><i class="b"></i><i></i>
+            </div>
+          </div>
 
-    <div class="card">
-      <h2>使い方</h2>
-      <ol>
-        <li>Googleカレンダーと連携する</li>
-        <li>検索する期間と必要な時間の長さを指定する</li>
-        <li>対象にするカレンダーを選ぶ</li>
-        <li>検索結果から使いたい空き時間をコピーする</li>
-      </ol>
-    </div>
+          <div class="ba-arrow">↓</div>
 
-    <div class="card">
-      <h2>提供形態</h2>
-      <p>スキマは、ブラウザから利用できるWeb版を提供しています。</p>
-      <p>Chrome拡張版については、専用の案内ページをご確認ください。</p>
-      <ul class="link-list">
-        <li><a href="/">Web版を開く</a></li>
-        <li><a href="/extension/">Chrome拡張版を見る</a></li>
-      </ul>
-    </div>
+          <div class="ba-card ba-after">
+            <span class="ba-tag">AFTER</span>
+            <ul class="mini-results">
+              <li><span>8月7日 10:00〜11:00</span><span class="mini-copy">コピー</span></li>
+              <li><span>8月7日 14:30〜15:30</span><span class="mini-copy">コピー</span></li>
+            </ul>
+          </div>
+        </div>
 
-    <div class="card">
-      <h2>スマートフォンで開く</h2>
-      <p>QRコードを読み取ると、スキマのWeb版を開けます。</p>
-      <div class="qr">
-        <a href="https://sukimacalendar.com/">
-          <img src="./sukima-qr.png" alt="スキマ Web版のQRコード" width="1024" height="1024">
-        </a>
       </div>
     </div>
+  </header>
 
-    <div class="card">
-      <h2>データの取り扱い</h2>
-      <p>Googleカレンダーとの連携や、取得する情報の利用目的については、プライバシーポリシーに記載しています。</p>
-      <p>利用前に内容をご確認ください。</p>
-      <ul class="link-list">
-        <li><a href="/privacy.html">プライバシーポリシーを見る</a></li>
-      </ul>
+  <!-- 2. いつもの面倒 -->
+  <section class="sec-white">
+    <div class="wrap">
+      <div class="split">
+
+        <div>
+          <h2>日程を聞かれるたび、<br><span class="hl">同じ作業を</span><span class="hl">繰り返していませんか？</span></h2>
+
+          <ul class="flow">
+            <li>打ち合わせの日程を聞かれる。</li>
+            <li>Googleカレンダーを開く。</li>
+            <li>予定を一つずつ確認する。</li>
+            <li>空いている時間をメモする。</li>
+            <li>相手に送れる形へ書き直す。</li>
+          </ul>
+
+          <p class="note">
+            たった一度の日程調整なのに、<br>
+            毎回この作業を繰り返しています。
+          </p>
+        </div>
+
+        <div class="before-panel">
+          <div class="panel-head">
+            <span class="panel-tag">BEFORE</span>
+            <span class="mock-tag">イメージ</span>
+          </div>
+          <div class="cal-head">
+            <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span>
+          </div>
+          <div class="cal-body">
+            <div class="cal-col"><i></i><i class="tall"></i><i></i></div>
+            <div class="cal-col"><i class="tall"></i><i></i><i></i></div>
+            <div class="cal-col"><i></i><i class="free"></i><i class="tall"></i></div>
+            <div class="cal-col"><i class="tall"></i><i class="tall"></i><i></i></div>
+            <div class="cal-col"><i></i><i></i><i class="free"></i></div>
+          </div>
+          <ul class="before-notes">
+            <li>予定を見比べる</li>
+            <li>候補をメモする</li>
+            <li>相手向けに書き直す</li>
+          </ul>
+        </div>
+
+      </div>
     </div>
+  </section>
 
-    <div class="card">
-      <h2>関連リンク</h2>
-      <ul class="link-list">
-        <li><a href="/">スキマ Web版</a></li>
+  <!-- 3. スキマを使う -->
+  <section class="sec-pale" id="how-it-works">
+    <div class="wrap">
+      <div class="split">
+        <div>
+          <span class="gold-chip">10秒</span>
+          <h2>スキマなら、<br><span class="hl">期間と必要な時間を</span><span class="hl">選ぶだけ。</span></h2>
+          <p class="read">もう、カレンダーを目で追い続ける必要はありません。</p>
+        </div>
+
+        <div class="after-panel">
+          <div class="search-bar">
+            <div class="field">
+              <span class="field-label">期間</span>
+              <span class="field-value">8月7日〜8月14日</span>
+            </div>
+            <div class="field">
+              <span class="field-label">必要な時間</span>
+              <span class="field-value">60分</span>
+            </div>
+          </div>
+          <div class="result-head">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="label">検索結果</span>
+            <span class="mock-tag" style="margin-left:auto;">イメージ</span>
+          </div>
+          <ul class="result-list">
+            <li><span class="slot">8月7日 10:00〜11:00</span><span class="copy">コピー</span></li>
+            <li><span class="slot">8月7日 14:30〜15:30</span><span class="copy">コピー</span></li>
+            <li><span class="slot">8月8日 11:00〜12:00</span><span class="copy">コピー</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="after-block">
+        <h3>空き時間が、候補日時に変わる。</h3>
+        <p class="result-note"><span class="hl">見つけた候補日時は、</span><span class="hl">そのままコピーして送れます。</span></p>
+      </div>
+
+      <div class="steps-row">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-label">条件を入力</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-label">空き時間を確認</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-label">コピーして送る</div>
+        </div>
+      </div>
+
+      <div class="cta-panel">
+        <a class="cta-btn" href="/">実際に空き時間を探してみる</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 候補が見つかる -->
+  <section class="sec-white">
+    <div class="wrap">
+      <div class="split">
+        <div>
+          <span class="gold-bar"></span>
+          <h2><span class="hl">必要な長さの</span><span class="hl">空き時間だけ、</span><br>すぐに見つかる。</h2>
+        </div>
+
+        <div class="read">
+          <div class="sizes">
+            <span>30分</span>
+            <span>60分</span>
+            <span>90分</span>
+          </div>
+          <p>必要な長さに合う空き時間を確認できます。</p>
+          <p>見つけた候補日時は、そのままコピーしてメールやチャットへ。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. 返信まで早くなる -->
+  <section class="sec-pale centered">
+    <div class="wrap">
+      <div class="read">
+        <span class="gold-bar"></span>
+        <h2><span class="hl">空き時間探しが</span><span class="hl">短くなれば、</span><br>返信も早くなる。</h2>
+        <p class="lead">
+          商談も、面談も、打ち合わせも、<br><span class="hl">候補日時を探すために</span><span class="hl">後回しにしなくていい。</span>
+        </p>
+        <p>
+          空き時間を探す作業を短くして、<br>
+          日程を決めることに集中できます。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. 最終CTA -->
+  <section class="final">
+    <div class="wrap">
+      <span class="gold-bar" style="margin-left:auto;margin-right:auto;"></span>
+      <h2><span class="hl">空き時間探し、</span><br><span class="hl"><span class="n10">10秒</span>で終わる。</span></h2>
+      <p>
+        カレンダーを見比べる時間を減らして、<br>
+        日程を決めることに集中しよう。
+      </p>
+
+      <div class="final-actions">
+        <a class="cta-btn" href="/">無料で空き時間を探す</a>
+      </div>
+
+      <div class="qr-block">
+        <h3>スマートフォンで開く</h3>
+        <img src="./sukima-qr.png" alt="スキマ Web版のQRコード" width="1024" height="1024">
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. 最下部リンク -->
+  <footer>
+    <div class="wrap">
+      <ul class="foot-links">
         <li><a href="/extension/">Chrome拡張版の案内</a></li>
         <li><a href="/privacy.html">プライバシーポリシー</a></li>
         <li><a href="/terms.html">利用規約</a></li>
         <li><a href="mailto:tetsugaku4@gmail.com">お問い合わせ</a></li>
       </ul>
+      <a class="foot-back" href="/">← スキマ トップページに戻る</a>
     </div>
-
-    <div class="back-link">
-      <a href="/">← スキマ トップページに戻る</a>
-    </div>
-
-    <p class="updated">最終更新日：2026年8月4日</p>
-
-  </div>
+  </footer>
 
 </body>
 
