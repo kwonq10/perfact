@@ -585,7 +585,7 @@
     .video-link {
       max-width: var(--readw);
       margin: 0 auto;
-      padding: 22px 24px;
+      padding: 18px 20px;
       background: #ffffff;
       border: 1px solid var(--line);
       border-radius: 14px;
@@ -594,8 +594,8 @@
     .video-link-head {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
+      gap: 9px;
+      margin-bottom: 6px;
     }
 
     .video-link-ic {
@@ -629,29 +629,41 @@
       font-size: 14px;
       color: var(--muted);
       line-height: 1.8;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     .video-link-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 44px;
-      padding: 11px 22px;
-      border-radius: 10px;
-      background: #ffffff;
-      border: 1px solid rgba(7, 31, 74, 0.22);
-      color: var(--navy);
+      min-height: 40px;
+      padding: 10px 20px;
+      border-radius: 9px;
+      background: #e0242f;
+      border: 1px solid #c81c26;
+      color: #ffffff;
       font-size: 14px;
       font-weight: 700;
       line-height: 1.4;
       text-decoration: none;
-      transition: background 0.15s ease, border-color 0.15s ease;
+      box-shadow: 0 6px 14px rgba(224, 36, 47, 0.22);
+      transition: background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .video-link-btn::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 0;
+      height: 0;
+      margin-right: 9px;
+      border-style: solid;
+      border-width: 4.5px 0 4.5px 7px;
+      border-color: transparent transparent transparent #ffffff;
     }
 
     .video-link-btn:hover {
-      background: var(--pale);
-      border-color: rgba(7, 31, 74, 0.4);
+      background: #c81c26;
+      box-shadow: 0 9px 18px rgba(224, 36, 47, 0.3);
     }
 
     .after-block {
@@ -884,12 +896,7 @@
       }
 
       .video-link {
-        padding: 20px 18px;
-      }
-
-      .video-link-btn {
-        display: flex;
-        width: 100%;
+        padding: 16px 16px;
       }
 
       .before-panel {
