@@ -1791,6 +1791,7 @@
       const endDate = document.getElementById('endDate').value;
       const duration = parseInt(document.getElementById('duration').value);
       const btn = document.getElementById('searchBtn');
+      showResult('<div style="text-align:center;padding:60px 20px;color:#888;font-size:15px;">' + t('calculating') + '</div>');
       setStatusForm(t('loadingCal'));
       try {
         const timeMin = startDate + 'T00:00:00+09:00';
@@ -1831,6 +1832,7 @@
               document.getElementById('loginInfo').textContent = '';
               document.getElementById('logoutBtn').style.display = 'none';
               if (!tokenClient) initTokenClient();
+              showSearch();
               setStatusForm(t('sessionExpired'));
               tokenClient.requestAccessToken();
               return;
@@ -1859,7 +1861,10 @@
         showResult(html);
         setStatusForm('');
       } catch (e) {
-        setStatusForm(t('errorPrefix') + e.message);
+        const errMsg = t('errorPrefix') + e.message;
+        setStatusForm(errMsg);
+        document.getElementById('resultContent').innerHTML =
+          '<div style="text-align:center;padding:60px 20px;color:#c00;font-size:15px;">' + errMsg + '</div>';
       } finally {
         btn.disabled = false;
       }
