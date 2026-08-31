@@ -82,6 +82,10 @@
       background: none; border: none; color: #4f8ef7;
       font-size: 15px; font-weight: 600; cursor: pointer;
     }
+    /* スマホ: QRボタン(left:16px, width:44px)と重ならないよう左マージン */
+    @media (max-width: 768px) {
+      #backBtn { margin-left: 52px; }
+    }
     #resultTitle { font-size: 16px; font-weight: 600; color: #1a1a2e; }
     #copyAllBtn {
       background: none; border: 1px solid #4f8ef7; color: #4f8ef7;
