@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- JS が無効でもトップページへ移動できるようにする -->
+  <meta http-equiv="refresh" content="0;url=/">
+  <meta name="robots" content="noindex">
+  <title>スキマ</title>
+  <meta name="theme-color" content="#4f8ef7">
+  <link rel="icon" href="/icon-192.png">
+  <script>
+    // =====================================================
+    // /app  QRコード用の固定入口
+    //
+    //   https://sukimacalendar.com/app は QR に埋め込む固定URL。
+    //   バージョンや導線が変わってもこのURLは変えないため、
+    //   ここでは何も案内せずトップページへ転送するだけにする。
+    //
+    //   PWA のインストール案内はトップページ側の installBanner
+    //   （beforeinstallprompt ベース）へ一本化している。
+    //
+    //   body より前に実行して、案内画面を一瞬も見せない。
+    // =====================================================
+    location.replace('/');
+  </script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f0f4f8;
+      color: #888;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+    }
+    a { color: #4f8ef7; }
+  </style>
+</head>
+
+<body>
+  <!-- 転送が両方とも効かなかった場合にだけ見える最小限の表示 -->
+  <p id="msg">Sukimaを開いています…</p>
+
+  <script>
+    // 転送が何らかの理由で効かなかったときのために文言だけ言語に合わせる
+    (function () {
+      var lang = null;
+      try { lang = localStorage.getItem('sukima_lang'); } catch (e) { lang = null; }
+      if (lang !== 'ja' && lang !== 'en') {
+        lang = (navigator.language || '').toLowerCase().indexOf('ja') === 0 ? 'ja' : 'en';
+      }
+      if (lang === 'en') {
+        document.documentElement.lang = 'en';
+        document.getElementById('msg').textContent = 'Opening Sukima...';
+      }
+    })();
+  </script>
+</body>
+
+</html>

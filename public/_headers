@@ -1,2 +1,8 @@
 /
   Cache-Control: no-cache, no-store, must-revalidate
+
+/latest-version.json
+  Cache-Control: no-store, max-age=0
+
+/sw.js
+  Cache-Control: no-cache

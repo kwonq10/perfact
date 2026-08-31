@@ -1123,10 +1123,8 @@
         <a class="cta-btn" href="/">無料で空き時間を探す</a>
       </div>
 
-      <div class="qr-block">
-        <h3>スマートフォンで開く</h3>
-        <img src="./sukima-qr.png" alt="スキマ Web版のQRコード" width="1024" height="1024">
-      </div>
+      <!-- 共通インストールCTA。中身は /assets/app-cta.js が差し替える -->
+      <div data-sukima-app-cta data-theme="dark"><a href="/app">Sukimaをインストール</a></div>
     </div>
   </section>
 
@@ -1142,6 +1140,8 @@
       <a class="foot-back" href="/">← スキマ トップページに戻る</a>
     </div>
   </footer>
+
+  <script src="/assets/app-cta.js" defer></script>
 
 </body>
 

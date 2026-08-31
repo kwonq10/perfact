@@ -1,0 +1,86 @@
+/* =====================================================
+   Sukima 共通インストールCTA
+     各ページは <div data-sukima-app-cta> を置くだけでよい。
+     見た目の定義はこのファイルに集約する。
+     data-theme="dark" を付けると暗い背景向けの配色になる。
+   ===================================================== */
+
+.sukima-cta {
+  --sukima-cta-bg: #ffffff;
+  --sukima-cta-border: #e3ebf5;
+  --sukima-cta-text: #555555;
+  --sukima-cta-title: #1a1a2e;
+  --sukima-cta-accent: #4f8ef7;
+  --sukima-cta-accent-active: #3a7de8;
+  --sukima-cta-sub: #4f8ef7;
+
+  box-sizing: border-box;
+  max-width: 320px;
+  margin: 32px auto 0;
+  padding: 20px 18px 16px;
+  background: var(--sukima-cta-bg);
+  border: 1px solid var(--sukima-cta-border);
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  text-align: center;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.sukima-cta * { box-sizing: border-box; }
+
+.sukima-cta[data-theme="dark"] {
+  --sukima-cta-bg: rgba(255, 255, 255, 0.10);
+  --sukima-cta-border: rgba(255, 255, 255, 0.22);
+  --sukima-cta-text: rgba(255, 255, 255, 0.78);
+  --sukima-cta-title: #ffffff;
+  --sukima-cta-sub: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
+}
+
+.sukima-cta__qr {
+  display: block;
+  width: 100%;
+  max-width: 180px;
+  height: auto;
+  margin: 0 auto 14px;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.sukima-cta__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--sukima-cta-text);
+}
+
+.sukima-cta__btn {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 16px;
+  background: var(--sukima-cta-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sukima-cta__btn:active { background: var(--sukima-cta-accent-active); }
+
+.sukima-cta__sub {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: var(--sukima-cta-sub);
+  text-decoration: none;
+}
+
+.sukima-cta__sub:hover { text-decoration: underline; }

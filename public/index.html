@@ -155,6 +155,172 @@
       font-size: 14px;
       cursor: pointer;
     }
+    /* iOS 向けインストール案内。Android 用 #installBanner と同じ見た目に揃える */
+    #iosBanner {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 0.5px solid #ddd;
+      padding: 16px 20px;
+      z-index: 200;
+      box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+    #iosBanner p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 12px;
+    }
+    #iosBanner .ios-steps {
+      margin: 0 0 12px;
+      padding: 0;
+      list-style: none;
+      counter-reset: iosstep;
+    }
+    #iosBanner .ios-steps li {
+      position: relative;
+      padding: 0 0 8px 30px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #333;
+    }
+    #iosBanner .ios-steps li:last-child { padding-bottom: 0; }
+    #iosBanner .ios-steps li::before {
+      counter-increment: iosstep;
+      content: counter(iosstep);
+      position: absolute;
+      left: 0;
+      top: 1px;
+      width: 20px;
+      height: 20px;
+      background: #4f8ef7;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #iosBanner .share-icon {
+      display: inline-block;
+      vertical-align: -3px;
+      margin: 0 2px;
+      color: #4f8ef7;
+    }
+    #iosBanner .banner-btns { display: flex; }
+    #iosBanner .btn-dismiss {
+      flex: 1;
+      min-height: 44px;
+      padding: 10px 16px;
+      background: none;
+      color: #aaa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    #updateBanner {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 0.5px solid #ddd;
+      padding: 16px 20px;
+      z-index: 210;
+      box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+    }
+    #updateBanner p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    #updateBanner .update-version {
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 12px;
+    }
+    #updateBanner .banner-btns {
+      display: flex;
+      gap: 8px;
+    }
+    #updateBanner .btn-update {
+      flex: 1;
+      min-height: 44px;
+      padding: 12px;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #updateBanner .btn-update:active { background: #3a7de8; }
+    #updateBanner .btn-later {
+      min-height: 44px;
+      padding: 12px 16px;
+      background: none;
+      color: #aaa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #updateBanner button:disabled { opacity: 0.6; cursor: default; }
+
+    #forceUpdateOverlay {
+      display: none;
+      position: fixed;
+      top: 0; right: 0; bottom: 0; left: 0;
+      background: rgba(26, 26, 46, 0.55);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #forceUpdateOverlay .force-card {
+      background: white;
+      border-radius: 16px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    #forceUpdateOverlay p {
+      font-size: 15px;
+      color: #1a1a2e;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    #forceUpdateOverlay .update-version {
+      font-size: 12px;
+      color: #aaa;
+      font-weight: 400;
+      margin-bottom: 20px;
+    }
+    #forceUpdateOverlay .btn-update {
+      width: 100%;
+      min-height: 48px;
+      padding: 14px;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #forceUpdateOverlay .btn-update:active { background: #3a7de8; }
+    #forceUpdateOverlay .btn-update:disabled { opacity: 0.6; cursor: default; }
+
     .copy-toast {
       position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
       background: #1a1a2e; color: white; padding: 10px 20px;
@@ -530,6 +696,8 @@
 
       <footer class="app-footer" style="margin-top: 32px; border-radius: 0 0 16px 16px;">
         <p class="app-footer-text">スキマのご利用について</p>
+        <!-- 共通インストールCTA。中身は /assets/app-cta.js が差し替える -->
+        <div data-sukima-app-cta><a href="/app">Sukimaをインストール</a></div>
         <p class="app-footer-copy">&copy; スキマ</p>
       </footer>
     </div>
@@ -590,6 +758,37 @@
     <div class="banner-btns">
       <button class="btn-install" id="installBtn">ホーム画面に追加</button>
       <button class="btn-dismiss" onclick="dismissInstall()">後で</button>
+    </div>
+  </div>
+
+  <!-- iOS 向けインストール案内。iOS には programmatic install API が無いため
+       「追加する」ボタンは置かず、手順の案内と「後で」だけにする。 -->
+  <div id="iosBanner">
+    <p id="iosBannerMsg">Sukimaをホーム画面に追加できます</p>
+    <ol class="ios-steps" id="iosSteps">
+      <li id="iosStep1"><svg class="share-icon" width="13" height="16" viewBox="0 0 16 20" fill="none" aria-hidden="true"><path d="M8 1.5v10.5M8 1.5 4.6 4.9M8 1.5l3.4 3.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.2 8.2H2.1v9.6h11.8V8.2h-1.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> 共有ボタンをタップ</li>
+      <li id="iosStep2">「ホーム画面に追加」</li>
+      <li id="iosStep3">「追加」</li>
+    </ol>
+    <div class="banner-btns">
+      <button class="btn-dismiss" id="iosLaterBtn" onclick="dismissInstall()">後で</button>
+    </div>
+  </div>
+
+  <div id="updateBanner">
+    <p id="updateBannerMsg">Sukimaの新しいバージョンがあります</p>
+    <p class="update-version" id="updateBannerVersion"></p>
+    <div class="banner-btns">
+      <button class="btn-update" id="updateBtn" onclick="applyUpdate()">アップデート</button>
+      <button class="btn-later" id="updateLaterBtn" onclick="dismissUpdate()">あとで</button>
+    </div>
+  </div>
+
+  <div id="forceUpdateOverlay" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="force-card">
+      <p id="forceUpdateMsg">このバージョンは更新が必要です</p>
+      <p class="update-version" id="forceUpdateVersion"></p>
+      <button class="btn-update" id="forceUpdateBtn" onclick="applyUpdate()">アップデート</button>
     </div>
   </div>
 
@@ -785,6 +984,16 @@
         installMsg: 'ホーム画面に追加してアプリとして使えます',
         installBtn: 'ホーム画面に追加',
         installLater: '後で',
+        iosInstallMsg: 'Sukimaをホーム画面に追加できます',
+        iosInstallStep1: '共有ボタンをタップ',
+        iosInstallStep2: '「ホーム画面に追加」',
+        iosInstallStep3: '「追加」',
+        openInSafariMsg: 'SukimaをインストールするにはSafariで開いてください',
+        updateAvailable: 'Sukimaの新しいバージョンがあります',
+        updateRequired: 'このバージョンは更新が必要です',
+        updateButton: 'アップデート',
+        updateLater: 'あとで',
+        versionArrow: '→',
         loggedIn: 'Googleアカウント連携済み',
         loadingGoogle: 'Googleの読み込み中です...',
         loggedOut: 'ログアウトしました',
@@ -857,6 +1066,16 @@
         installMsg: 'Add to home screen to use as an app',
         installBtn: 'Add to Home Screen',
         installLater: 'Later',
+        iosInstallMsg: 'You can add Sukima to your Home Screen',
+        iosInstallStep1: 'Tap the Share button',
+        iosInstallStep2: 'Choose "Add to Home Screen"',
+        iosInstallStep3: 'Tap "Add"',
+        openInSafariMsg: 'To install Sukima, please open this page in Safari',
+        updateAvailable: 'A new version of Sukima is available',
+        updateRequired: 'This version needs to be updated',
+        updateButton: 'Update',
+        updateLater: 'Later',
+        versionArrow: '→',
         loggedIn: 'Google Account connected',
         loadingGoogle: 'Loading Google...',
         loggedOut: 'Logged out',
@@ -964,6 +1183,8 @@
       document.getElementById('installBtn').textContent = t('installBtn');
       const dismissBtn = q('#installBanner .btn-dismiss');
       if (dismissBtn) dismissBtn.textContent = t('installLater');
+      applyUpdateUiLang();
+      applyIosBannerLang();
 
       const startTitle = q('#startTitle');
       if (startTitle) startTitle.textContent = t('appTitle');
@@ -1455,7 +1676,8 @@
         }
       }
 
-      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+      initServiceWorkerUpdates();
+      initUpdateNotifications();
       applyLang();
     };
 
@@ -2333,14 +2555,488 @@
     resultViewEl.addEventListener('pointercancel', handleWeekSwipePointerCancel);
     resultViewEl.addEventListener('keydown', handleWeekSwipeKeyDown);
 
+    // =====================================================
+    // Service Worker 更新機構（第1段階：検出のみ）
+    //
+    //   新しい Service Worker が waiting に入ったことを検出し、
+    //   内部状態として保持するだけにとどめる。
+    //   利用者向けの更新通知UI・強制更新UIは第2段階で追加する。
+    // =====================================================
+
+    // ページ読み込み時点で既に Service Worker に制御されていたか。
+    // 初回インストール時の clients.claim() による controllerchange と、
+    // 更新適用による controllerchange を区別するために使う。
+    const swHadControllerAtLoad =
+      ('serviceWorker' in navigator) && !!navigator.serviceWorker.controller;
+
+    // 更新の内部状態。第1段階では保持するだけで UI からは参照しない。
+    const swUpdateState = {
+      registration: null,     // ServiceWorkerRegistration
+      waiting: null,          // 更新候補の waiting Service Worker
+      updateAvailable: false, // 更新が利用可能か
+      currentVersion: null    // 現在ページを制御している SW の APP_VERSION
+    };
+
+    // controllerchange は skipWaiting 後に発火する。二重リロードを防ぐ。
+    let swRefreshing = false;
+
+    function markSwUpdateAvailable(worker) {
+      if (!worker) return;
+      swUpdateState.waiting = worker;
+      swUpdateState.updateAvailable = true;
+      evaluateUpdateState();
+    }
+
+    // 現在の Service Worker のバージョンを MessageChannel 経由で取得する
+    function requestSwVersion() {
+      const controller = navigator.serviceWorker.controller;
+      if (!controller) return;
+      try {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = (e) => {
+          if (e.data && typeof e.data.version === 'string') {
+            swUpdateState.currentVersion = e.data.version;
+            evaluateUpdateState();
+          }
+        };
+        controller.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+      } catch (e) { /* 取得できなくてもアプリ本体の動作は妨げない */ }
+    }
+
+    function initServiceWorkerUpdates() {
+      if (!('serviceWorker' in navigator)) return;
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (swRefreshing) return;
+        if (!swHadControllerAtLoad) {
+          // 初回インストールの clients.claim()。再読み込みはしない。
+          // ただしこの時点で初めて controller が付くため、
+          // ページ読み込み時に取得できなかったバージョンをここで取り直す。
+          requestSwVersion();
+          return;
+        }
+        swRefreshing = true;
+        window.location.reload();
+      });
+
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        swUpdateState.registration = reg;
+        requestSwVersion();
+
+        // 前回の更新を適用せずに再訪した場合、waiting が既に存在する
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          markSwUpdateAvailable(reg.waiting);
+        }
+
+        reg.addEventListener('updatefound', () => {
+          const installing = reg.installing;
+          if (!installing) return;
+          installing.addEventListener('statechange', () => {
+            if (installing.state !== 'installed') return;
+            // controller が無い＝初回インストール。更新ではないので候補にしない。
+            if (!navigator.serviceWorker.controller) return;
+            markSwUpdateAvailable(reg.waiting || installing);
+          });
+        });
+      }).catch(() => {
+        // 登録に失敗してもアプリ本体は通常どおり動作させる
+      });
+    }
+
+    // =====================================================
+    // アップデート通知（第2段階A）
+    //
+    //   第1段階の swUpdateState を土台に、利用者向けUIを載せる。
+    //   判定の優先順位は 強制更新 → 通常更新 → インストール案内。
+    //   情報が揃わないとき（バージョン不明・JSON取得失敗）は
+    //   何も表示せず通常起動させる（fail-open）。
+    // =====================================================
+
+    const UPDATE_SKIPPED_KEY = 'sukima_update_skipped';
+    const INSTALL_DISMISSED_AT_KEY = 'sukima_install_dismissed_at';
+    const INSTALL_DISMISS_DAYS = 14;
+    const LATEST_VERSION_URL = '/latest-version.json';
+    const LATEST_FETCH_TIMEOUT_MS = 5000;
+    const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+    // latest-version.json を叩きすぎないための最短間隔
+    const LATEST_FETCH_MIN_INTERVAL_MS = 10 * 60 * 1000;
+    // SKIP_WAITING を送っても controllerchange が来なかったときの保険
+    const UPDATE_APPLY_FALLBACK_MS = 10000;
+
+    let latestVersionInfo = null;   // 取得できるまで null（= 判定しない）
+    let lastLatestFetchAt = 0;
+    let latestFetchInFlight = false;
+    let updateCheckTimerId = null;  // タイマー重複登録の防止
+    let updateUiMode = 'none';      // 'none' | 'normal' | 'forced'
+    let updateInProgress = false;   // アップデート二重実行の防止
+
+    // -----------------------------------------------------
+    // semver 比較
+    //   文字列比較は 1.9.0 > 1.10.0 と誤判定するため使わない。
+    //   major.minor.patch の数値比較のみを行い、解釈できない値は
+    //   null を返して「判定しない」側へ倒す。
+    // -----------------------------------------------------
+    function parseVersion(v) {
+      if (typeof v !== 'string') return null;
+      const parts = v.trim().split('.');
+      if (parts.length === 0 || parts.length > 3) return null;
+      const nums = [];
+      for (let i = 0; i < 3; i++) {
+        const raw = parts[i] === undefined ? '0' : parts[i];
+        if (!/^[0-9]+$/.test(raw)) return null;
+        nums.push(parseInt(raw, 10));
+      }
+      return nums;
+    }
+
+    /** a が b より小さければ -1、大きければ 1、等しければ 0。比較できなければ null。 */
+    function compareVersions(a, b) {
+      const pa = parseVersion(a);
+      const pb = parseVersion(b);
+      if (!pa || !pb) return null;
+      for (let i = 0; i < 3; i++) {
+        if (pa[i] < pb[i]) return -1;
+        if (pa[i] > pb[i]) return 1;
+      }
+      return 0;
+    }
+
+    // -----------------------------------------------------
+    // latest-version.json の取得（fail-open）
+    //   失敗・タイムアウト・JSON不正はいずれも「判定しない」で通す。
+    //   応答本文はコンソールへ出さない。
+    // -----------------------------------------------------
+    async function fetchLatestVersion(force) {
+      if (latestFetchInFlight) return;
+      const now = Date.now();
+      if (!force && now - lastLatestFetchAt < LATEST_FETCH_MIN_INTERVAL_MS) return;
+      latestFetchInFlight = true;
+      lastLatestFetchAt = now;   // 失敗時も間引きの起点にする
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), LATEST_FETCH_TIMEOUT_MS);
+        let res;
+        try {
+          res = await fetch(LATEST_VERSION_URL + '?t=' + now, {
+            cache: 'no-store',
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || typeof data.version !== 'string') return;
+        latestVersionInfo = data;
+        evaluateUpdateState();
+      } catch (e) {
+        // 通信失敗・中断・JSON不正。アプリは止めない。
+      } finally {
+        latestFetchInFlight = false;
+      }
+    }
+
+    // -----------------------------------------------------
+    // 判定
+    // -----------------------------------------------------
+    function getSkippedVersion() {
+      try { return localStorage.getItem(UPDATE_SKIPPED_KEY); } catch (e) { return null; }
+    }
+
+    function evaluateUpdateState() {
+      const info = latestVersionInfo;
+      const current = swUpdateState.currentVersion;
+
+      // バージョンが分からないうちは何も出さない（強制更新も行わない）
+      if (!info || !current) return;
+
+      // 1. 強制更新を先に判定する
+      if (typeof info.minimumVersion === 'string') {
+        const cmpMin = compareVersions(current, info.minimumVersion);
+        if (cmpMin !== null && cmpMin < 0) {
+          showForcedUpdate();
+          return;
+        }
+      }
+
+      // 2. 通常更新
+      if (updateUiMode === 'forced') return;
+      const cmpLatest = compareVersions(current, info.version);
+      if (cmpLatest === null || cmpLatest >= 0) return;                      // 最新／比較不能
+      if (!swUpdateState.updateAvailable || !swUpdateState.waiting) return;  // 実体がまだ無い
+      if (getSkippedVersion() === info.version) return;                      // 「あとで」済み
+      showNormalUpdate();
+    }
+
+    // -----------------------------------------------------
+    // 表示
+    // -----------------------------------------------------
+    function versionArrowText() {
+      const cur = swUpdateState.currentVersion;
+      const info = latestVersionInfo;
+      if (!cur || !info || typeof info.version !== 'string') return '';
+      return cur + ' ' + t('versionArrow') + ' ' + info.version;
+    }
+
+    function updateMessageText() {
+      const info = latestVersionInfo;
+      // latest-version.json の message は日本語で記述されるため ja のときだけ採用し、
+      // en では i18n の文言を使う（JSON が単一言語しか持てないため）。
+      if (currentLang === 'ja' && info && typeof info.message === 'string' && info.message) {
+        return info.message;
+      }
+      return t('updateAvailable');
+    }
+
+    /** 表示中のアップデートUIを現在の言語で描き直す（applyLang から呼ばれる） */
+    function applyUpdateUiLang() {
+      const msgEl = document.getElementById('updateBannerMsg');
+      if (msgEl) msgEl.textContent = updateMessageText();
+      const verEl = document.getElementById('updateBannerVersion');
+      if (verEl) verEl.textContent = versionArrowText();
+      const btn = document.getElementById('updateBtn');
+      if (btn) btn.textContent = t('updateButton');
+      const later = document.getElementById('updateLaterBtn');
+      if (later) later.textContent = t('updateLater');
+
+      const fMsg = document.getElementById('forceUpdateMsg');
+      if (fMsg) fMsg.textContent = t('updateRequired');
+      const fVer = document.getElementById('forceUpdateVersion');
+      if (fVer) fVer.textContent = versionArrowText();
+      const fBtn = document.getElementById('forceUpdateBtn');
+      if (fBtn) fBtn.textContent = t('updateButton');
+    }
+
+    function hideInstallBanner() {
+      const banner = document.getElementById('installBanner');
+      if (banner) banner.style.display = 'none';
+      const ios = document.getElementById('iosBanner');
+      if (ios) ios.style.display = 'none';
+    }
+
+    function showNormalUpdate() {
+      if (updateUiMode === 'forced') return;   // 強制更新が優先
+      updateUiMode = 'normal';
+      hideInstallBanner();                     // インストール案内とは同時に出さない
+      applyUpdateUiLang();
+      document.getElementById('updateBanner').style.display = 'block';
+    }
+
+    function showForcedUpdate() {
+      if (updateUiMode === 'forced') return;
+      updateUiMode = 'forced';
+      hideInstallBanner();
+      document.getElementById('updateBanner').style.display = 'none';
+      applyUpdateUiLang();
+      const overlay = document.getElementById('forceUpdateOverlay');
+      overlay.style.display = 'flex';
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      const btn = document.getElementById('forceUpdateBtn');
+      if (btn) { try { btn.focus(); } catch (e) {} }
+    }
+
+    // 強制更新中は背後の Sukima をキーボードで操作させない。
+    // Esc・背景タップで閉じる経路はそもそも実装していない。
+    function forcedUpdateKeyGuard(e) {
+      if (updateUiMode !== 'forced') return;
+      const btn = document.getElementById('forceUpdateBtn');
+      if (e.target === btn && (e.key === 'Enter' || e.key === ' ')) return;
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (btn) { try { btn.focus(); } catch (err) {} }
+        return;
+      }
+      if (e.key === 'Escape') e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // -----------------------------------------------------
+    // 操作
+    // -----------------------------------------------------
+    function setUpdateButtonsDisabled(disabled) {
+      const btn = document.getElementById('updateBtn');
+      const fBtn = document.getElementById('forceUpdateBtn');
+      if (btn) btn.disabled = disabled;
+      if (fBtn) fBtn.disabled = disabled;
+    }
+
+    /** ページを1回だけ再読み込みする。swRefreshing により多重実行しない。 */
+    function reloadOnce() {
+      if (swRefreshing) return;
+      swRefreshing = true;
+      window.location.reload();
+    }
+
+    async function applyUpdate() {
+      if (updateInProgress) return;
+      updateInProgress = true;
+      setUpdateButtonsDisabled(true);
+      try {
+        const reg = swUpdateState.registration;
+        let waiting = swUpdateState.waiting || (reg && reg.waiting) || null;
+
+        // waiting が消えていた場合は取り直す
+        if (!waiting && reg) {
+          try { await reg.update(); } catch (e) { /* 下のフォールバックへ */ }
+          waiting = reg.waiting || null;
+        }
+
+        if (waiting) {
+          // 以降は controllerchange（第1段階のガード付き）が1回だけ reload する
+          waiting.postMessage({ type: 'SKIP_WAITING' });
+          // controllerchange が来なかったときの保険。多重リロードはしない。
+          setTimeout(reloadOnce, UPDATE_APPLY_FALLBACK_MS);
+          return;
+        }
+
+        // waiting を用意できなかった場合の最終手段
+        reloadOnce();
+      } catch (e) {
+        reloadOnce();
+      }
+    }
+
+    function dismissUpdate() {
+      if (updateUiMode === 'forced') return;   // 強制更新では使えない
+      try {
+        if (latestVersionInfo && typeof latestVersionInfo.version === 'string') {
+          localStorage.setItem(UPDATE_SKIPPED_KEY, latestVersionInfo.version);
+        }
+      } catch (e) { /* localStorage が使えなくても致命的ではない */ }
+      updateUiMode = 'none';
+      document.getElementById('updateBanner').style.display = 'none';
+      maybeShowInstallBanner();                // 優先順位に従って案内へ戻す
+    }
+
+    // -----------------------------------------------------
+    // インストール案内（既存 installBanner の表示制御）
+    // -----------------------------------------------------
+
+    // 旧 install_dismissed='1' は「後回しにした」事実だけで日時を持たない。
+    // 初回参照時に現在時刻へ移行して14日カウントを開始し、旧キーは削除する。
+    // 読み書きに失敗した場合は「案内を出す」側へ倒す。
+    function migrateInstallDismissed() {
+      try {
+        if (localStorage.getItem('install_dismissed') === null) return;
+        if (!localStorage.getItem(INSTALL_DISMISSED_AT_KEY)) {
+          localStorage.setItem(INSTALL_DISMISSED_AT_KEY, String(Date.now()));
+        }
+        localStorage.removeItem('install_dismissed');
+      } catch (e) { /* 移行できなくてもアプリ本体には影響しない */ }
+    }
+
+    function isInstallDismissActive() {
+      try {
+        const raw = localStorage.getItem(INSTALL_DISMISSED_AT_KEY);
+        if (!raw) return false;
+        const at = parseInt(raw, 10);
+        if (!Number.isFinite(at)) return false;
+        return Date.now() - at < INSTALL_DISMISS_DAYS * 24 * 60 * 60 * 1000;
+      } catch (e) { return false; }
+    }
+
+    // 端末判定。インストール案内の出し分けにだけ使う。
+    const INSTALL_UA = navigator.userAgent || '';
+    // iPadOS 13 以降は Macintosh を名乗るため、タッチの有無で見分ける
+    const isIosDevice = /iPhone|iPad|iPod/i.test(INSTALL_UA) ||
+      (/Macintosh/.test(INSTALL_UA) &&
+       typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1);
+    // iOS 上の Chrome / Firefox / Edge / Opera やアプリ内ブラウザは
+    // ホーム画面追加が正しく機能しないため Safari と区別する
+    const isIosSafari = isIosDevice &&
+      !/CriOS|FxiOS|EdgiOS|OPiOS|Line|FBAN|FBAV/i.test(INSTALL_UA);
+
+    /** すでに PWA として起動しているか */
+    function isStandaloneMode() {
+      try {
+        if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+      } catch (e) { /* matchMedia が無い環境は無視する */ }
+      return window.navigator.standalone === true;
+    }
+
+    /** iOS 案内の文言を現在の言語で描き直す（applyLang から呼ばれる） */
+    function applyIosBannerLang() {
+      const msg = document.getElementById('iosBannerMsg');
+      if (msg) msg.textContent = isIosSafari ? t('iosInstallMsg') : t('openInSafariMsg');
+      // 共有アイコンのSVGは残したまま文言だけ差し替える
+      const step1 = document.getElementById('iosStep1');
+      if (step1) {
+        const svg = step1.querySelector('svg');
+        step1.textContent = '';
+        if (svg) step1.appendChild(svg);
+        step1.appendChild(document.createTextNode(' ' + t('iosInstallStep1')));
+      }
+      const step2 = document.getElementById('iosStep2');
+      if (step2) step2.textContent = t('iosInstallStep2');
+      const step3 = document.getElementById('iosStep3');
+      if (step3) step3.textContent = t('iosInstallStep3');
+      const later = document.getElementById('iosLaterBtn');
+      if (later) later.textContent = t('installLater');
+    }
+
+    // インストール案内の出し分け。
+    //   Android / Chromium → beforeinstallprompt によるネイティブUI
+    //   iOS Safari         → ホーム画面追加の手順
+    //   iOS の Safari 以外 → Safari で開くよう案内
+    //   その他             → 何も出さない（従来どおり）
+    function maybeShowInstallBanner() {
+      if (updateUiMode !== 'none') return;   // アップデートUIが優先
+      if (isStandaloneMode()) return;        // すでにインストール済み
+      if (isInstallDismissActive()) return;  // 14日以内に「後で」を押している
+
+      if (deferredPrompt) {
+        document.getElementById('installBanner').style.display = 'block';
+        return;
+      }
+      if (isIosDevice) {
+        applyIosBannerLang();
+        // iOS には programmatic install API が無いため手順を示すだけにする。
+        // Safari 以外では手順が使えないので手順リストは出さない。
+        const steps = document.getElementById('iosSteps');
+        if (steps) steps.style.display = isIosSafari ? 'block' : 'none';
+        document.getElementById('iosBanner').style.display = 'block';
+      }
+    }
+
+    // -----------------------------------------------------
+    // 初期化と定期チェック
+    // -----------------------------------------------------
+    function runUpdateCheck() {
+      const reg = swUpdateState.registration;
+      if (reg) { try { reg.update(); } catch (e) {} }
+      fetchLatestVersion(false);   // 間引きは fetchLatestVersion 内で行う
+    }
+
+    function scheduleUpdateChecks() {
+      if (updateCheckTimerId === null) {
+        updateCheckTimerId = setInterval(() => {
+          if (document.visibilityState !== 'visible') return;   // 非表示中は動かさない
+          runUpdateCheck();
+        }, UPDATE_CHECK_INTERVAL_MS);
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        runUpdateCheck();
+      });
+    }
+
+    function initUpdateNotifications() {
+      migrateInstallDismissed();
+      document.addEventListener('keydown', forcedUpdateKeyGuard, true);
+      fetchLatestVersion(true);
+      scheduleUpdateChecks();
+      // iOS では beforeinstallprompt が発火しないため、ここから案内を試みる。
+      // 更新通知の判定が先に終わるよう少し待ってから呼ぶ。
+      setTimeout(maybeShowInstallBanner, 1500);
+    }
+
     let deferredPrompt = null;
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
-      if (!localStorage.getItem('install_dismissed')) {
-        document.getElementById('installBanner').style.display = 'block';
-      }
+      maybeShowInstallBanner();
     });
 
     document.getElementById('installBtn').addEventListener('click', async () => {
@@ -2348,18 +3044,23 @@
       deferredPrompt.prompt();
       const result = await deferredPrompt.userChoice;
       deferredPrompt = null;
-      document.getElementById('installBanner').style.display = 'none';
+      hideInstallBanner();
     });
 
     function dismissInstall() {
-      document.getElementById('installBanner').style.display = 'none';
-      localStorage.setItem('install_dismissed', '1');
+      // Android / iOS どちらの案内も同じキーで14日延期する
+      hideInstallBanner();
+      // 恒久フラグではなく押した日時を保存し、一定期間後に再び案内できるようにする
+      try {
+        localStorage.setItem(INSTALL_DISMISSED_AT_KEY, String(Date.now()));
+      } catch (e) { /* localStorage が使えなくても致命的ではない */ }
     }
 
     window.addEventListener('appinstalled', () => {
-      document.getElementById('installBanner').style.display = 'none';
+      hideInstallBanner();
       deferredPrompt = null;
     });
   </script>
+  <script src="/assets/app-cta.js" defer></script>
 </body>
 </html>
