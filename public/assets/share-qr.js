@@ -28,7 +28,7 @@
   /* ---- CSS inject ---- */
   var css = [
     '#sqr-btn{',
-    '  position:fixed;top:14px;right:16px;z-index:150;',
+    '  position:fixed;top:14px;left:16px;right:auto;z-index:150;',
     '  display:flex;align-items:center;justify-content:center;',
     '  width:44px;height:44px;border-radius:10px;',
     '  background:rgba(255,255,255,0.92);',
@@ -103,10 +103,7 @@
   btn.type = 'button';
   btn.innerHTML = ICON;
 
-  // index.html: langToggle が右上にあるのでボタンを左にずらす
-  if (document.getElementById('langToggle')) {
-    btn.style.right = '112px';
-  }
+  // 全ページ共通: 左上配置（CSS で設定済み）
 
   var overlay = document.createElement('div');
   overlay.id = 'sqr-overlay';
