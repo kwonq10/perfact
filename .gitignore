@@ -5,3 +5,6 @@ marketing/
 # Chrome Web Store 提出用の中間生成物
 chrome-web-store/packages/
 chrome-web-store/screenshots-1280x800-rgb/
+
+# Supabase CLI のローカルキャッシュ（リンク状態・バージョン情報）
+supabase/.temp/
