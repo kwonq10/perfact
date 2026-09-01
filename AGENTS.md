@@ -14,9 +14,12 @@ Claude Code / Codex / その他AIコーディングエージェントは、作�
 
 ## 正式な作業場所
 
-D:\09_AI_Projects\perfact
+C:\Users\tetsu\perfact
 
 Tempフォルダ内の古い作業コピーは使わないでください。
+
+G:\マイドライブ\バイブコーディング\perfact は旧コピーです。
+参照のみに使い、current source として扱わないでください。G: 側から push しないでください。
 
 ## 本番URL
 
@@ -27,11 +30,39 @@ Tempフォルダ内の古い作業コピーは使わないでください。
 
 - Repository: https://github.com/kwonq10/perfact
 
-## Netlify
+## ホスティング
 
-- Project name: sukima
-- Site ID: fc8dad09-7704-4fbb-9000-6a1f58528545
-- Primary URL: https://sukimacalendar.com
+- Hosting: Cloudflare Pages
+- Project name: sukima-web
+- Production branch: main
+- Repository: kwonq10/perfact
+- Build output directory: public
+- Build command: なし
+- Functions: リポジトリ直下の functions/ を Cloudflare Pages Functions として自動検出
+- Production domains:
+  - https://sukimacalendar.com
+  - https://www.sukimacalendar.com
+- Git integration: main への push で production へ自動deploy
+- wrangler.toml: 現在は不要。Pages project 側の設定を使用する
+- compatibility_date: 2026-07-25
+- compatibility_flags: なし
+
+Netlify は現在の production ホストではありません。
+リポジトリに残っている netlify.toml は現在の配信に使われていません。
+
+### production の環境変数
+
+すべて Cloudflare Pages の secret として登録済みです。
+**値はこのファイルに絶対に書かないでください。** 名前のみ記載します。
+
+- GOOGLE_CLIENT_IDS
+- SUPABASE_URL
+- SUPABASE_SERVICE_ROLE_KEY
+
+### preview 環境
+
+preview には secret が未設定です。production と同等には動作しません。
+（GOOGLE_CLIENT_IDS が未設定のとき、/api/auth/session は 500 server_misconfigured を返す実装です）
 
 ## Google OAuth
 
