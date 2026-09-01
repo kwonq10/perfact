@@ -1,0 +1,19 @@
+{
+  "name": "sukima",
+  "version": "0.1.0",
+  "private": true,
+  "description": "スキマ — Cloudflare Pages Functions（課金バックエンド）",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test functions/api/_tests/*.test.mjs"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.44.0"
+  }
+}

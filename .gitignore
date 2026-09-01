@@ -8,3 +8,11 @@ chrome-web-store/screenshots-1280x800-rgb/
 
 # Supabase CLI のローカルキャッシュ（リンク状態・バージョン情報）
 supabase/.temp/
+
+# Node 依存（Cloudflare Pages Functions 用）
+node_modules/
+.wrangler/
+
+# wrangler のローカル変数（秘密値を含むため絶対に commit しない）
+.dev.vars
+.dev.vars.*

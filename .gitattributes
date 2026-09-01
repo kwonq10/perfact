@@ -1,0 +1,2 @@
+# Supabase migration SQL は改行を LF に固定する（別PCでも内容ハッシュを一致させるため）
+*.sql text eol=lf
