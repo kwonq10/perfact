@@ -31,8 +31,17 @@ function recorder() {
   return { error: push, warn: push, log: push, lines };
 }
 
-function req(method = 'POST', cookie) {
-  const headers = cookie === undefined ? {} : { cookie };
+/** 本番の canonical host。_lib/origin.js の既定 allowlist と同じ値。 */
+const ORIGIN = 'https://sukimacalendar.com';
+
+/**
+ * 既定では正規 Origin を付ける（Origin 検証を追加しても既存の期待値が変わらないように）。
+ * origin に null を渡すと Origin ヘッダ自体を付けない。
+ */
+function req(method = 'POST', cookie, origin = ORIGIN) {
+  const headers = {};
+  if (cookie !== undefined) headers.cookie = cookie;
+  if (origin !== null) headers.origin = origin;
   return new Request('https://example.com/api/auth/logout', { method, headers });
 }
 
@@ -365,4 +374,156 @@ test('delete_session 以外の RPC を呼ばない（他 session / user / subscr
   }
   // user_id を指定するような引数を持たない = 他端末セッションを消せない
   assert.deepEqual(Object.keys(rpc.calls[0].args), ['p_token_hash']);
+});
+
+// =========================================================
+// CSRF: Origin 検証
+// =========================================================
+
+test('正規 Origin + Cookie あり → 従来どおり 204 + Cookie 削除（回帰）', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  const res = await handleLogout(req('POST', `${SESSION_COOKIE_NAME}=${t}`), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 204);
+  assert.equal(await body(res), '');
+  assert.equal(rpc.calls.length, 1);
+  assert.equal(attrs(cookieOf(res)).includes('Max-Age=0'), true);
+});
+
+test('正規 Origin + Cookie なし → 従来どおり 204、DB を叩かない（回帰）', async () => {
+  const rpc = stubRpc();
+  const res = await handleLogout(req('POST', undefined), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 204);
+  assert.equal(rpc.calls.length, 0);
+  assert.equal(attrs(cookieOf(res)).includes('Max-Age=0'), true);
+});
+
+test('不正 Origin → 403 forbidden_origin', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  const res = await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'https://evil.example'), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 403);
+  assert.deepEqual(JSON.parse(await body(res)), { error: 'forbidden_origin' });
+});
+
+test('不正 Origin では Set-Cookie を出さない（攻撃者が被害者をログアウトさせられない）', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  const res = await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'https://evil.example'), ENV, { rpc, logger: quiet });
+
+  assert.equal(cookieOf(res), null);
+});
+
+test('不正 Origin では RPC を 1 度も呼ばない', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'https://evil.example'), ENV, { rpc, logger: quiet });
+
+  assert.equal(rpc.calls.length, 0);
+});
+
+test('Origin なし → 403（missing と forbidden をレスポンスで区別しない）', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  const res = await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, null), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 403);
+  assert.deepEqual(JSON.parse(await body(res)), { error: 'forbidden_origin' });
+  assert.equal(cookieOf(res), null);
+  assert.equal(rpc.calls.length, 0);
+});
+
+test('www Origin → 403（308 で apex へ寄せているので許可しない）', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  const res = await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'https://www.sukimacalendar.com'), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 403);
+  assert.equal(cookieOf(res), null);
+  assert.equal(rpc.calls.length, 0);
+});
+
+test('Origin: null → 403', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  const res = await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'null'), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 403);
+  assert.equal(cookieOf(res), null);
+  assert.equal(rpc.calls.length, 0);
+});
+
+test('GET + 不正 Origin は 405 が優先（method 検査が先）', async () => {
+  const rpc = stubRpc();
+  const res = await handleLogout(req('GET', undefined, 'https://evil.example'), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 405);
+  assert.deepEqual(JSON.parse(await body(res)), { error: 'method_not_allowed' });
+  assert.equal(cookieOf(res), null);
+  assert.equal(rpc.calls.length, 0);
+});
+
+test('正規 Origin + DB エラーは従来どおり 502 で Cookie を消さない（回帰）', async () => {
+  const t = generateSessionToken();
+  const rpc = async () => { throw new SupabaseError('unavailable', 'boom'); };
+  const res = await handleLogout(req('POST', `${SESSION_COOKIE_NAME}=${t}`), ENV, { rpc, logger: quiet });
+
+  assert.equal(res.status, 502);
+  assert.deepEqual(JSON.parse(await body(res)), { error: 'database_unavailable' });
+  assert.equal(cookieOf(res), null, '5xx では Cookie を削除しない');
+});
+
+test('Origin 拒否のログには reason だけを出し、Origin 実値や Cookie を出さない', async () => {
+  const t = generateSessionToken();
+  const evil = 'https://evil.example';
+  const rpc = stubRpc();
+  const log = recorder();
+  await handleLogout(req('POST', `${SESSION_COOKIE_NAME}=${t}`, evil), ENV, { rpc, logger: log });
+
+  const dump = log.lines.join('\n');
+  assert.equal(dump.includes('forbidden_origin'), true, 'reason は記録する');
+  for (const secret of [evil, 'evil.example', t, SESSION_COOKIE_NAME,
+                        ENV.SUPABASE_SERVICE_ROLE_KEY, ENV.SUPABASE_URL]) {
+    assert.equal(dump.includes(secret), false, secret);
+  }
+});
+
+test('deps.origin で検証を差し替えられる（他エンドポイントへ再利用する前提）', async () => {
+  const t = generateSessionToken();
+  const rpc = stubRpc();
+  const calls = [];
+  const origin = (request, env) => { calls.push({ hasRequest: !!request, hasEnv: !!env }); return { ok: true }; };
+  const res = await handleLogout(req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'https://anything.example'),
+    ENV, { rpc, logger: quiet, origin });
+
+  assert.equal(res.status, 204);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], { hasRequest: true, hasEnv: true });
+});
+
+test('ALLOWED_ORIGINS で許可 origin を上書きできる', async () => {
+  const t = generateSessionToken();
+  const localEnv = { ...ENV, ALLOWED_ORIGINS: 'http://127.0.0.1:8788' };
+
+  const ok = await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'http://127.0.0.1:8788'), localEnv,
+    { rpc: stubRpc(), logger: quiet });
+  assert.equal(ok.status, 204);
+
+  // 上書きなので既定の apex は許可されなくなる
+  const rpc = stubRpc();
+  const ng = await handleLogout(
+    req('POST', `${SESSION_COOKIE_NAME}=${t}`, 'https://sukimacalendar.com'), localEnv,
+    { rpc, logger: quiet });
+  assert.equal(ng.status, 403);
+  assert.equal(rpc.calls.length, 0);
 });

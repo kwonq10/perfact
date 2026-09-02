@@ -21,8 +21,10 @@
 //       Cookie だけ消すとサーバー側の session 行が残り、
 //       ブラウザから再試行できなくなるため。
 //
-//   CSRF: 現状は SameSite=Lax + HttpOnly Cookie + POST 限定に依存する。
-//   Origin 検証は cookie 認証を使う変更系 API 全体で後工程として統一実装する。
+//   CSRF: SameSite=Lax + HttpOnly Cookie + POST 限定に加えて、
+//   _lib/origin.js の allowlist で Origin を検証する。
+//   検証に失敗したら Cookie を読まず、hash も RPC も行わず、Set-Cookie も出さない
+//   （攻撃者のリクエストで被害者をログアウトさせられないようにするため）。
 //
 //   必要な環境変数（context.env から読む）:
 //     SUPABASE_URL
@@ -30,12 +32,14 @@
 //
 //   リクエスト:  POST  Cookie: __Host-sukima_session=<opaque token>
 //   レスポンス:  204 （body なし）+ Set-Cookie（削除）
+//               403 { error: 'forbidden_origin' }
 //               405 { error: 'method_not_allowed' }
 //               500 { error: 'server_misconfigured' | 'internal_error' }
 //               502 { error: 'database_unavailable' }
 // =========================================================
 
 import { SupabaseError, callRpc } from '../_lib/supabase.js';
+import { checkOrigin } from '../_lib/origin.js';
 import {
   buildClearSessionCookie,
   hashSessionToken,
@@ -71,10 +75,20 @@ function noContent() {
  * テストから直接呼べるよう、request / env / 差し替え可能な依存を引数で受ける。
  */
 export async function handleLogout(request, env, deps = {}) {
-  const { rpc = callRpc, logger = console } = deps;
+  const { rpc = callRpc, logger = console, origin = checkOrigin } = deps;
 
   if (request.method !== 'POST') {
     return json(405, { error: 'method_not_allowed' });
+  }
+
+  // CSRF 対策。Cookie 認証の変更系なので、出所を allowlist で検証する。
+  // ここで弾く場合は Cookie を読まず、hash も RPC も行わず、Set-Cookie も出さない。
+  // missing / null / allowlist 外はレスポンスで区別しない（判定理由を漏らさない）。
+  const originResult = origin(request, env);
+  if (!originResult.ok) {
+    // 理由コードだけを記録する。Origin の実値・Cookie・トークンは出さない。
+    logger.warn('[auth-logout] Origin 検証に失敗しました:', originResult.reason);
+    return json(403, { error: 'forbidden_origin' });
   }
 
   // Cookie が無い / 形式不正なら、DB を叩かずに「すでにログアウト済み」と同じ扱い。
