@@ -85,6 +85,13 @@ Google Cloud OAuth project:
 - git remote -v
 - git log --oneline -5
 
+HANDOFF_QUOTA_RESERVATION.md が存在する場合は、quota reservation 関連の作業を
+開始する前に最初に読んでください。
+
+読んだあと、実際の git 状態・tests・migration 状態と照合してから作業を開始してください。
+
+差分がある場合は reset せず、実測値との差分を報告して停止してください。
+
 ## commit前ルール
 
 commit前に必ず確認してください。
