@@ -635,6 +635,10 @@
     }
     #startBtn:hover { background: #3a7de8; }
     #startBtn:active { background: #2d6dd4; }
+
+    /* Google Identity Services の公式サインインボタン置き場（本人確認専用）。
+       ボタン本体は google.accounts.id.renderButton() が iframe を差し込む。 */
+    #gsiButton { display: flex; justify-content: center; margin-bottom: 12px; min-height: 44px; }
   </style>
 </head>
 <body>
@@ -658,7 +662,12 @@
       <p class="subtitle">スキマは、あなたのGoogleカレンダーから指定した期間の空き時間を自動で検索し、簡単に抽出・共有できるツールです。面倒な日程調整の時間を大幅に削減します。</p>
 
       <div id="loginSection">
-        <button class="btn" id="loginBtn" onclick="doLogin()">Googleでログイン</button>
+        <!-- 本人確認（Sukima サーバーセッション）。google.accounts.id が発行する
+             Google ID Token 専用の導線。Calendar の権限はここでは要求しない。 -->
+        <div id="gsiButton"></div>
+        <!-- Calendar 認可。google.accounts.oauth2 が発行する access token 専用の導線。
+             本人確認が済み、かつ Calendar token が無いときだけ表示する。 -->
+        <button class="btn" id="loginBtn" onclick="doLogin()" style="display:none;">Googleカレンダーと連携</button>
         <p class="status" id="status"></p>
       </div>
       <p style="text-align: center; margin-top: 15px;">
@@ -806,7 +815,24 @@
     const STEP_MIN = 30;
 
     let tokenClient;
+    // Google Calendar 専用の OAuth access token。Sukima の API へは絶対に送らない。
     let accessToken = null;
+
+    // ---- Sukima サーバーセッション（Calendar access token とは完全に別管理） ----
+    //   Cookie は __Host-sukima_session（HttpOnly）。JS からは読めないし読まない。
+    //   plan/status は UI 表示専用。権限判定の authority はサーバー側 DB。
+    let sukimaAuthenticated = false;
+    let sukimaPlanId = null;
+    let sukimaSubscriptionStatus = null;
+    // /api/auth/me が 5xx を返した状態。「未ログイン」と同一視しない。
+    let sukimaSessionCheckFailed = false;
+    let sukimaAuthBusy = false;
+    let gsiIdInitialized = false;
+    // GIS スクリプトが読めない／id 名前空間が現れないまま時間切れになった状態。
+    // 空の #gsiButton を出したままにしないための UI フラグ。
+    let gsiIdentityUnavailable = false;
+    // google.accounts.id を待つ上限。無限 polling を避ける。
+    const GSI_READY_TIMEOUT_MS = 10000;
     let currentSlots = [];
     let currentDailyResults = [];
     let currentDayIndex = 0;
@@ -1021,6 +1047,13 @@
         copiedDay: 'この日をコピーしました',
         copiedAll: '全件コピーしました',
         loginFailed: 'ログインに失敗しました',
+        connectCalendarBtn: 'Googleカレンダーと連携',
+        signingIn: 'ログインしています...',
+        signInFailed: 'ログインできませんでした。もう一度お試しください。',
+        authServiceError: '現在ログインできません。しばらくしてからお試しください。',
+        sessionCheckFailed: 'ログイン状態を確認できませんでした。通信環境をご確認ください。',
+        needsSignIn: 'まずGoogleでログインしてください',
+        logoutFailed: 'ログアウトを完了できませんでした。時間をおいて再度お試しください。',
         days: ['日', '月', '火', '水', '木', '金', '土'],
         months: null,
         startTagline: '予定の空き時間を、すぐ見つける。',
@@ -1103,6 +1136,13 @@
         copiedDay: 'Copied day',
         copiedAll: 'Copied all',
         loginFailed: 'Login failed',
+        connectCalendarBtn: 'Connect Google Calendar',
+        signingIn: 'Signing in...',
+        signInFailed: 'Could not sign in. Please try again.',
+        authServiceError: 'Sign-in is unavailable right now. Please try again later.',
+        sessionCheckFailed: 'Could not verify your sign-in status. Please check your connection.',
+        needsSignIn: 'Please sign in with Google first',
+        logoutFailed: 'Could not complete sign-out. Please try again later.',
         days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
         startTagline: 'Find your free time, instantly.',
@@ -1152,7 +1192,9 @@
       q('#searchView .subtitle').textContent = t('subtitle');
       const privLink = q('#searchView a[href="/privacy.html"]');
       if (privLink) privLink.textContent = t('privacyPolicy');
-      document.getElementById('loginBtn').textContent = t('loginBtn');
+      // #loginBtn は Calendar 認可専用のボタンになったのでラベルもそれに合わせる
+      document.getElementById('loginBtn').textContent = t('connectCalendarBtn');
+      renderGoogleIdentityButton();
 
       const labels = document.querySelectorAll('#searchView .form-group label');
       if (labels[0]) labels[0].textContent = t('labelStart');
@@ -1621,12 +1663,19 @@
       document.getElementById('startDate').value = toLocalDateStr(today);
       document.getElementById('endDate').value = toLocalDateStr(nextWeek);
 
+      // Calendar access token の復元（既存挙動を維持）。
+      // これは Calendar 認可の有無だけを表し、Sukima の本人確認とは無関係。
       const cached = localStorage.getItem(TOKEN_KEY);
       const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
       if (cached && expiry && Date.now() < parseInt(expiry)) {
         accessToken = cached;
-        showLoggedIn();
       }
+
+      // Sukima サーバーセッションの復元（Cookie のみ。ID Token は使わない）
+      restoreSukimaSession().then(updateAuthUi);
+      // Google Identity Services（本人確認用）の初期化。読み込み待ちを含む。
+      setupGoogleIdentity();
+      updateAuthUi();
 
       const savedResult = sessionStorage.getItem(RESULT_KEY);
       const savedSlots = sessionStorage.getItem('last_slots');
@@ -1683,13 +1732,297 @@
       applyLang();
     };
 
-    function showLoggedIn() {
-      document.getElementById('loginSection').style.display = 'none';
-      document.getElementById('formSection').style.display = 'block';
-      document.getElementById('loginInfo').textContent = t('loggedIn');
+    // =====================================================================
+    // Sukima サーバーセッション
+    //
+    //   Google ID Token（本人確認）と Google Calendar access token（API 認可）は
+    //   構造的に分離する。ID Token は handleGoogleIdentityCredential と
+    //   createSukimaSessionFromIdToken の引数としてしか存在せず、
+    //   保存・グローバル保持・ログ出力・Calendar API 送信のいずれも行わない。
+    //
+    //   Cookie（__Host-sukima_session）は HttpOnly。JS からは読めず、読まない。
+    //   document.cookie も Set-Cookie の解析も一切しない。
+    // =====================================================================
+
+    /** Sukima の API は same-origin。Cookie を確実に載せる共通オプション。 */
+    function sukimaApiInit(extra) {
+      return Object.assign({
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      }, extra || {});
     }
 
-    function doLogin() {
+    /**
+     * Google ID Token から Sukima のサーバーセッションを作る。
+     * idToken は引数の中だけで完結させ、戻り値にもエラーにも含めない。
+     */
+    async function createSukimaSessionFromIdToken(idToken) {
+      let res;
+      try {
+        res = await fetch('/api/auth/session', sukimaApiInit({
+          method: 'POST',
+          headers: { Accept: 'application/json', Authorization: 'Bearer ' + idToken }
+        }));
+      } catch (e) {
+        return { ok: false, kind: 'network' };
+      }
+      if (res.status === 200) {
+        let data = null;
+        try { data = await res.json(); } catch (e) { data = null; }
+        if (!data || typeof data.plan_id !== 'string' || typeof data.status !== 'string') {
+          return { ok: false, kind: 'server' };
+        }
+        return { ok: true, planId: data.plan_id, status: data.status };
+      }
+      // 400 missing_token / 401 invalid_token はどちらも本人確認の失敗。
+      if (res.status === 400 || res.status === 401) return { ok: false, kind: 'identity' };
+      return { ok: false, kind: 'server' };
+    }
+
+    /**
+     * Cookie だけで現在のログイン状態を復元する。
+     *   200 -> 'authenticated' / 401 -> 'unauthenticated' / それ以外 -> 'check_failed'
+     * check_failed を未ログインへ丸めない（勝手にログアウト扱いにしない）。
+     */
+    async function restoreSukimaSession() {
+      let res;
+      try {
+        res = await fetch('/api/auth/me', sukimaApiInit({ method: 'GET' }));
+      } catch (e) {
+        sukimaSessionCheckFailed = true;
+        return 'check_failed';
+      }
+      if (res.status === 200) {
+        let data = null;
+        try { data = await res.json(); } catch (e) { data = null; }
+        if (data && data.authenticated === true
+            && typeof data.plan_id === 'string' && typeof data.status === 'string') {
+          sukimaAuthenticated = true;
+          sukimaPlanId = data.plan_id;
+          sukimaSubscriptionStatus = data.status;
+          sukimaSessionCheckFailed = false;
+          return 'authenticated';
+        }
+        sukimaSessionCheckFailed = true;
+        return 'check_failed';
+      }
+      if (res.status === 401) {
+        clearSukimaSessionState();
+        sukimaSessionCheckFailed = false;
+        return 'unauthenticated';
+      }
+      // 500 / 502 など。セッションの有無が不明なので状態を書き換えない。
+      sukimaSessionCheckFailed = true;
+      return 'check_failed';
+    }
+
+    /** サーバーセッションを失効させる。204 のときだけ ok。 */
+    async function endSukimaSession() {
+      let res;
+      try {
+        res = await fetch('/api/auth/logout', sukimaApiInit({ method: 'POST' }));
+      } catch (e) {
+        return { ok: false, kind: 'network' };
+      }
+      if (res.status === 204) return { ok: true };
+      return { ok: false, kind: 'server' };
+    }
+
+    function clearSukimaSessionState() {
+      sukimaAuthenticated = false;
+      sukimaPlanId = null;
+      sukimaSubscriptionStatus = null;
+    }
+
+    /** Calendar 側のローカル状態だけを消す（サーバーセッションには触れない）。 */
+    function clearCalendarAuthorization() {
+      accessToken = null;
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(TOKEN_EXPIRY_KEY);
+      calendarList = [];
+    }
+
+    // ---------------------------------------------------------------------
+    // Google Identity Services（本人確認 / ID Token）
+    //
+    //   google.accounts.id には独自ボタンからプログラム的に credential を
+    //   取り出す手段が無い（prompt() は One Tap / FedCM 側で抑制され得る）。
+    //   自動クリックや DOM ハックはせず、公式の renderButton を使う。
+    // ---------------------------------------------------------------------
+
+    /**
+     * google.accounts.id の callback。
+     * response.credential が Google ID Token。受け取るのはここだけ。
+     */
+    function handleGoogleIdentityCredential(response) {
+      const credential = response && response.credential;
+      if (typeof credential !== 'string' || credential.length === 0) {
+        setStatus(t('signInFailed'));
+        return;
+      }
+      // 引数として渡すだけ。変数へ保持せず、この関数を抜けたら参照は残らない。
+      signInWithGoogleIdToken(credential);
+    }
+
+    async function signInWithGoogleIdToken(idToken) {
+      if (sukimaAuthBusy) return;
+      sukimaAuthBusy = true;
+      setStatus(t('signingIn'));
+      try {
+        const result = await createSukimaSessionFromIdToken(idToken);
+        if (result.ok) {
+          sukimaAuthenticated = true;
+          sukimaPlanId = result.planId;
+          sukimaSubscriptionStatus = result.status;
+          sukimaSessionCheckFailed = false;
+          setStatus('');
+          updateAuthUi();
+          // Calendar token が既に有効なら、余計な OAuth ポップアップを出さない。
+          if (!accessToken) requestCalendarAuthorization();
+          return;
+        }
+        if (result.kind === 'identity') setStatus(t('signInFailed'));
+        else if (result.kind === 'network') setStatus(t('sessionCheckFailed'));
+        else setStatus(t('authServiceError'));
+        updateAuthUi();
+      } finally {
+        sukimaAuthBusy = false;
+      }
+    }
+
+    function renderGoogleIdentityButton() {
+      if (!gsiIdInitialized) return;
+      const host = document.getElementById('gsiButton');
+      if (!host) return;
+      host.textContent = '';
+      try {
+        google.accounts.id.renderButton(host, {
+          type: 'standard',
+          theme: 'filled_blue',
+          size: 'large',
+          shape: 'pill',
+          text: 'signin_with',
+          locale: currentLang === 'en' ? 'en' : 'ja'
+        });
+      } catch (e) {
+        // 描画に失敗してもアプリ全体は止めない（ボタンが出ないだけ）
+      }
+    }
+
+    /** google.accounts.id まで含めて使える状態かどうか。 */
+    function isGoogleIdentityReady() {
+      return typeof google !== 'undefined' && !!google.accounts && !!google.accounts.id;
+    }
+
+    /**
+     * google.accounts.id が使えるようになるまで待つ（本人確認専用）。
+     * Calendar OAuth 側の waitForGoogle() は成功条件も用途も違うので触らない。
+     * 無限 polling を避けるため必ず timeout し、常に resolve する
+     * （reject しないので未処理の Promise rejection が発生しない）。
+     *
+     * @returns {Promise<boolean>} 使えるようになったら true、時間切れなら false
+     */
+    function waitForGoogleIdentity(timeoutMs) {
+      return new Promise((resolve) => {
+        if (isGoogleIdentityReady()) { resolve(true); return; }
+        const deadline = Date.now() + timeoutMs;
+        const timer = setInterval(() => {
+          if (isGoogleIdentityReady()) {
+            clearInterval(timer);
+            resolve(true);
+            return;
+          }
+          if (Date.now() >= deadline) {
+            clearInterval(timer);
+            resolve(false);
+          }
+        }, 200);
+      });
+    }
+
+    /** 初期化できたら true、まだ使えなければ false（呼び出し側が再試行を判断する）。 */
+    function initGoogleIdentityNow() {
+      if (gsiIdInitialized) return true;
+      if (!isGoogleIdentityReady()) return false;
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleGoogleIdentityCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        itp_support: true
+      });
+      gsiIdInitialized = true;
+      gsiIdentityUnavailable = false;
+      renderGoogleIdentityButton();
+      return true;
+    }
+
+    function setupGoogleIdentity() {
+      if (gsiIdInitialized) return;
+      if (initGoogleIdentityNow()) return;
+      waitForGoogleIdentity(GSI_READY_TIMEOUT_MS).then((ready) => {
+        if (ready && initGoogleIdentityNow()) return;
+        // GIS が読めない（ブロック・オフライン等）。空の枠を残さず、
+        // 本人確認が必要な状態のときだけ理由を表示する。
+        gsiIdentityUnavailable = true;
+        if (!sukimaAuthenticated) setStatus(t('authServiceError'));
+        updateAuthUi();
+      }).catch(() => {
+        // UI 更新中の例外でアプリを止めない（未処理 rejection にもしない）
+      });
+    }
+
+    // ---------------------------------------------------------------------
+    // 4状態（A/B/C/D）の UI 反映
+    //
+    //   A: session あり + Calendar token あり -> 検索フォーム
+    //   B: session あり + Calendar token なし -> Calendar 連携ボタンのみ
+    //   C: session なし + Calendar token あり -> 本人確認のみ（Calendar は再取得しない）
+    //   D: どちらも無し                       -> 本人確認 -> Calendar 連携
+    // ---------------------------------------------------------------------
+
+    /** 現在の状態を 'A' | 'B' | 'C' | 'D' で返す。 */
+    function getAuthState() {
+      if (sukimaAuthenticated) return accessToken ? 'A' : 'B';
+      return accessToken ? 'C' : 'D';
+    }
+
+    function updateAuthUi() {
+      const loginSection = document.getElementById('loginSection');
+      const formSection = document.getElementById('formSection');
+      const gsiHost = document.getElementById('gsiButton');
+      const calBtn = document.getElementById('loginBtn');
+      const loginInfo = document.getElementById('loginInfo');
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (!loginSection || !formSection) return;
+
+      const state = getAuthState();
+      if (state === 'A') {
+        loginSection.style.display = 'none';
+        formSection.style.display = 'block';
+        if (loginInfo) loginInfo.textContent = t('loggedIn');
+        if (logoutBtn) logoutBtn.style.display = '';
+        return;
+      }
+
+      loginSection.style.display = 'block';
+      formSection.style.display = 'none';
+      if (loginInfo) loginInfo.textContent = '';
+      // B は Calendar 連携だけ、C / D は本人確認だけを見せる。
+      // GIS が使えないときは空の枠を残さない。ただし Calendar 連携ボタンを
+      // 本人確認の代替として出すことはしない（access token は本人確認ではない）。
+      if (gsiHost) gsiHost.style.display = (state === 'B' || gsiIdentityUnavailable) ? 'none' : '';
+      if (calBtn) calBtn.style.display = (state === 'B') ? '' : 'none';
+    }
+
+    /** 既存呼び出しとの互換。状態表示は updateAuthUi に一本化する。 */
+    function showLoggedIn() {
+      updateAuthUi();
+    }
+
+    /** Calendar 認可を要求する（access token 専用。ID Token とは無関係）。 */
+    function requestCalendarAuthorization() {
       if (typeof google === 'undefined' || !google.accounts) {
         setStatus(t('loadingGoogle'));
         waitForGoogle().then(() => {
@@ -1702,16 +2035,51 @@
       tokenClient.requestAccessToken();
     }
 
-    function logout() {
-      accessToken = null;
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(TOKEN_EXPIRY_KEY);
-      calendarList = [];
-      document.getElementById('loginSection').style.display = 'block';
-      document.getElementById('formSection').style.display = 'none';
-      sessionStorage.removeItem(RESULT_KEY);
-      sessionStorage.removeItem('last_slots');
-      setStatus(t('loggedOut'));
+    /** #loginBtn（Calendar 連携ボタン）のハンドラ。 */
+    function doLogin() {
+      if (!sukimaAuthenticated) {
+        // 本人確認が先。ここで Calendar のポップアップは出さない。
+        setStatus(sukimaSessionCheckFailed ? t('sessionCheckFailed') : t('needsSignIn'));
+        updateAuthUi();
+        return;
+      }
+      requestCalendarAuthorization();
+    }
+
+    async function logout() {
+      if (sukimaAuthBusy) return;
+      sukimaAuthBusy = true;
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) logoutBtn.disabled = true;
+      try {
+        const result = await endSukimaSession();
+        if (!result.ok) {
+          // サーバー側セッションが失効していない可能性がある。
+          // ローカルだけ消して「ログアウト成功」に見せない（安全側）。
+          setStatusForm(t('logoutFailed'));
+          setStatus(t('logoutFailed'));
+          return;
+        }
+        clearSukimaSessionState();
+        sukimaSessionCheckFailed = false;
+        clearCalendarAuthorization();
+        // 次回アクセス時の自動サインインだけ止める。
+        // Calendar の同意は revoke しない（再同意を強制すると UX が悪化する）。
+        try {
+          if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+            google.accounts.id.disableAutoSelect();
+          }
+        } catch (e) {}
+        sessionStorage.removeItem(RESULT_KEY);
+        sessionStorage.removeItem('last_slots');
+        updateAuthUi();
+        renderGoogleIdentityButton();
+        setStatus(t('loggedOut'));
+        setStatusForm('');
+      } finally {
+        sukimaAuthBusy = false;
+        if (logoutBtn) logoutBtn.disabled = false;
+      }
     }
 
     function showSearch() {
@@ -1757,6 +2125,10 @@
           localStorage.setItem(TOKEN_KEY, accessToken);
           localStorage.setItem(TOKEN_EXPIRY_KEY, Date.now() + 3500 * 1000);
           showLoggedIn();
+          // startSearch() が disabled にしたまま承認へ進む経路があるため、
+          // 失敗側と同じく成功側でも検索ボタンを必ず解除する。
+          // await の前に置き、loadCalendarList() が失敗しても解除は済ませる。
+          document.getElementById('searchBtn').disabled = false;
           if (calMode === 'select') await loadCalendarList();
         }
       });
@@ -1775,7 +2147,29 @@
       const endDate = document.getElementById('endDate').value;
       if (!startDate || !endDate) { setStatusForm(t('noDate')); return; }
       if (startDate > endDate) { setStatusForm(t('invalidDate')); return; }
-      document.getElementById('searchBtn').disabled = true;
+      const searchBtn = document.getElementById('searchBtn');
+      searchBtn.disabled = true;
+
+      // 検索には「Sukima の本人確認」と「Calendar 認可」の両方が必要。
+      if (!sukimaAuthenticated) {
+        // 5xx で確認できなかっただけの場合は未ログインと言い切らず、一度だけ再確認する。
+        if (sukimaSessionCheckFailed) {
+          const sessionState = await restoreSukimaSession();
+          if (sessionState === 'check_failed') {
+            setStatus(t('sessionCheckFailed'));
+            updateAuthUi();
+            searchBtn.disabled = false;
+            return;
+          }
+        }
+        if (!sukimaAuthenticated) {
+          setStatus(t('needsSignIn'));
+          updateAuthUi();
+          searchBtn.disabled = false;
+          return;
+        }
+      }
+
       if (accessToken) { await fetchAndCalc(); return; }
       if (typeof google === 'undefined' || !google.accounts) {
         setStatus(t('loadingGoogle'));
@@ -1791,6 +2185,17 @@
       const endDate = document.getElementById('endDate').value;
       const duration = parseInt(document.getElementById('duration').value);
       const btn = document.getElementById('searchBtn');
+
+      // 不変条件: Sukima の本人確認なしに Calendar API を叩かない。
+      // startSearch() の案内用ゲートとは別に、実処理入口でも必ず止める。
+      // ここでは session 復元をやり直さない（復旧は startSearch() の責務）。
+      if (!sukimaAuthenticated) {
+        if (btn) btn.disabled = false;
+        showToast(t('needsSignIn'));
+        updateAuthUi();
+        return;
+      }
+
       showResult('<div style="text-align:center;padding:60px 20px;color:#888;font-size:15px;">' + t('calculating') + '</div>');
       setStatusForm(t('loadingCal'));
       try {
@@ -1826,6 +2231,8 @@
               { headers: { Authorization: `Bearer ${accessToken}` } }
             );
             if (calRes.status === 401) {
+              // Calendar の access token が切れただけ。Sukima のサーバーセッションには
+              // 触れない（Calendar 401 で本人確認までログアウトさせない）。
               accessToken = null;
               localStorage.removeItem(TOKEN_KEY);
               localStorage.removeItem(TOKEN_EXPIRY_KEY);
@@ -2167,6 +2574,14 @@
 
     async function goToNextWeek() {
       if (isSearching || isAnimating) return;
+      // 検索の UI 入口はここにもある。日付や状態を書き換える前に止める
+      // （fetchAndCalc() 側でも強制するが、そちらへ落とすと巻き戻しの
+      //  nextWeekFail トーストで理由が上書きされてしまう）。
+      if (!sukimaAuthenticated) {
+        showToast(t('needsSignIn'));
+        updateAuthUi();
+        return;
+      }
       const startDate = document.getElementById('startDate').value;
       const endDate = document.getElementById('endDate').value;
       const start = toLocalMidnight(startDate);
