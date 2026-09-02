@@ -1877,9 +1877,15 @@
           sukimaSubscriptionStatus = result.status;
           sukimaSessionCheckFailed = false;
           setStatus('');
+          // Calendar OAuth はここから自動起動しない。
+          //   await fetch('/api/auth/session') を跨いだ後にポップアップを開くと
+          //   user activation が失われ、ブラウザにブロックされる（本番で実測）。
+          // updateAuthUi() が状態を決める:
+          //   Calendar token なし -> 状態B。「Googleカレンダーと連携」ボタンを表示し、
+          //                          ユーザーが直接クリックしたときだけ
+          //                          doLogin() -> requestCalendarAuthorization() が走る。
+          //   Calendar token あり -> 状態A のまま（余計な同意を求めない）。
           updateAuthUi();
-          // Calendar token が既に有効なら、余計な OAuth ポップアップを出さない。
-          if (!accessToken) requestCalendarAuthorization();
           return;
         }
         if (result.kind === 'identity') setStatus(t('signInFailed'));
