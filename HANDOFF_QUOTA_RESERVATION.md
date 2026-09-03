@@ -26,13 +26,13 @@ ls supabase/migrations/
 ls functions/api/quota 2>/dev/null || echo "(quota API 未実装)"
 ```
 
-STEP 2 完了後の期待値:
+STEP 3 完了後の期待値:
 
-- `supabase/migrations/20260903015535_quota_reservation_schema.sql` が**未追跡で**存在する
-- `functions/api/quota/{reserve,commit,release}.js` が**未追跡で**存在する
-- `functions/api/_lib/{quota,request-body}.js` が**未追跡で**存在する
-- `public/index.html` は**未変更**
-- `npm test` は 337 / 337 PASS
+- HEAD = `248240c`（STEP 1 + STEP 2 を含む）
+- `public/index.html` と `package.json` が**変更済み・未 commit**
+- `tests/frontend/{page-harness,quota-integration}.mjs` が**未追跡で**存在する
+- `supabase/` と `functions/` は**無変更**
+- `npm test` は 378 / 378 PASS
 
 ### handoff と実環境が食い違った場合
 
@@ -49,13 +49,17 @@ STEP 2 完了後の期待値:
 ## CURRENT CHECKPOINT
 
 ```
-STEP 2 完了（quota API + tests 実装済み・DB 未適用・未 commit）
+STEP 3 完了（frontend 連携済み・DB 未適用・未 commit）
 ```
 
-migration 1 本と quota API 一式が未 commit で存在する状態です。
-**DB へは適用していません。commit / push もしていません。**
-`public/index.html` は未変更で、**フロントは quota API をまだ一切呼びません**。
-そのため現時点でユーザーの動作は STEP 0 と変わりません。
+STEP 1 + STEP 2 は commit `248240c` に固定済みです。
+その上に **STEP 3 の frontend 変更が未 commit** で載っています。
+
+**DB へは適用していません。push もしていません。**
+`public/index.html` は quota API を呼ぶようになりましたが、
+**本番 DB に quota_reservations が無いため、この状態を deploy すると
+Free ユーザーは検索できなくなります**（reserve が 502 を返し、
+フロントは fail closed で検索を止める）。STEP 4 の適用順序を必ず守ってください。
 
 ---
 
@@ -72,36 +76,28 @@ C:\Users\tetsu\perfact
 
 ## Git
 
-記録時点（STEP 2 完了時の実測値）:
+記録時点（STEP 3 完了時の実測値）:
 
 ```
-HEAD        = 35ebdd7d0070aecc76c309c4b7e1fe750b0025f2
+HEAD        = 248240ccf53ec04ab743968ecec375bb457f84ae
 origin/main = 35ebdd7d0070aecc76c309c4b7e1fe750b0025f2
-ahead 0 / behind 0
-変更 1 件 / 未追跡 8 件:
+ahead 1 / behind 0
+変更 3 件 / 未追跡 2 件:
    M HANDOFF_QUOTA_RESERVATION.md
-  ?? supabase/migrations/20260903015535_quota_reservation_schema.sql
-  ?? functions/api/_lib/quota.js
-  ?? functions/api/_lib/request-body.js
-  ?? functions/api/quota/reserve.js
-  ?? functions/api/quota/commit.js
-  ?? functions/api/quota/release.js
-  ?? functions/api/_tests/quota-helper.test.mjs
-  ?? functions/api/_tests/quota-reserve.test.mjs
-  ?? functions/api/_tests/quota-commit.test.mjs
-  ?? functions/api/_tests/quota-release.test.mjs
-  ?? functions/api/_tests/request-body.test.mjs
-tests: 337 / 337 PASS（既存 221 + 新規 116。fail 0 / skipped 0 / todo 0）
+   M package.json
+   M public/index.html
+  ?? tests/frontend/page-harness.mjs
+  ?? tests/frontend/quota-integration.test.mjs
+tests: 378 / 378 PASS（backend 337 + frontend 41。fail 0 / skipped 0 / todo 0）
 
 直近のコミット:
+  248240c  feat: add quota reservation backend   ← STEP 1 + STEP 2（未 push）
   35ebdd7  docs: add quota reservation handoff
   4549867  fix: validate origin for session logout
-  71e8e2f  fix: require explicit tap for calendar authorization
 ```
 
-※ 前回の記録は HEAD = 4549867 だったが、これは本ハンドオフ自身を
-commit する前の値。35ebdd7 は `HANDOFF_QUOTA_RESERVATION.md` と
-`AGENTS.md` の追加のみで、quota 実装は含まない。
+`supabase/` と `functions/` は STEP 3 で 1 文字も変更していない。
+migration の SHA256 は `9db79117…4fe9df4d` のまま。
 
 **実測値が異なる場合は、勝手に reset せず、現在値と差分を記録・報告してください。**
 
@@ -273,167 +269,119 @@ used = COUNT(*) FROM quota_reservations
 
 ## 次に行う作業
 
-# STEP 3 から開始
+# STEP 4 から開始
 
-`public/index.html` を quota API に接続する。
+**本番反映順序（この順を守ること）**
 
-- `fetchAndCalc()` を `{ ok, authExpired }` を返すよう変更する
-- reserve / commit / release の接続、i18n 追加
-- **DB 適用なし**
-- 検証: `npm test` 全 PASS / inline script の `node --check` / ローカル E2E
+```
+① Supabase migration 適用
+② migration 確認（table / 3 RPC / 権限）
+③ git push origin main
+④ Cloudflare deploy 確認（source commit の一致・status success）
+⑤ safe probe（Origin ヘッダ必須）
+⑥ 実 E2E
+```
 
-### STEP 3 が守るべきこと（STEP 2 の実装から確定した前提）
+**順序を逆にすると Free ユーザーが検索できなくなります。**
+STEP 3 でフロントは reserve を必ず通すようになったため、
+DB に `quota_reservations` が無い状態でコードだけ出すと reserve が
+502 を返し、フロントは fail closed で検索を止めます。
+quota は消費されず既存データも壊れませんが、その間 Free は使えません。
 
-1. **検索試行ごとに新しい `idempotency_key` を生成する。**
-   `crypto.randomUUID()` でよい。`reserve` が `code:'already_settled'` を
-   返したら、その鍵はもう使えない。新しい鍵を作って取り直すこと。
+STEP 4 の前にやること:
 
-2. **`quota_enforced === false`（Pro）のときは commit / release を呼ばない。**
-   `reserve` の応答は `reservation_id: null` になる。commit / release は
-   body 検証が entitlement 判定より先に走るため、`reservation_id` が
-   null のまま呼ぶと 400 `invalid_reservation_id` になる。
-
-3. **`allowed === false` は HTTP 200 で返る。** `res.ok` だけで分岐しないこと。
-   - `code:'limit_reached'`   → 上限 UI を出す
-   - `code:'already_settled'` → 鍵を作り直して再試行
-
-4. **`release` が `ok:false` を返したら「1 回消費された」として扱う。**
-   `expired` / `release_budget_exceeded` はいずれも予約が `committed` へ
-   確定しており、返金されていない。
-
-5. **`fetchAndCalc()` が `ok:false` を返したときだけ release する。**
-   `authExpired` のときも release してから既存の再認可フローへ。
-
-6. **reserve が 4xx / 5xx を返したら検索を止める（fail closed）。**
-   quota を消費していないので、リトライしても二重消費にならない。
+- STEP 3 の変更（`public/index.html` / `package.json` / `tests/frontend/`）を commit する
+- migration 適用手順を確定する（`supabase db push` か SQL Editor か。未解決事項 2）
 
 ---
 
-## STEP 2 の成果物（完了・未 commit）
+## STEP 3 の成果物（完了・未 commit）
 
-### 新規ファイル
-
-```
-functions/api/_lib/request-body.js            155 行  JSON body の読み取りと検証
-functions/api/_lib/quota.js                   231 行  entitlement 判定と共通前処理
-functions/api/quota/reserve.js                150 行  POST /api/quota/reserve
-functions/api/quota/commit.js                 135 行  POST /api/quota/commit
-functions/api/quota/release.js                138 行  POST /api/quota/release
-functions/api/_tests/request-body.test.mjs     20 件
-functions/api/_tests/quota-helper.test.mjs     15 件
-functions/api/_tests/quota-reserve.test.mjs    35 件
-functions/api/_tests/quota-commit.test.mjs     22 件
-functions/api/_tests/quota-release.test.mjs    24 件
-```
-
-**既存ファイルは 1 つも変更していない。**
-`_lib/session.js` / `_lib/origin.js` / `_lib/supabase.js` / `auth/*.js` /
-`public/index.html` / migration 4 本はすべて無変更。
-
-### 共通処理順（3 endpoint 共通・`_lib/quota.js` の `preflight()`）
+### 変更ファイル
 
 ```
-1. method 確認        POST 以外 -> 405
-2. Origin 検証        失敗 -> 403（body も Cookie も読まない）
-3. JSON body 検証     失敗 -> 400 / 413（session も RPC も呼ばない）
-4. requireSession()   -> 401 / 500 / 502
-5. entitlement 判定   Pro なら RPC を呼ばず免除を返す
-6. RPC
-7. no-store + Vary: Cookie を付けて返す
+public/index.html          +256 / -6   quota 連携と検索成否判定
+package.json               +1 / -1     npm test に frontend テストを追加
+tests/frontend/page-harness.mjs         （新規）inline script を vm で読むハーネス
+tests/frontend/quota-integration.test.mjs（新規）41 件
 ```
 
-Origin を最初に見るのは、cross-site から送られたリクエストで
-セッションにも DB にも触れさせないため。
+`supabase/` と `functions/` は無変更。
 
-### HTTP ステータスの使い分け（この規則で統一した）
+### 検索フロー（quota を消費する入口は 2 つだけ）
 
-| 区分 | 意味 |
-|---|---|
-| 4xx / 5xx | リクエストが RPC まで到達できなかった、またはサーバー異常 |
-| **200** | **RPC が答えた。成否は body の `allowed` / `ok` と `code`** |
+```
+startSearch() / goToNextWeek()
+        │
+        ▼
+  runGuardedSearch()
+        │
+        ├─ reserveQuota()            新しい idempotency_key を生成して POST
+        │     ├─ proceed=false ─────▶ Calendar API を呼ばずに終了（理由を表示）
+        │     └─ proceed=true
+        ▼
+    fetchAndCalc()  →  { success, authExpired }
+        │
+        ├─ success=true  かつ 予約あり ─▶ commitQuota()   （best effort）
+        └─ success=false かつ 予約あり ─▶ releaseQuota()  （best effort）
+```
 
-`limit_reached` も `not_found` も `release_budget_exceeded` も 200。
-RPC は正しく答えているため 4xx にしない。
-フロントは `res.ok` ではなく body の `allowed` / `ok` で分岐する。
+`quota_enforced=false`（Pro）のときは `reservation_id` が null になるため
+commit / release は呼ばれない。
 
-### エラー分類
+### fetchAndCalc() の成功判定
 
-| status | error | 発生源 |
+```js
+let calendarOk = false;          // events API で 2xx を 1 件でも受けたか
+let calendarAuthExpired = false; // events API で 401 を受けたか（最優先）
+```
+
+- **events API の結果だけ**を見る。`calendarList` の成否は含めない
+- 401 を受けたら即座に `{ success: false, authExpired: true }`
+  （他のカレンダーが 2xx でも成功にしない）
+- 1 件も 2xx が無ければ `{ success: false, authExpired: false }` を返し、
+  **結果を描画せず `calendarFetchFailed` を表示する**
+  （従来は allEvents が空のまま「終日空き」として完走していた）
+
+### i18n に追加したキー
+
+| key | ja | en |
 |---|---|---|
-| 405 | `method_not_allowed` | POST 以外 |
-| 403 | `forbidden_origin` | Origin 不一致・欠落（理由は区別しない） |
-| 400 | `invalid_content_type` / `malformed_json` / `invalid_body` / `unreadable_body` | body の形 |
-| 400 | `invalid_idempotency_key`（reserve）/ `invalid_reservation_id`（commit・release） | body の内容 |
-| 413 | `body_too_large` | 1KB 超 |
-| 401 | `unauthenticated` | セッション無効（+ Cookie 削除） |
-| 500 | `internal_error` | session の data_error / RPC 戻り値が契約と不一致 |
-| 500 | `server_misconfigured` | 環境変数の設定漏れ |
-| 502 | `database_unavailable` | Supabase へ到達できない / エラー応答 |
+| `quotaLimitReached` | 今週の無料検索回数（3回）を使い切りました。 | You have used all 3 free searches for this week. |
+| `quotaRetry` | 検索を開始できませんでした。もう一度お試しください。 | Could not start the search. Please try again. |
+| `quotaError` | 検索を開始できませんでした。時間をおいてお試しください。 | Could not start the search. Please try again later. |
+| `calendarFetchFailed` | カレンダーを取得できませんでした。時間をおいてお試しください。 | Could not load your calendar. Please try again later. |
 
-`data_error` を 401 に丸めない、`unavailable` を 500 に丸めない、という
-既存 API の分類をそのまま踏襲している。RPC の内部エラー本文は返さない。
+`already_settled` は `quotaRetry`（再試行可能）で、`limit_reached` とは
+別の文言にしている。
 
-### entitlement 判定（`hasWebUnlimited`）
+### 二重実行防止
 
-```
-plan_id ∈ {web_pro, all_pro}  かつ  status ∈ {active, trialing}  -> 無制限
-それ以外                                                          -> quota 対象
-```
+- `startSearch()` の冒頭に `if (isSearching || isAnimating) return;` を追加
+- `accessToken` がある経路で `isSearching = true` にしてから
+  `runGuardedSearch()` を呼び、`finally` で解除して
+  検索ボタンも必ず戻す（quota で止めた場合は `fetchAndCalc()` の
+  `finally` へ到達しないため）
+- `goToNextWeek()` は既存の `isSearching` ガードをそのまま使う
 
-`past_due` は Pro 扱いしない。`extension_pro` は Web では quota 対象。
-context が壊れていたら quota 対象（フェイルクローズ）。
-上限 3（`FREE_WEEKLY_LIMIT`）の定義箇所は `_lib/quota.js` のみ。
+ガードから `isSearching = true` までの間に `await` が無いため、
+同期的な再入は必ず弾かれる（テストで固定済み）。
 
-### RPC mapping
+### frontend テストの方式（新規に用意した）
 
-| endpoint | RPC | 引数 |
-|---|---|---|
-| `POST /api/quota/reserve` | `reserve_weekly_usage` | `p_user_id`（session）/ `p_idempotency_key`（body）/ `p_limit`=3（API） |
-| `POST /api/quota/commit` | `commit_weekly_usage` | `p_user_id`（session）/ `p_reservation_id`（body） |
-| `POST /api/quota/release` | `release_weekly_usage` | `p_user_id`（session）/ `p_reservation_id`（body） |
+既存のテストは backend だけで、frontend の仕組みは無かった。
+`public/index.html` を分割する大改修は避け、
+**inline script を切り出して `vm` で実行するハーネス**を作った。
 
-**`p_user_id` は body から一切受け取らない。** session context の値のみ。
-body に `user_id` / `p_user_id` / `p_limit` を混ぜても無視されることを
-テストで固定している。
+- `tests/frontend/page-harness.mjs` が index.html を読み、
+  最小限の DOM / storage / fetch スタブを与えて inline script を評価する
+- テストは `startSearch()` などを直接呼び、fetch の呼び出し記録と
+  要素スタブの `textContent` で検証する
+- **index.html は読むだけで、テストのための改変はしていない**
+- `npm test` に `tests/frontend/*.test.mjs` を追加した
 
-### レスポンス形（quota 対象 / Pro で形をそろえている）
-
-`reserve`:
-
-```json
-{ "quota_enforced": true, "allowed": true, "code": "ok", "reused": false,
-  "reservation_id": "…", "week_start": "2026-08-31",
-  "used": 1, "remaining": 2, "expires_at": "…" }
-```
-
-`commit` / `release`:
-
-```json
-{ "quota_enforced": true, "ok": true, "code": "ok",
-  "state": "committed", "used": 3 }
-```
-
-Pro のときは `quota_enforced: false` / `code: 'unlimited'` で、
-値はすべて `null`（RPC は呼ばない）。
-
-### STEP 2 の実装判断
-
-1. **`already_settled` は 409 ではなく 200 + `allowed:false`。**
-   STEP 1 の handoff では「409 を想定」と書いていたが、
-   「RPC が答えた結果は 200」という規則に統一した。
-   RPC の code を読み替えないという要求とも整合する。
-
-2. **共通ヘルパーを 2 本にした。**
-   `request-body.js`（body の読み取り）と `quota.js`（前処理と entitlement）。
-   3 endpoint の差分は「RPC 名・body 検証・レスポンス整形」だけになった。
-
-3. **`idempotency_key` の文字数はコードポイントで数える。**
-   JS の `String#length` は UTF-16 単位なので、絵文字を含む鍵で
-   PostgreSQL の `length()` と食い違い、API が通した値を DB が弾く。
-   制御文字も追加で拒否する（DB の CHECK にはないが安全側）。
-
-4. **401 で Cookie を削除する。** `/api/auth/me` と同じ挙動。
-   Origin 検証を通過した後なので、cross-site から強制ログアウトさせられない。
+vm コンテキストは別レルムなので、戻り値の比較に
+`deepStrictEqual` は使えない（フィールドごとに比較すること）。
 
 ---
 
@@ -504,10 +452,10 @@ return { ok: calendarOk, authExpired: calendarAuthExpired };
 
 | STEP | 状態 | commit | DB 適用 | deploy | 備考 |
 |---|---|---|---|---|---|
-| STEP 1 migration | **完了** | 未実施 | 未適用 | — | 20260903015535 を新規作成（866 行・未追跡） |
-| STEP 2 API + tests | **完了** | 未実施 | — | — | quota API 3 本 + helper 2 本 + テスト 5 本（未追跡） |
-| STEP 3 frontend | **未着手** | — | — | — | 次はここから |
-| STEP 4 本番適用・E2E | 未着手 | — | — | — | |
+| STEP 1 migration | **完了** | `248240c` | 未適用 | — | 20260903015535 を新規作成（866 行） |
+| STEP 2 API + tests | **完了** | `248240c` | — | — | quota API 3 本 + helper 2 本 + テスト 5 本 |
+| STEP 3 frontend | **完了** | 未実施 | — | — | index.html + frontend テスト 41 件（未 commit） |
+| STEP 4 本番適用・E2E | **未着手** | — | — | — | 次はここから |
 
 STEP 1 の検証結果:
 
@@ -532,6 +480,15 @@ STEP 2 の検証結果:
 - 既存 221 件は 1 件も壊れていない（既存ファイルを変更していないため）
 - **API から実 DB への疎通は未検証。** RPC はすべてスタブで、
   ネットワークへは出ていない。実際の PostgREST 越しの往復は STEP 4 の E2E で確認する
+
+STEP 3 の検証結果:
+
+- `npm test` : **378 / 378 PASS**（backend 337 + frontend 41。fail 0 / skipped 0 / todo 0）
+- `git diff --check` : 指摘なし
+- inline script の構文チェック（切り出して `node --check`）: OK
+- `supabase/` と `functions/` は無変更（migration の SHA256 も一致）
+- **ブラウザでの実 E2E は未実施。** テストは vm 上の DOM スタブであり、
+  実際の Google 認可ポップアップ・レイアウト・スワイプ操作は再現していない
 
 ---
 
@@ -567,7 +524,23 @@ STEP 2 の検証結果:
 8. **拡張機能は未配線です。**
    DB は `user_id` 単位で共有可能ですが、`chrome-extension/manifest.json` の `host_permissions` は `https://www.googleapis.com/*` のみで、Sukima API へのアクセス権がありません。
 
-9. **`fetchAndCalc` の失敗握りつぶしは quota と独立した既存 UX 問題**でもあります（API 全滅でも「終日空き」と表示）。STEP 3 の改修時に表示自体の見直しも検討価値があります。
+9. **【解決済み】`fetchAndCalc` の失敗握りつぶしを修正しました。**
+   events API が 1 件も 2xx を返さなかった場合、結果を描画せず
+   `calendarFetchFailed` を表示するようにしました。
+   これにより「API 全滅でも終日空きと表示される」既存の UX 問題も解消しています。
+
+15. **frontend テストは vm 上の DOM スタブです。**
+    実ブラウザでの動作（Google 認可ポップアップ、レイアウト、スワイプ、
+    PWA の Service Worker）は再現していません。STEP 4 の実 E2E で
+    初めて確認されます。特に確認したいもの:
+    - Free で 3 回検索したあと 4 回目に上限表示が出るか
+    - 検索失敗時に返却され、回数が戻るか
+    - Calendar の再認可フローが従来どおり動くか
+    - Pro（web_pro / all_pro）で quota 表示が一切出ないか
+
+16. **`package.json` の test スクリプトを変更しました。**
+    `node --test functions/api/_tests/*.test.mjs tests/frontend/*.test.mjs`
+    frontend テストを追加したためです。CI は未設定なので影響はありません。
 
 10. **【解決済み】STEP 1 の SQL は実 PostgreSQL で検証済みです。**
     使い捨てコンテナ（postgres:15-alpine = 15.18 / postgres:17-alpine = 17.11）で
@@ -587,10 +560,11 @@ STEP 2 の検証結果:
     `postgres=arwdDxtm/postgres  service_role=arwdDxtm/postgres` となり、
     本番の記録と同じ形になることを確認しました。
 
-11. **【一部解決】`already_settled` は HTTP 200 + `allowed:false` に確定しました。**
+11. **【解決済み】`already_settled` は HTTP 200 + `allowed:false` に確定し、フロントも対応しました。**
     「RPC が答えた結果は 200」という規則に統一したためです（409 にはしません）。
-    **STEP 3 側の挙動は未実装**で、鍵を再生成して再試行する処理を
-    `public/index.html` に入れる必要があります。
+    フロントは `quotaRetry`（再試行可能なエラー）として表示し、
+    次の検索試行では新しい鍵を生成するため自然に回復します。
+    自動リトライは入れていません（利用者の操作で再試行する）。
 
 13. **API から実 DB への疎通が未検証です。**
     STEP 2 のテストは RPC をすべてスタブ化しており、PostgREST 越しに
@@ -635,5 +609,5 @@ HANDOFF_QUOTA_RESERVATION.md を読んで、実環境と照合してから続き
 
 ---
 
-*最終更新: STEP 2 完了時（CHECKPOINT: STEP 2 完了・quota API 実装済み・DB 未適用・未 commit）*
+*最終更新: STEP 3 完了時（CHECKPOINT: STEP 3 完了・frontend 連携済み・DB 未適用・未 commit）*
 *正式な参照先: リポジトリルートの `HANDOFF_QUOTA_RESERVATION.md`*

@@ -1053,6 +1053,10 @@
         authServiceError: '現在ログインできません。しばらくしてからお試しください。',
         sessionCheckFailed: 'ログイン状態を確認できませんでした。通信環境をご確認ください。',
         needsSignIn: 'まずGoogleでログインしてください',
+        quotaLimitReached: '今週の無料検索回数（3回）を使い切りました。',
+        quotaRetry: '検索を開始できませんでした。もう一度お試しください。',
+        quotaError: '検索を開始できませんでした。時間をおいてお試しください。',
+        calendarFetchFailed: 'カレンダーを取得できませんでした。時間をおいてお試しください。',
         logoutFailed: 'ログアウトを完了できませんでした。時間をおいて再度お試しください。',
         days: ['日', '月', '火', '水', '木', '金', '土'],
         months: null,
@@ -1142,6 +1146,10 @@
         authServiceError: 'Sign-in is unavailable right now. Please try again later.',
         sessionCheckFailed: 'Could not verify your sign-in status. Please check your connection.',
         needsSignIn: 'Please sign in with Google first',
+        quotaLimitReached: 'You have used all 3 free searches for this week.',
+        quotaRetry: 'Could not start the search. Please try again.',
+        quotaError: 'Could not start the search. Please try again later.',
+        calendarFetchFailed: 'Could not load your calendar. Please try again later.',
         logoutFailed: 'Could not complete sign-out. Please try again later.',
         days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
@@ -2148,7 +2156,202 @@
       });
     }
 
+    // =====================================================
+    // quota（週3回の予約）クライアント
+    //
+    //   サーバー（/api/quota/*）が唯一の権威。
+    //   ブラウザ側で残回数を数えたり、plan / status で判定したりしない。
+    //   reservation_id は reserve の応答からのみ受け取り、自前で作らない。
+    //   予約は検索試行の間だけ変数で持ち、localStorage / sessionStorage
+    //   へは保存しない。
+    // =====================================================
+
+    const QUOTA_RESERVE_URL = '/api/quota/reserve';
+    const QUOTA_COMMIT_URL  = '/api/quota/commit';
+    const QUOTA_RELEASE_URL = '/api/quota/release';
+
+    /**
+     * 検索試行ごとの冪等キー。
+     * 同じ試行の中で reserve を送り直すときは同じ値を使い、
+     * 別の試行では必ず新しい値を作る。
+     */
+    function newIdempotencyKey() {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+      }
+      if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const b = new Uint8Array(16);
+        crypto.getRandomValues(b);
+        b[6] = (b[6] & 0x0f) | 0x40;
+        b[8] = (b[8] & 0x3f) | 0x80;
+        const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+        return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+      }
+      // crypto が無い最終手段。衝突しても同一ユーザー・同一週の中でしか
+      // 問題にならず、サーバーは既存の予約を返すだけで二重消費にはならない。
+      return 'k-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+    }
+
+    /** quota API への POST。Cookie 認証なので credentials を明示する。 */
+    async function postQuota(url, payload) {
+      const res = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      return { httpOk: res.ok, status: res.status, data };
+    }
+
+    /**
+     * 検索前に 1 回分を予約する。
+     *
+     * 戻り値:
+     *   { proceed: true,  enforced: false, reservationId: null }  Pro（quota 免除）
+     *   { proceed: true,  enforced: true,  reservationId: '…' }   予約できた
+     *   { proceed: false, message: '…' }                          検索してはいけない
+     *
+     * HTTP 200 でも allowed=false があるため、res.ok だけで成功扱いしない。
+     */
+    async function reserveQuota(idempotencyKey) {
+      const key = idempotencyKey || newIdempotencyKey();
+      let out;
+      try {
+        out = await postQuota(QUOTA_RESERVE_URL, { idempotency_key: key });
+      } catch (e) {
+        console.warn('[quota] reserve に到達できませんでした');
+        return { proceed: false, enforced: true, reservationId: null, message: t('quotaError') };
+      }
+
+      if (!out.httpOk) {
+        if (out.status === 401) {
+          // Sukima のサーバーセッションが切れている。Calendar 認可とは別物。
+          sukimaAuthenticated = false;
+          updateAuthUi();
+          return { proceed: false, enforced: true, reservationId: null, message: t('needsSignIn') };
+        }
+        console.warn('[quota] reserve が status=' + out.status + ' を返しました');
+        return { proceed: false, enforced: true, reservationId: null, message: t('quotaError') };
+      }
+
+      const data = out.data;
+      if (!data || typeof data !== 'object') {
+        console.warn('[quota] reserve の応答を解釈できませんでした');
+        return { proceed: false, enforced: true, reservationId: null, message: t('quotaError') };
+      }
+
+      // Pro は quota 対象外。commit / release も呼ばない。
+      if (data.quota_enforced === false) {
+        return { proceed: true, enforced: false, reservationId: null, message: null };
+      }
+
+      if (data.allowed === true) {
+        if (typeof data.reservation_id !== 'string' || data.reservation_id.length === 0) {
+          // allowed なのに予約 ID が無い。確定も返却もできないので検索しない。
+          console.warn('[quota] reserve が予約 ID を返しませんでした');
+          return { proceed: false, enforced: true, reservationId: null, message: t('quotaError') };
+        }
+        return { proceed: true, enforced: true, reservationId: data.reservation_id, message: null };
+      }
+
+      if (data.allowed === false) {
+        if (data.code === 'limit_reached') {
+          return { proceed: false, enforced: true, reservationId: null, message: t('quotaLimitReached') };
+        }
+        if (data.code === 'already_settled') {
+          // 通常は試行ごとに新しい鍵を作るため起きない。再試行できるエラー。
+          return { proceed: false, enforced: true, reservationId: null, message: t('quotaRetry') };
+        }
+        console.warn('[quota] reserve が未知の code を返しました');
+        return { proceed: false, enforced: true, reservationId: null, message: t('quotaError') };
+      }
+
+      console.warn('[quota] reserve の応答が想定と異なります');
+      return { proceed: false, enforced: true, reservationId: null, message: t('quotaError') };
+    }
+
+    /**
+     * 検索成功時の確定。best effort。
+     *
+     * 失敗しても検索結果は捨てない。確定できなかった予約は TTL 経過後に
+     * サーバー側が committed('expired') へ確定する（fail closed）ため、
+     * 取りこぼしても二重に使えるようにはならない。
+     */
+    async function commitQuota(reservationId) {
+      if (!reservationId) return false;
+      try {
+        const out = await postQuota(QUOTA_COMMIT_URL, { reservation_id: reservationId });
+        if (!out.httpOk) {
+          console.warn('[quota] commit が status=' + out.status + ' を返しました');
+          return false;
+        }
+        if (out.data && out.data.ok === false) {
+          console.warn('[quota] commit できませんでした: ' + out.data.code);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.warn('[quota] commit に到達できませんでした');
+        return false;
+      }
+    }
+
+    /**
+     * 検索失敗時の返却。best effort。
+     * 失敗しても元の検索失敗処理を続ける。返却できなければ TTL 経過後に
+     * サーバー側が committed('expired') へ確定する。
+     */
+    async function releaseQuota(reservationId) {
+      if (!reservationId) return false;
+      try {
+        const out = await postQuota(QUOTA_RELEASE_URL, { reservation_id: reservationId });
+        if (!out.httpOk) {
+          console.warn('[quota] release が status=' + out.status + ' を返しました');
+          return false;
+        }
+        if (out.data && out.data.ok === false) {
+          // expired / release_budget_exceeded。1 回消費されたということ。
+          console.warn('[quota] release できませんでした: ' + out.data.code);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        console.warn('[quota] release に到達できませんでした');
+        return false;
+      }
+    }
+
+    /**
+     * quota を予約してから Calendar 検索を行い、結果に応じて確定 / 返却する。
+     * quota を消費する検索の入口は startSearch() と goToNextWeek() の 2 つだけで、
+     * どちらもこの関数を通す。
+     *
+     * 戻り値:
+     *   { searched: false, blocked: true,  message }  quota で止めた（Calendar API 未実行）
+     *   { searched: true,  blocked: false, result }   検索を実行した
+     */
+    async function runGuardedSearch() {
+      const reservation = await reserveQuota();
+      if (!reservation.proceed) {
+        return { searched: false, blocked: true, result: null, message: reservation.message };
+      }
+
+      const result = await fetchAndCalc();
+
+      if (reservation.reservationId) {
+        if (result && result.success) await commitQuota(reservation.reservationId);
+        else await releaseQuota(reservation.reservationId);
+      }
+
+      return { searched: true, blocked: false, result, message: null };
+    }
+
     async function startSearch() {
+      // 二重実行ガード。ボタンの disabled だけでは reserve 待ちの間に
+      // Enter キーなど別経路から再入できる。
+      if (isSearching || isAnimating) return;
       const startDate = document.getElementById('startDate').value;
       const endDate = document.getElementById('endDate').value;
       if (!startDate || !endDate) { setStatusForm(t('noDate')); return; }
@@ -2176,7 +2379,23 @@
         }
       }
 
-      if (accessToken) { await fetchAndCalc(); return; }
+      if (accessToken) {
+        // quota を消費する検索の入口その 1。reserve → 検索 → commit / release。
+        isSearching = true;
+        try {
+          const outcome = await runGuardedSearch();
+          if (outcome.blocked) {
+            // Calendar API は呼んでいない。理由をそのまま出す。
+            setStatusForm(outcome.message);
+          }
+        } finally {
+          isSearching = false;
+          // fetchAndCalc() の finally でも解除されるが、quota で止めた場合は
+          // そこへ到達しないのでここでも必ず戻す。
+          searchBtn.disabled = false;
+        }
+        return;
+      }
       if (typeof google === 'undefined' || !google.accounts) {
         setStatus(t('loadingGoogle'));
         await waitForGoogle();
@@ -2199,8 +2418,15 @@
         if (btn) btn.disabled = false;
         showToast(t('needsSignIn'));
         updateAuthUi();
-        return;
+        return { success: false, authExpired: false };
       }
+
+      // Calendar events API の結果だけで検索の成否を決める。
+      //   calendarOk        events API で 2xx を 1 件でも受け取ったか
+      //   calendarAuthExpired  events API で 401 を受け取ったか（最優先）
+      // calendarList の成否は含めない（失敗しても primary で続行できるため）。
+      let calendarOk = false;
+      let calendarAuthExpired = false;
 
       showResult('<div style="text-align:center;padding:60px 20px;color:#888;font-size:15px;">' + t('calculating') + '</div>');
       setStatusForm(t('loadingCal'));
@@ -2237,6 +2463,8 @@
               { headers: { Authorization: `Bearer ${accessToken}` } }
             );
             if (calRes.status === 401) {
+              // 401 は最優先。他のカレンダーが 2xx でも検索成功にはしない。
+              calendarAuthExpired = true;
               // Calendar の access token が切れただけ。Sukima のサーバーセッションには
               // 触れない（Calendar 401 で本人確認までログアウトさせない）。
               accessToken = null;
@@ -2248,9 +2476,12 @@
               showSearch();
               setStatusForm(t('sessionExpired'));
               tokenClient.requestAccessToken();
-              return;
+              // 401 を受けた時点で打ち切る。残りのカレンダーを見ても
+              // token が無効なままなので結果は変わらない。
+              return { success: false, authExpired: calendarAuthExpired };
             }
             if (calRes.ok) {
+              calendarOk = true;
               const calData = await calRes.json();
               const items = (calData.items || [])
                 .filter(e => e.transparency !== 'transparent' && e.status !== 'cancelled')
@@ -2262,6 +2493,16 @@
             }
           } catch(e) {}
         }
+        // events API が全滅した場合、以前は allEvents が空のまま
+        // 「終日空き」という正常な結果として完走していた。ここで止める。
+        if (!calendarOk) {
+          const failMsg = t('calendarFetchFailed');
+          setStatusForm(failMsg);
+          document.getElementById('resultContent').innerHTML =
+            '<div style="text-align:center;padding:60px 20px;color:#c00;font-size:15px;">' + failMsg + '</div>';
+          return { success: false, authExpired: false };
+        }
+
         const events = allEvents;
         setStatusForm(t('calculating'));
         currentSlots = findFreeSlots(startDate, endDate, duration, events);
@@ -2273,11 +2514,13 @@
         sessionStorage.setItem(SEARCH_RANGE_KEY, JSON.stringify({ startDate, endDate }));
         showResult(html);
         setStatusForm('');
+        return { success: true, authExpired: false };
       } catch (e) {
         const errMsg = t('errorPrefix') + e.message;
         setStatusForm(errMsg);
         document.getElementById('resultContent').innerHTML =
           '<div style="text-align:center;padding:60px 20px;color:#c00;font-size:15px;">' + errMsg + '</div>';
+        return { success: false, authExpired: false };
       } finally {
         btn.disabled = false;
       }
@@ -2614,15 +2857,22 @@
       document.getElementById('endDate').value = nextEndStr;
 
       try {
-        await fetchAndCalc();
-        const succeeded = currentDailyResults.length > 0 && currentDailyResults[0].dateKey === nextStartStr;
+        // quota を消費する検索の入口その 2。翌週は新しい検索なので
+        // 新しい予約を取る（連打は冒頭の isSearching ガードで止まる）。
+        const outcome = await runGuardedSearch();
+        const succeeded = outcome.searched
+          && outcome.result
+          && outcome.result.success
+          && currentDailyResults.length > 0
+          && currentDailyResults[0].dateKey === nextStartStr;
         if (!succeeded) {
           currentSlots = previousSlots;
           currentDailyResults = previousDailyResults;
           currentDayIndex = previousDayIndex;
           document.getElementById('startDate').value = startDate;
           document.getElementById('endDate').value = endDate;
-          showToast(t('nextWeekFail'));
+          // quota で止めた場合は理由を出す。nextWeekFail で上書きしない。
+          showToast(outcome.blocked ? outcome.message : t('nextWeekFail'));
         }
       } catch (e) {
         currentSlots = previousSlots;
