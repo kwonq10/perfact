@@ -26,6 +26,14 @@ ls supabase/migrations/
 ls functions/api/quota 2>/dev/null || echo "(quota API 未実装)"
 ```
 
+STEP 2 完了後の期待値:
+
+- `supabase/migrations/20260903015535_quota_reservation_schema.sql` が**未追跡で**存在する
+- `functions/api/quota/{reserve,commit,release}.js` が**未追跡で**存在する
+- `functions/api/_lib/{quota,request-body}.js` が**未追跡で**存在する
+- `public/index.html` は**未変更**
+- `npm test` は 337 / 337 PASS
+
 ### handoff と実環境が食い違った場合
 
 | してよいこと | してはいけないこと |
@@ -41,10 +49,13 @@ ls functions/api/quota 2>/dev/null || echo "(quota API 未実装)"
 ## CURRENT CHECKPOINT
 
 ```
-quota reservation implementation ready
+STEP 2 完了（quota API + tests 実装済み・DB 未適用・未 commit）
 ```
 
-STEP 1（migration 作成）に着手する直前の状態です。**quota 関連のコードは 1 行も存在しません。**
+migration 1 本と quota API 一式が未 commit で存在する状態です。
+**DB へは適用していません。commit / push もしていません。**
+`public/index.html` は未変更で、**フロントは quota API をまだ一切呼びません**。
+そのため現時点でユーザーの動作は STEP 0 と変わりません。
 
 ---
 
@@ -61,20 +72,36 @@ C:\Users\tetsu\perfact
 
 ## Git
 
-記録時点（実測値）:
+記録時点（STEP 2 完了時の実測値）:
 
 ```
-HEAD        = 45498673b9b946b22239ed3decea9de8d71365a3
-origin/main = 45498673b9b946b22239ed3decea9de8d71365a3
+HEAD        = 35ebdd7d0070aecc76c309c4b7e1fe750b0025f2
+origin/main = 35ebdd7d0070aecc76c309c4b7e1fe750b0025f2
 ahead 0 / behind 0
-working tree clean（未追跡ファイルも 0 件）
-baseline tests: 221 / 221 PASS（fail 0 / skipped 0 / todo 0）
+変更 1 件 / 未追跡 8 件:
+   M HANDOFF_QUOTA_RESERVATION.md
+  ?? supabase/migrations/20260903015535_quota_reservation_schema.sql
+  ?? functions/api/_lib/quota.js
+  ?? functions/api/_lib/request-body.js
+  ?? functions/api/quota/reserve.js
+  ?? functions/api/quota/commit.js
+  ?? functions/api/quota/release.js
+  ?? functions/api/_tests/quota-helper.test.mjs
+  ?? functions/api/_tests/quota-reserve.test.mjs
+  ?? functions/api/_tests/quota-commit.test.mjs
+  ?? functions/api/_tests/quota-release.test.mjs
+  ?? functions/api/_tests/request-body.test.mjs
+tests: 337 / 337 PASS（既存 221 + 新規 116。fail 0 / skipped 0 / todo 0）
 
 直近のコミット:
+  35ebdd7  docs: add quota reservation handoff
   4549867  fix: validate origin for session logout
   71e8e2f  fix: require explicit tap for calendar authorization
-  26f8521  feat: integrate secure web sessions
 ```
+
+※ 前回の記録は HEAD = 4549867 だったが、これは本ハンドオフ自身を
+commit する前の値。35ebdd7 は `HANDOFF_QUOTA_RESERVATION.md` と
+`AGENTS.md` の追加のみで、quota 実装は含まない。
 
 **実測値が異なる場合は、勝手に reset せず、現在値と差分を記録・報告してください。**
 
@@ -108,9 +135,17 @@ region  : Tokyo / ap-northeast-1
 - `20260901041257_session_schema.sql`
 - `20260901044339_revoke_anon_table_privileges.sql`
 
+**未適用** migration（STEP 1 で作成。STEP 4 で適用する）:
+
+- `20260903015535_quota_reservation_schema.sql`
+
 既存 RPC: `upsert_user_and_create_session` / `get_session_context` / `delete_session` / `consume_weekly_usage`（**未使用**）/ `jst_week_start` / `set_updated_at`
 
+STEP 4 適用後に増える RPC: `reserve_weekly_usage` / `commit_weekly_usage` / `release_weekly_usage`
+
 権限方針: 全テーブル RLS 有効・policy 0 件。anon / authenticated に直接権限なし。**service_role のみが server-side から利用**します。
+
+PostgreSQL メジャーバージョン: **17 系と推定**（`20260901044339` が記録した本番 ACL の `m` = MAINTAIN が PG17 以降にしか存在しないため）。STEP 1 の検証は PG 15.18 と 17.11 の両方で通しています。
 
 ---
 
@@ -238,41 +273,167 @@ used = COUNT(*) FROM quota_reservations
 
 ## 次に行う作業
 
-# STEP 1 から開始
+# STEP 3 から開始
 
-新規 migration:
+`public/index.html` を quota API に接続する。
+
+- `fetchAndCalc()` を `{ ok, authExpired }` を返すよう変更する
+- reserve / commit / release の接続、i18n 追加
+- **DB 適用なし**
+- 検証: `npm test` 全 PASS / inline script の `node --check` / ローカル E2E
+
+### STEP 3 が守るべきこと（STEP 2 の実装から確定した前提）
+
+1. **検索試行ごとに新しい `idempotency_key` を生成する。**
+   `crypto.randomUUID()` でよい。`reserve` が `code:'already_settled'` を
+   返したら、その鍵はもう使えない。新しい鍵を作って取り直すこと。
+
+2. **`quota_enforced === false`（Pro）のときは commit / release を呼ばない。**
+   `reserve` の応答は `reservation_id: null` になる。commit / release は
+   body 検証が entitlement 判定より先に走るため、`reservation_id` が
+   null のまま呼ぶと 400 `invalid_reservation_id` になる。
+
+3. **`allowed === false` は HTTP 200 で返る。** `res.ok` だけで分岐しないこと。
+   - `code:'limit_reached'`   → 上限 UI を出す
+   - `code:'already_settled'` → 鍵を作り直して再試行
+
+4. **`release` が `ok:false` を返したら「1 回消費された」として扱う。**
+   `expired` / `release_budget_exceeded` はいずれも予約が `committed` へ
+   確定しており、返金されていない。
+
+5. **`fetchAndCalc()` が `ok:false` を返したときだけ release する。**
+   `authExpired` のときも release してから既存の再認可フローへ。
+
+6. **reserve が 4xx / 5xx を返したら検索を止める（fail closed）。**
+   quota を消費していないので、リトライしても二重消費にならない。
+
+---
+
+## STEP 2 の成果物（完了・未 commit）
+
+### 新規ファイル
 
 ```
-supabase/migrations/2026MMDDHHMMSS_quota_reservation_schema.sql
+functions/api/_lib/request-body.js            155 行  JSON body の読み取りと検証
+functions/api/_lib/quota.js                   231 行  entitlement 判定と共通前処理
+functions/api/quota/reserve.js                150 行  POST /api/quota/reserve
+functions/api/quota/commit.js                 135 行  POST /api/quota/commit
+functions/api/quota/release.js                138 行  POST /api/quota/release
+functions/api/_tests/request-body.test.mjs     20 件
+functions/api/_tests/quota-helper.test.mjs     15 件
+functions/api/_tests/quota-reserve.test.mjs    35 件
+functions/api/_tests/quota-commit.test.mjs     22 件
+functions/api/_tests/quota-release.test.mjs    24 件
 ```
 
-予定内容:
+**既存ファイルは 1 つも変更していない。**
+`_lib/session.js` / `_lib/origin.js` / `_lib/supabase.js` / `auth/*.js` /
+`public/index.html` / migration 4 本はすべて無変更。
 
-1. `quota_reservations` table
-2. indexes（`(user_id, week_start, state)` と `expires_at WHERE state='pending'`）
-3. RLS 有効化
-4. service_role privilege（REVOKE anon/authenticated → GRANT service_role）
-5. `reserve_weekly_usage(UUID, TEXT, INT)`
-6. `commit_weekly_usage(UUID, UUID)`
-7. `release_weekly_usage(UUID, UUID)`
-8. `consume_weekly_usage` の service_role EXECUTE revoke（誤用防止。定義は残す）
-9. comments（`weekly_usage.search_count` を「派生キャッシュ」と明記）
-10. 末尾に掃除方針コメント（`session_schema.sql:375-379` と同じ形式）
+### 共通処理順（3 endpoint 共通・`_lib/quota.js` の `preflight()`）
 
-**このハンドオフ作成時点では migration をまだ作っていません。**
+```
+1. method 確認        POST 以外 -> 405
+2. Origin 検証        失敗 -> 403（body も Cookie も読まない）
+3. JSON body 検証     失敗 -> 400 / 413（session も RPC も呼ばない）
+4. requireSession()   -> 401 / 500 / 502
+5. entitlement 判定   Pro なら RPC を呼ばず免除を返す
+6. RPC
+7. no-store + Vary: Cookie を付けて返す
+```
 
-### 設計メモ（STEP 1 の実装に必要）
+Origin を最初に見るのは、cross-site から送られたリクエストで
+セッションにも DB にも触れさせないため。
 
-- 直列化は **`weekly_usage(user_id, week_start)` 行の `FOR UPDATE`**
-  （`users` 行はロックしない。ログイン処理 `upsert_user_and_create_session` とのデッドロックを避けるため）
-- ロック順は常に `weekly_usage → quota_reservations` の一方向
-- `weekly_usage.search_count` は同一トランザクション内で更新する**派生キャッシュ**（権威ではない）
-- 全 RPC は `SECURITY INVOKER` + `SET search_path = public, pg_temp` + service_role のみ EXECUTE（既存規約）
-- 列参照は `weekly_usage.` / `quota_reservations.` で修飾する
-  （戻り値の列名と PL/pgSQL 変数が衝突して "column reference is ambiguous" になるのを避ける。既存 RPC と同じ理由）
-- `reserve` は lazy reclaim を内包（同一 user/week の期限切れ pending のみ `committed('expired')` へ確定）
-- `idempotency_key` は `UNIQUE`。同じ鍵の再送は同じ予約行を返す（`reused=true`）
-- 予約行に `week_start` を持たせる（週境界を跨いだ commit / release が「予約した週」を対象にするため）
+### HTTP ステータスの使い分け（この規則で統一した）
+
+| 区分 | 意味 |
+|---|---|
+| 4xx / 5xx | リクエストが RPC まで到達できなかった、またはサーバー異常 |
+| **200** | **RPC が答えた。成否は body の `allowed` / `ok` と `code`** |
+
+`limit_reached` も `not_found` も `release_budget_exceeded` も 200。
+RPC は正しく答えているため 4xx にしない。
+フロントは `res.ok` ではなく body の `allowed` / `ok` で分岐する。
+
+### エラー分類
+
+| status | error | 発生源 |
+|---|---|---|
+| 405 | `method_not_allowed` | POST 以外 |
+| 403 | `forbidden_origin` | Origin 不一致・欠落（理由は区別しない） |
+| 400 | `invalid_content_type` / `malformed_json` / `invalid_body` / `unreadable_body` | body の形 |
+| 400 | `invalid_idempotency_key`（reserve）/ `invalid_reservation_id`（commit・release） | body の内容 |
+| 413 | `body_too_large` | 1KB 超 |
+| 401 | `unauthenticated` | セッション無効（+ Cookie 削除） |
+| 500 | `internal_error` | session の data_error / RPC 戻り値が契約と不一致 |
+| 500 | `server_misconfigured` | 環境変数の設定漏れ |
+| 502 | `database_unavailable` | Supabase へ到達できない / エラー応答 |
+
+`data_error` を 401 に丸めない、`unavailable` を 500 に丸めない、という
+既存 API の分類をそのまま踏襲している。RPC の内部エラー本文は返さない。
+
+### entitlement 判定（`hasWebUnlimited`）
+
+```
+plan_id ∈ {web_pro, all_pro}  かつ  status ∈ {active, trialing}  -> 無制限
+それ以外                                                          -> quota 対象
+```
+
+`past_due` は Pro 扱いしない。`extension_pro` は Web では quota 対象。
+context が壊れていたら quota 対象（フェイルクローズ）。
+上限 3（`FREE_WEEKLY_LIMIT`）の定義箇所は `_lib/quota.js` のみ。
+
+### RPC mapping
+
+| endpoint | RPC | 引数 |
+|---|---|---|
+| `POST /api/quota/reserve` | `reserve_weekly_usage` | `p_user_id`（session）/ `p_idempotency_key`（body）/ `p_limit`=3（API） |
+| `POST /api/quota/commit` | `commit_weekly_usage` | `p_user_id`（session）/ `p_reservation_id`（body） |
+| `POST /api/quota/release` | `release_weekly_usage` | `p_user_id`（session）/ `p_reservation_id`（body） |
+
+**`p_user_id` は body から一切受け取らない。** session context の値のみ。
+body に `user_id` / `p_user_id` / `p_limit` を混ぜても無視されることを
+テストで固定している。
+
+### レスポンス形（quota 対象 / Pro で形をそろえている）
+
+`reserve`:
+
+```json
+{ "quota_enforced": true, "allowed": true, "code": "ok", "reused": false,
+  "reservation_id": "…", "week_start": "2026-08-31",
+  "used": 1, "remaining": 2, "expires_at": "…" }
+```
+
+`commit` / `release`:
+
+```json
+{ "quota_enforced": true, "ok": true, "code": "ok",
+  "state": "committed", "used": 3 }
+```
+
+Pro のときは `quota_enforced: false` / `code: 'unlimited'` で、
+値はすべて `null`（RPC は呼ばない）。
+
+### STEP 2 の実装判断
+
+1. **`already_settled` は 409 ではなく 200 + `allowed:false`。**
+   STEP 1 の handoff では「409 を想定」と書いていたが、
+   「RPC が答えた結果は 200」という規則に統一した。
+   RPC の code を読み替えないという要求とも整合する。
+
+2. **共通ヘルパーを 2 本にした。**
+   `request-body.js`（body の読み取り）と `quota.js`（前処理と entitlement）。
+   3 endpoint の差分は「RPC 名・body 検証・レスポンス整形」だけになった。
+
+3. **`idempotency_key` の文字数はコードポイントで数える。**
+   JS の `String#length` は UTF-16 単位なので、絵文字を含む鍵で
+   PostgreSQL の `length()` と食い違い、API が通した値を DB が弾く。
+   制御文字も追加で拒否する（DB の CHECK にはないが安全側）。
+
+4. **401 で Cookie を削除する。** `/api/auth/me` と同じ挙動。
+   Origin 検証を通過した後なので、cross-site から強制ログアウトさせられない。
 
 ---
 
@@ -343,10 +504,34 @@ return { ok: calendarOk, authExpired: calendarAuthExpired };
 
 | STEP | 状態 | commit | DB 適用 | deploy | 備考 |
 |---|---|---|---|---|---|
-| STEP 1 migration | **未着手** | — | — | — | 次はここから |
-| STEP 2 API + tests | 未着手 | — | — | — | |
-| STEP 3 frontend | 未着手 | — | — | — | |
+| STEP 1 migration | **完了** | 未実施 | 未適用 | — | 20260903015535 を新規作成（866 行・未追跡） |
+| STEP 2 API + tests | **完了** | 未実施 | — | — | quota API 3 本 + helper 2 本 + テスト 5 本（未追跡） |
+| STEP 3 frontend | **未着手** | — | — | — | 次はここから |
 | STEP 4 本番適用・E2E | 未着手 | — | — | — | |
+
+STEP 1 の検証結果:
+
+- `npm test` : 221 / 221 PASS（fail 0 / skipped 0 / todo 0。SQL のみの変更で不変）
+- `git diff --check` : 指摘なし（行末空白 0・tab 0・CRLF 0・UTF-8 BOM なし）
+- **使い捨て PostgreSQL による適用検証を実施済み（PG 15.18 / 17.11 の両方）**
+  - Supabase 相当ロール（anon / authenticated / service_role）を用意したうえで
+    既存 3 本 → 20260903015535 の順に `ON_ERROR_STOP=1` で適用し、4 本とも成功
+  - schema / 制約 8 件 / index 4 本 / RLS 有効・policy 0 件 / 3 RPC の
+    SECURITY INVOKER・search_path・ACL・`consume_weekly_usage` の剥奪を確認
+  - smoke test（予約・冪等・上限・commit/release の冪等と ng・
+    RELEASE_BUDGET=3・3+3=6 の上界・期限切れ確定・引数検証・権限拒否・
+    制約違反・並行 8 本の直列化）をすべて通過
+  - **migration 本体の修正は不要だった**（検証のための変更は一切していない）
+  - 使い捨てコンテナは検証後に削除済み
+
+STEP 2 の検証結果:
+
+- `npm test` : **337 / 337 PASS**（既存 221 + 新規 116。fail 0 / skipped 0 / todo 0）
+- `git diff --check` : 指摘なし
+- 全 5 ファイルで `node --check` 相当（Node の ESM ロード）を通過
+- 既存 221 件は 1 件も壊れていない（既存ファイルを変更していないため）
+- **API から実 DB への疎通は未検証。** RPC はすべてスタブで、
+  ネットワークへは出ていない。実際の PostgREST 越しの往復は STEP 4 の E2E で確認する
 
 ---
 
@@ -362,8 +547,10 @@ return { ok: calendarOk, authExpired: calendarAuthExpired };
 2. **STEP 4 の migration 適用手順が未確立です。**
    既存 3 本は適用済みで、今回が初めての「セッション中の本番 DB 変更」になります。適用方法（`supabase db push` / ダッシュボードの SQL Editor）と必要な権限を STEP 4 の前に確認してください。
 
-3. **body パースは新規パターンです。**
-   既存 3 エンドポイント（session / me / logout）は request body を一切読みません。`_lib/request-body.js` に Content-Type 確認・サイズ上限 1KB・`JSON.parse` の try-catch・型検証をまとめる必要があります。
+3. **【解決済み】body パースは `_lib/request-body.js` に実装しました。**
+   Content-Type 確認・サイズ上限 1KB（Content-Length と実測の二重チェック）・
+   `JSON.parse` の try-catch・型検証・`idempotency_key` と UUID の検証を
+   まとめています。20 件のテストで固定済み。
 
 4. **並行性と週境界は単体テストで検証できません。**
    Node のテストは RPC の契約（引数・戻り値・呼び出し回数）しか検証できず、行ロックによる直列化と `jst_week_start()` の週境界は Postgres 側の責務です。`pgTAP` は未導入。
@@ -381,6 +568,48 @@ return { ok: calendarOk, authExpired: calendarAuthExpired };
    DB は `user_id` 単位で共有可能ですが、`chrome-extension/manifest.json` の `host_permissions` は `https://www.googleapis.com/*` のみで、Sukima API へのアクセス権がありません。
 
 9. **`fetchAndCalc` の失敗握りつぶしは quota と独立した既存 UX 問題**でもあります（API 全滅でも「終日空き」と表示）。STEP 3 の改修時に表示自体の見直しも検討価値があります。
+
+10. **【解決済み】STEP 1 の SQL は実 PostgreSQL で検証済みです。**
+    使い捨てコンテナ（postgres:15-alpine = 15.18 / postgres:17-alpine = 17.11）で
+    既存 3 本 → 20260903015535 の順に適用し、両バージョンとも成功しました。
+    静的レビューで気にしていた 3 点はいずれも問題なし:
+    - `EXTRACT(ISODOW FROM week_start::timestamp) = 1` は
+      `timestamp without time zone` に解決され CHECK 制約として受理された
+    - `INSERT ... RETURNING quota_reservations.id` のテーブル名修飾は有効
+    - `RETURNS TABLE` の出力変数と列名の衝突は発生しない
+    残る差異は本番 Supabase 固有の要素（ロールの実属性・PostgREST 経由の挙動）で、
+    これはコンテナでは再現ではなく模擬です。
+
+    **本番の PostgreSQL メジャーバージョンは 17 系と推定されます。**
+    `20260901044339` が記録した本番 ACL `anon=Dxtm/postgres` の `m` は MAINTAIN で、
+    PostgreSQL 17 以降にしか存在しません（PG15 は `arwdDxt` 止まり）。
+    PG17 コンテナでは新テーブルの ACL が
+    `postgres=arwdDxtm/postgres  service_role=arwdDxtm/postgres` となり、
+    本番の記録と同じ形になることを確認しました。
+
+11. **【一部解決】`already_settled` は HTTP 200 + `allowed:false` に確定しました。**
+    「RPC が答えた結果は 200」という規則に統一したためです（409 にはしません）。
+    **STEP 3 側の挙動は未実装**で、鍵を再生成して再試行する処理を
+    `public/index.html` に入れる必要があります。
+
+13. **API から実 DB への疎通が未検証です。**
+    STEP 2 のテストは RPC をすべてスタブ化しており、PostgREST 越しに
+    `reserve_weekly_usage` などが本当に呼べるかは確認していません。
+    引数名（`p_user_id` / `p_idempotency_key` / `p_limit`）の綴り違いや、
+    PostgREST が TABLE 戻り値を配列で返すかどうかは STEP 4 の
+    safe probe と実 E2E で初めて検証されます。
+
+14. **Pro ユーザーが reserve 後に Free へ落ちた場合、予約は宙に浮きます。**
+    Free で reserve → Pro へ昇格 → commit の順になると、commit は
+    `quota_enforced:false` を返して RPC を呼ばないため、pending の予約が
+    残り TTL 切れで `committed('expired')` になります。
+    その週の used を 1 消費しますが、Pro の間は quota 判定を通らないので
+    実害はありません（受容済み）。
+
+12. **`quota_reservations` の FK 先を `weekly_usage` にしたため、
+    `weekly_usage` の行は予約が残っている限り削除できません。**
+    掃除 Cron を作る際は `quota_reservations` → `weekly_usage` の順に消すか、
+    CASCADE 任せにすること（項目 5 と合わせて設計する）。
 
 ---
 
@@ -406,5 +635,5 @@ HANDOFF_QUOTA_RESERVATION.md を読んで、実環境と照合してから続き
 
 ---
 
-*最終更新: STEP 1 着手前（CHECKPOINT: quota reservation implementation ready）*
+*最終更新: STEP 2 完了時（CHECKPOINT: STEP 2 完了・quota API 実装済み・DB 未適用・未 commit）*
 *正式な参照先: リポジトリルートの `HANDOFF_QUOTA_RESERVATION.md`*
