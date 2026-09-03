@@ -26,13 +26,23 @@ ls supabase/migrations/
 ls functions/api/quota 2>/dev/null || echo "(quota API 未実装)"
 ```
 
-STEP 3 完了後の期待値:
+STEP 4 完了後の期待値:
 
-- HEAD = `248240c`（STEP 1 + STEP 2 を含む）
-- `public/index.html` と `package.json` が**変更済み・未 commit**
-- `tests/frontend/{page-harness,quota-integration}.mjs` が**未追跡で**存在する
-- `supabase/` と `functions/` は**無変更**
+- HEAD = origin/main = `db5a453a89c8851432ed1fb445b8e1f2e3f35a80`
+- ahead 0 / behind 0
+- working tree clean（本ファイルの更新分を除く）
+- `supabase/migrations/` に 4 本、うち `20260903015535` は**本番適用済み**
+- `functions/api/quota/{reserve,commit,release}.js` が存在する
+- `tests/frontend/` が存在する
 - `npm test` は 378 / 378 PASS
+
+remote の migration 状態も確認する:
+
+```bash
+npx supabase migration list --linked
+```
+
+4 本すべて local と remote が一致していれば正常。
 
 ### handoff と実環境が食い違った場合
 
@@ -49,17 +59,21 @@ STEP 3 完了後の期待値:
 ## CURRENT CHECKPOINT
 
 ```
-STEP 3 完了（frontend 連携済み・DB 未適用・未 commit）
+STEP 4 完了（本番稼働中。DB・API・frontend・E2E すべて反映済み）
 ```
 
-STEP 1 + STEP 2 は commit `248240c` に固定済みです。
-その上に **STEP 3 の frontend 変更が未 commit** で載っています。
+**quota reservation は本番で稼働しています。**
 
-**DB へは適用していません。push もしていません。**
-`public/index.html` は quota API を呼ぶようになりましたが、
-**本番 DB に quota_reservations が無いため、この状態を deploy すると
-Free ユーザーは検索できなくなります**（reserve が 502 を返し、
-フロントは fail closed で検索を止める）。STEP 4 の適用順序を必ず守ってください。
+- migration `20260903015535` は **本番 DB へ適用済み**（SQL Editor 最終確認 22/22 PASS）
+- STEP 1〜3 のコードは **main へ push 済み**（HEAD = origin/main = `db5a453`）
+- Cloudflare production deployment `4ac2338e` が **source commit `db5a453`** で稼働
+- production E2E **PASS**（Free で成功 3 回 → 4 回目は `limit_reached`）
+
+**この時点で Free ユーザーは週 3 回の制限を受けています。**
+以降の作業で quota / session / Calendar 周辺に触れる場合、
+**実利用者に影響が出る可能性がある**ことを前提にしてください。
+
+残っている作業は STEP 5 以降の運用課題のみです（未解決事項を参照）。
 
 ---
 
@@ -76,28 +90,23 @@ C:\Users\tetsu\perfact
 
 ## Git
 
-記録時点（STEP 3 完了時の実測値）:
+記録時点（STEP 4 完了時の実測値）:
 
 ```
-HEAD        = 248240ccf53ec04ab743968ecec375bb457f84ae
-origin/main = 35ebdd7d0070aecc76c309c4b7e1fe750b0025f2
-ahead 1 / behind 0
-変更 3 件 / 未追跡 2 件:
-   M HANDOFF_QUOTA_RESERVATION.md
-   M package.json
-   M public/index.html
-  ?? tests/frontend/page-harness.mjs
-  ?? tests/frontend/quota-integration.test.mjs
+HEAD        = db5a453a89c8851432ed1fb445b8e1f2e3f35a80
+origin/main = db5a453a89c8851432ed1fb445b8e1f2e3f35a80
+ahead 0 / behind 0
+working tree clean（本ファイルの更新分を除く）
 tests: 378 / 378 PASS（backend 337 + frontend 41。fail 0 / skipped 0 / todo 0）
 
-直近のコミット:
-  248240c  feat: add quota reservation backend   ← STEP 1 + STEP 2（未 push）
+直近のコミット（すべて push 済み）:
+  db5a453  feat: integrate quota reservation into web search   ← STEP 3
+  248240c  feat: add quota reservation backend                 ← STEP 1 + STEP 2
   35ebdd7  docs: add quota reservation handoff
-  4549867  fix: validate origin for session logout
 ```
 
-`supabase/` と `functions/` は STEP 3 で 1 文字も変更していない。
-migration の SHA256 は `9db79117…4fe9df4d` のまま。
+migration の SHA256 は `9db791171114ca97ecd32a92a85dea7209c0979e431a876cf1b177e74fe9df4d`。
+STEP 1 の作成時から一度も変更していない（本番適用したのもこのファイル）。
 
 **実測値が異なる場合は、勝手に reset せず、現在値と差分を記録・報告してください。**
 
@@ -112,8 +121,21 @@ production branch        : main
 ```
 
 - **main への push は本番自動 deploy になります。**
-- `www.sukimacalendar.com` は Cloudflare Redirect Rule で apex へ **308**（Single Redirect / `http.host eq` + wildcard / preserve query string）。
-- 記録時点の本番 deployment: `e2d69b49`（source commit `4549867`）/ status success。
+- `www.sukimacalendar.com` は Cloudflare Redirect Rule で apex へ **308**（Single Redirect / `http.host eq` + wildcard / preserve query string）。STEP 4B の probe で 308・クエリ保持ともに無傷を確認済み。
+- 記録時点の本番 deployment:
+
+```
+Deployment ID : 4ac2338e-dea7-4593-8bbd-532bdddb0ca4
+Environment   : Production
+Branch        : main
+Source commit : db5a453
+Preview URL   : https://4ac2338e.sukima-web-8ws.pages.dev
+```
+
+  1 つ前は `c0ce3e26`（source `35ebdd7`）。
+
+- deploy の成否は `wrangler pages deployment list` では success/failure ラベルが出ないため、
+  **実配信内容で判定した**（`/` が新コードを返し、`/api/quota/*` が仕様どおり応答する）。
 
 ---
 
@@ -125,23 +147,42 @@ ref     : lnqblfckupbjvlafhbmt
 region  : Tokyo / ap-northeast-1
 ```
 
-適用済み migration（本番反映済み）:
+適用済み migration（**4 本すべて本番反映済み**）:
 
 - `20260901022938_billing_schema.sql`
 - `20260901041257_session_schema.sql`
 - `20260901044339_revoke_anon_table_privileges.sql`
+- `20260903015535_quota_reservation_schema.sql` ← **STEP 4A で適用**
 
-**未適用** migration（STEP 1 で作成。STEP 4 で適用する）:
-
-- `20260903015535_quota_reservation_schema.sql`
-
-既存 RPC: `upsert_user_and_create_session` / `get_session_context` / `delete_session` / `consume_weekly_usage`（**未使用**）/ `jst_week_start` / `set_updated_at`
-
-STEP 4 適用後に増える RPC: `reserve_weekly_usage` / `commit_weekly_usage` / `release_weekly_usage`
+RPC: `upsert_user_and_create_session` / `get_session_context` / `delete_session` /
+`jst_week_start` / `set_updated_at` /
+**`reserve_weekly_usage` / `commit_weekly_usage` / `release_weekly_usage`**（STEP 4A で追加）/
+`consume_weekly_usage`（**非推奨。service_role からも EXECUTE 不可。定義のみ残存**）
 
 権限方針: 全テーブル RLS 有効・policy 0 件。anon / authenticated に直接権限なし。**service_role のみが server-side から利用**します。
 
-PostgreSQL メジャーバージョン: **17 系と推定**（`20260901044339` が記録した本番 ACL の `m` = MAINTAIN が PG17 以降にしか存在しないため）。STEP 1 の検証は PG 15.18 と 17.11 の両方で通しています。
+PostgreSQL バージョン: **17.6.1.166**（`supabase/.temp/postgres-version` の実測）。
+STEP 1 の推定どおり PG17 系だった。検証は PG 15.18 と 17.11 の両方で通してある。
+
+### STEP 4A の適用と確認
+
+適用方法: `npx supabase db push --linked --skip-vault`
+（事前に `--dry-run` で対象 1 本・seed 0・role 0 を確認）
+
+適用後の確認は 2 経路で行った。
+
+1. **CLI**（`gen types` / `inspect db index-stats` / `inspect db table-stats`）
+   - テーブル 9 列、index 4 本、3 RPC のシグネチャ（`p_limit` が省略可）を実物で確認
+2. **SQL Editor の読み取り専用クエリ 22 項目 → 22/22 PASS**
+   - constraint 8 件、RLS 有効・policy 0、anon/authenticated の権限ゼロ、
+     service_role の CRUD、3 RPC の SECURITY INVOKER / search_path /
+     EXECUTE 権限、`consume_weekly_usage` の service_role EXECUTE 不可、
+     COMMENT 2 種
+
+**`supabase db dump` と `db diff` は使えない。** 保存済みの pooler 認証情報が
+`EAUTHQUERY`、CLI の一時ログインロールが `password authentication failed` で失敗する。
+`migration list` / `db push` / `gen types` / `inspect db` は別経路のため動く。
+schema の詳細確認が必要なときは **SQL Editor を使うこと**（再試行しても直らない）。
 
 ---
 
@@ -196,6 +237,42 @@ used = COUNT(*) FROM quota_reservations
 - Origin 検証は既存の `functions/api/_lib/origin.js`（`checkOrigin`）を再利用。**このファイルは変更しない**
 - **Stripe webhook には Origin 検証を適用しない**（未実装。Origin ヘッダを持たず、署名検証で守る領域）
 
+### DB 実装の設計判断（変更しないこと）
+
+これらは STEP 1 で確定し、本番へ適用済みです。理由ごと残します。
+
+- **直列化は `weekly_usage(user_id, week_start)` 行の `FOR UPDATE`**
+  `users` 行はロックしない。ログイン処理 `upsert_user_and_create_session` が
+  `users` を更新するため、`users` を挟むとログインとデッドロックし得る。
+- **ロック順は常に `weekly_usage → quota_reservations` の一方向**
+  さらに 1 回の RPC が触る行は必ず単一の `(user_id, week_start)` に閉じる。
+- **冪等キーの UNIQUE は `(user_id, week_start, idempotency_key)`（週スコープ）**
+  グローバル一意だと他人が鍵を先占できる。さらに週を含めないと reserve が
+  別の週の予約行をロックし得るため、`weekly_usage(W1) → QR(W2)` と
+  `weekly_usage(W2) → QR(W1)` の循環待ちが週境界の同時実行で理論上成立する。
+  週を鍵に含めることで循環が構造的に消える。
+  帰結: **週を跨いだ同じ鍵の再送は「別の週の新しい予約」になる。**
+- **`weekly_usage.search_count` は派生キャッシュ**（権威ではない）
+  同一トランザクション内で `COUNT(*)` の導出値へ追随させるだけ。
+  **この値を読んで上限判定してはいけない。** COMMENT にも明記済み。
+- **`quota_reservations` の FK は `users` ではなく `weekly_usage(user_id, week_start)`**
+  users 行を触らないというロック順の要求を、参照整合性の側でも守るため。
+  削除は users → weekly_usage → quota_reservations と CASCADE で伝播する。
+- **全 RPC は `SECURITY INVOKER` + `SET search_path = public, pg_temp` +
+  service_role のみ EXECUTE**（既存規約）
+- **列参照は `weekly_usage.` / `quota_reservations.` で修飾する**
+  戻り値の列名と PL/pgSQL 変数が衝突して "column reference is ambiguous" に
+  なるのを避けるため（既存 RPC と同じ理由）。
+- **`reserve` は lazy reclaim を内包**
+  同一 user/week の期限切れ pending のみ `committed('expired')` へ確定する。
+  used は変わらない（pending も committed も used に数えるため）。
+- **予約行に `week_start` を持たせる**
+  週境界を跨いだ commit / release が「予約した週」を対象にできるようにするため。
+- **`reserve` の 3 番目の引数は `p_limit`（TTL ではない）**
+  TTL 120 秒は関数内の CONSTANT。呼び出し側から指定できない。
+- **`consume_weekly_usage` は定義を残したまま EXECUTE を全剥奪**
+  加算方式の旧 RPC。service_role からも実行できない。
+
 ### 状態機械
 
 ```
@@ -226,7 +303,7 @@ used = COUNT(*) FROM quota_reservations
 
 ---
 
-## 実装予定（4 STEP）
+## 実装の全体像（4 STEP・すべて完了）
 
 **STEP をまたいで先回りしないでください。**
 
@@ -269,33 +346,120 @@ used = COUNT(*) FROM quota_reservations
 
 ## 次に行う作業
 
-# STEP 4 から開始
+# STEP 4 まで完了。本番稼働中。
 
-**本番反映順序（この順を守ること）**
+**quota reservation 本体の実装は完了しています。**
+次のセッションで STEP 1〜4 をやり直さないでください。
+
+残っているのは運用課題だけです（詳細は「未解決事項」）。
+
+- 古い `quota_reservations` 行の掃除 Cron（項目 5・12）
+- 拡張機能の配線（項目 8）
+- `goToNextWeek` の production 実機確認（項目 17）
+- Calendar 401 経路の production 実機確認（項目 18）
+
+**本番に触れる作業は、実利用者に影響が出ることを前提に進めてください。**
+
+### 本番反映順序（今後 migration を足すときも同じ）
 
 ```
 ① Supabase migration 適用
-② migration 確認（table / 3 RPC / 権限）
+② migration 確認（SQL Editor の読み取り専用クエリ）
 ③ git push origin main
-④ Cloudflare deploy 確認（source commit の一致・status success）
+④ Cloudflare deploy 確認（source commit の一致）
 ⑤ safe probe（Origin ヘッダ必須）
 ⑥ 実 E2E
 ```
 
-**順序を逆にすると Free ユーザーが検索できなくなります。**
-STEP 3 でフロントは reserve を必ず通すようになったため、
-DB に `quota_reservations` が無い状態でコードだけ出すと reserve が
-502 を返し、フロントは fail closed で検索を止めます。
-quota は消費されず既存データも壊れませんが、その間 Free は使えません。
-
-STEP 4 の前にやること:
-
-- STEP 3 の変更（`public/index.html` / `package.json` / `tests/frontend/`）を commit する
-- migration 適用手順を確定する（`supabase db push` か SQL Editor か。未解決事項 2）
+順序を逆にすると Free ユーザーが検索できなくなります。
+フロントは reserve を必ず通すため、DB 側が未整備のままコードだけ出すと
+reserve が 502 を返し、fail closed で検索が止まります。
 
 ---
 
-## STEP 3 の成果物（完了・未 commit）
+## STEP 4 の実績（完了）
+
+### STEP 4A — 本番 migration 適用
+
+- `npx supabase db push --linked --skip-vault` で `20260903015535` を適用（exit 0）
+- `migration list` で 4 本すべて local = remote を確認
+- SQL Editor の読み取り専用クエリ **22/22 PASS**
+- 適用時点で `quota_reservations` は 0 行。既存ユーザーデータに変更なし
+
+### STEP 4B — push と deploy
+
+- `git push origin main`（fast-forward。`35ebdd7..db5a453`）
+- HEAD = origin/main = `db5a453` / ahead 0 / behind 0
+- Cloudflare production deployment `4ac2338e-dea7-4593-8bbd-532bdddb0ca4`（source `db5a453`）
+- 本番 `/` が新コードを配信（`runGuardedSearch` などが存在。旧経路は 0 箇所）
+
+**safe probe（すべて PASS・予約は 1 件も作られていない）**
+
+| probe | 結果 |
+|---|---|
+| `GET /` | 200 |
+| `GET /api/auth/me`（Cookie なし） | 401 |
+| `POST /api/quota/reserve` 正規 Origin・正しい body・セッションなし | 401 `unauthenticated` |
+| evil Origin / Origin なし | 403 `forbidden_origin` |
+| malformed JSON | 400 `malformed_json` |
+| Content-Type 違い | 400 `invalid_content_type` |
+| 鍵が短い | 400 `invalid_idempotency_key` |
+| body が配列 | 400 `invalid_body` |
+| commit / release に不正 UUID | 400 `invalid_reservation_id` |
+| `GET /api/quota/reserve` | 405 `method_not_allowed` |
+
+全 quota レスポンスで `Cache-Control: no-store` と `Vary: Cookie` を確認。
+5xx は 1 件も出ていない。レスポンスに secret / cookie / user_id の漏洩なし。
+処理順（Origin → body → session）が本番で実証された。
+
+### STEP 4C — production E2E（PASS）
+
+plan `free` / status `active`（= quota 対象）で実施。
+
+| 手順 | 結果 |
+|---|---|
+| 実ログイン | `/api/auth/me` 200 |
+| Calendar 認可 | events API が 2 カレンダー分呼べる状態 |
+| 成功検索 #1 | reserve 200 → events 200×2 → **commit 200** / release 0 |
+| 非 401 の Calendar 失敗 | events のみ遮断 → **release 200** / commit 0 |
+| 成功検索 #2 | reserve 200 → events 200×2 → **commit 200** |
+| 成功検索 #3 | reserve 200 → events 200×2 → **commit 200** |
+| 4 回目相当 | reserve 200 + **`limit_reached`** / **events API 0 回** / commit・release 0 |
+| reload | quota API **0 回**（追加消費なし） |
+| logout | `/api/auth/me` 401 |
+| logout 後 reload | 401 / body は `{authenticated}` のみ |
+
+**E2E 後の DB 実測**
+
+```
+quota_reservations : 4 行（committed 3 + released 1）
+weekly_usage       : 1 行
+sessions           : 0 行（logout がサーバー側セッションを削除した証拠）
+users / subscriptions : 変化なし
+```
+
+**実 quota 消費は 3 回。** 失敗検索 1 回は released となり used に数えられていない。
+`used = 3` / `remaining = 0` は
+「4 回目に上限メッセージが出たこと」と「committed 3 + released 1 の行構成」から確認したもので、
+**API レスポンス本文として直接取得したわけではない**（下記の制約による）。
+
+### STEP 4C の検証で使った手法と、その限界
+
+- **失敗注入**: DevTools の Request Blocking は使えないため、ページ内で
+  `window.fetch` を一時的に差し替え、URL に `/calendars/` と `/events?` の
+  両方を含むリクエストだけを `TypeError('Failed to fetch')` で失敗させた。
+  `calendarList` と `/api/quota/*` は素通し。401 は人工的に発生させていない。
+  復元は `try/finally` で保証し、復元後に native 関数であることを検証した。
+- **screenshot は最後まで取得できなかった**（`viewport 0x0` /
+  `Page.captureScreenshot` の CDP タイムアウト）。そのため画面クリックではなく
+  ページ内の `startSearch()` を直接呼んだ。ボタンの `onclick` が呼ぶ関数と同一だが、
+  **ボタンの見た目の状態変化・スワイプ操作は視覚的に未確認**。
+- **レスポンス本文は読めない**。`read_network_requests` はステータスコードのみを返す。
+  本文を読むには観測用に `fetch` を差し替える必要があり、承認範囲外なので行っていない。
+
+---
+
+## STEP 3 の成果物（完了・commit `db5a453`）
 
 ### 変更ファイル
 
@@ -415,7 +579,8 @@ return { ok: calendarOk, authExpired: calendarAuthExpired };
 ## 禁止事項
 
 - **STEP をまたいで先回りしない**
-- **STEP 4 まで本番 DB へ適用しない**
+- **本番は稼働中。DB・API・frontend のいずれに触れる場合も実利用者への影響を前提にする**
+- **明示指示なしで本番 DB へ migration を適用しない**
 - **明示指示なしで commit しない**
 - **明示指示なしで push しない**
 - **main への push は本番 deploy になることを忘れない**
@@ -452,10 +617,12 @@ return { ok: calendarOk, authExpired: calendarAuthExpired };
 
 | STEP | 状態 | commit | DB 適用 | deploy | 備考 |
 |---|---|---|---|---|---|
-| STEP 1 migration | **完了** | `248240c` | 未適用 | — | 20260903015535 を新規作成（866 行） |
-| STEP 2 API + tests | **完了** | `248240c` | — | — | quota API 3 本 + helper 2 本 + テスト 5 本 |
-| STEP 3 frontend | **完了** | 未実施 | — | — | index.html + frontend テスト 41 件（未 commit） |
-| STEP 4 本番適用・E2E | **未着手** | — | — | — | 次はここから |
+| STEP 1 migration | **完了** | `248240c` | **適用済み** | — | 20260903015535 を新規作成（866 行） |
+| STEP 2 API + tests | **完了** | `248240c` | — | **済** | quota API 3 本 + helper 2 本 + テスト 5 本 |
+| STEP 3 frontend | **完了** | `db5a453` | — | **済** | index.html + frontend テスト 41 件 |
+| STEP 4 本番適用・E2E | **完了** | （コード変更なし） | **適用済み** | `4ac2338e` | 4A 22/22 PASS / 4B safe probe PASS / 4C E2E PASS |
+
+**4 STEP すべて完了。quota reservation は本番稼働中。**
 
 STEP 1 の検証結果:
 
@@ -489,6 +656,15 @@ STEP 3 の検証結果:
 - `supabase/` と `functions/` は無変更（migration の SHA256 も一致）
 - **ブラウザでの実 E2E は未実施。** テストは vm 上の DOM スタブであり、
   実際の Google 認可ポップアップ・レイアウト・スワイプ操作は再現していない
+  → **STEP 4C で実機 E2E を実施し PASS**（ただし screenshot が取れず視覚確認は未実施）
+
+STEP 4 の検証結果:
+
+- 4A: SQL Editor の読み取り専用クエリ **22/22 PASS**
+- 4B: safe probe 12 項目すべて期待どおり。5xx ゼロ。secret 漏洩なし
+- 4C: production E2E **PASS**。実 quota 消費 3 回、
+  `quota_reservations` は committed 3 + released 1 の 4 行
+- `npm test` : **378 / 378 PASS**（STEP 4 でコードは変更していないため不変）
 
 ---
 
@@ -501,8 +677,12 @@ STEP 3 の検証結果:
    `docs/handoffs/CURRENT.md` はローカル控えとして残していますが、**内容が食い違った場合は
    本ファイルを正とします。**
 
-2. **STEP 4 の migration 適用手順が未確立です。**
-   既存 3 本は適用済みで、今回が初めての「セッション中の本番 DB 変更」になります。適用方法（`supabase db push` / ダッシュボードの SQL Editor）と必要な権限を STEP 4 の前に確認してください。
+2. **【解決済み】migration 適用手順は `supabase db push --linked --skip-vault` で確立しました。**
+   事前に `--dry-run` で対象を確認してから適用します。
+   ただし **`db dump` と `db diff` は認証エラーで使えません**（pooler 認証情報が
+   `EAUTHQUERY`、一時ログインロールが `password authentication failed`）。
+   適用後の schema 詳細確認は **SQL Editor の読み取り専用クエリ**を使ってください。
+   再試行しても直らないので、時間を使わないこと。
 
 3. **【解決済み】body パースは `_lib/request-body.js` に実装しました。**
    Content-Type 確認・サイズ上限 1KB（Content-Length と実測の二重チェック）・
@@ -511,9 +691,14 @@ STEP 3 の検証結果:
 
 4. **並行性と週境界は単体テストで検証できません。**
    Node のテストは RPC の契約（引数・戻り値・呼び出し回数）しか検証できず、行ロックによる直列化と `jst_week_start()` の週境界は Postgres 側の責務です。`pgTAP` は未導入。
+   → 使い捨て PG 15.18 / 17.11 コンテナで **並行 8 本の直列化**（異なる鍵で
+   ちょうど 3 件 allowed、同一鍵で 1 件作成 + 7 件再利用）は確認済み。
+   **本番での並行実行は未検証**（E2E は逐次実行）。
 
 5. **`quota_reservations` の行は増え続けます。**
    v1 は lazy reclaim のみ。古い週の削除は将来 Cron（`session_schema.sql` と同じ扱い）。
+   **本番では E2E 後に 4 行**（committed 3 + released 1）。まだ小さいが、
+   利用者が増えると週あたり最大 6 行 × ユーザー数で積み上がります。
 
 6. **クライアント主導 rollback は原理的に悪用可能です。**
    `release` の真偽をサーバーは検証できません。`Origin` 検証は cross-site 攻撃を防ぐだけで、正規セッションを持つ利用者が `curl -H "Origin: …"` で release を送ることは防げません。`RELEASE_BUDGET` はこれを **`3 + 3 = 6` 回/週に有界化**する仕組みです（受容済み）。
@@ -529,14 +714,14 @@ STEP 3 の検証結果:
    `calendarFetchFailed` を表示するようにしました。
    これにより「API 全滅でも終日空きと表示される」既存の UX 問題も解消しています。
 
-15. **frontend テストは vm 上の DOM スタブです。**
-    実ブラウザでの動作（Google 認可ポップアップ、レイアウト、スワイプ、
-    PWA の Service Worker）は再現していません。STEP 4 の実 E2E で
-    初めて確認されます。特に確認したいもの:
-    - Free で 3 回検索したあと 4 回目に上限表示が出るか
-    - 検索失敗時に返却され、回数が戻るか
-    - Calendar の再認可フローが従来どおり動くか
-    - Pro（web_pro / all_pro）で quota 表示が一切出ないか
+15. **【一部解決】frontend テストは vm 上の DOM スタブです。**
+    実ブラウザでの動作（レイアウト、スワイプ、PWA の Service Worker）は
+    再現していません。STEP 4C の実機 E2E で以下は確認できました。
+    - ✅ Free で 3 回検索したあと 4 回目に上限表示が出る
+    - ✅ 検索失敗時に release され、回数が戻る（committed 3 + released 1）
+    - ❌ Calendar の再認可フローは未確認（下記 18）
+    - ❌ Pro（web_pro / all_pro）の挙動は未確認
+      （テストアカウントが Free のみのため。frontend テストでは固定済み）
 
 16. **`package.json` の test スクリプトを変更しました。**
     `node --test functions/api/_tests/*.test.mjs tests/frontend/*.test.mjs`
@@ -566,12 +751,11 @@ STEP 3 の検証結果:
     次の検索試行では新しい鍵を生成するため自然に回復します。
     自動リトライは入れていません（利用者の操作で再試行する）。
 
-13. **API から実 DB への疎通が未検証です。**
-    STEP 2 のテストは RPC をすべてスタブ化しており、PostgREST 越しに
-    `reserve_weekly_usage` などが本当に呼べるかは確認していません。
-    引数名（`p_user_id` / `p_idempotency_key` / `p_limit`）の綴り違いや、
-    PostgREST が TABLE 戻り値を配列で返すかどうかは STEP 4 の
-    safe probe と実 E2E で初めて検証されます。
+13. **【解決済み】API から実 DB への疎通は STEP 4C で検証されました。**
+    実 E2E で reserve / commit / release がすべて 200 を返し、
+    `quota_reservations` に想定どおりの行（committed 3 + released 1）が
+    作られたため、引数名の綴りも PostgREST の TABLE 戻り値の扱いも正しいことが
+    確認できています。
 
 14. **Pro ユーザーが reserve 後に Free へ落ちた場合、予約は宙に浮きます。**
     Free で reserve → Pro へ昇格 → commit の順になると、commit は
@@ -584,6 +768,38 @@ STEP 3 の検証結果:
     `weekly_usage` の行は予約が残っている限り削除できません。**
     掃除 Cron を作る際は `quota_reservations` → `weekly_usage` の順に消すか、
     CASCADE 任せにすること（項目 5 と合わせて設計する）。
+
+17. **`goToNextWeek`（翌週検索）は production で未確認です。**
+    STEP 4C の 10 手順に含まれていなかったため実機では通していません。
+    frontend テストでは以下を固定済み:
+    reserve 1 回 / 成功時 commit / 失敗時 release / 上限時は Calendar API 0 回 /
+    検索試行ごとに新しい鍵。
+    quota を 1 回消費するので、確認するなら週が変わってからのほうが安全です。
+
+18. **Calendar 401（自然発生）の経路は production で未確認です。**
+    STEP 4C では「401 を人工的に発生させない」制約のもとで実施したため、
+    access token 失効時の
+    「release → 既存の再認可フローへ」は実機で通っていません。
+    frontend テストでは
+    「401 があれば authExpired=true / success=false」
+    「1 件 2xx + 1 件 401 でも release して commit しない」
+    を固定済みです。
+
+19. **screenshot が取得できない環境でした。**
+    `viewport 0x0` と `Page.captureScreenshot` の CDP タイムアウトにより、
+    STEP 4C は画面クリックではなくページ内の `startSearch()` を直接呼んで実施しました
+    （ボタンの `onclick` が呼ぶ関数と同一）。
+    **ボタンの見た目の状態変化・スワイプ操作・レイアウトは視覚的に未確認**です。
+    次に実機確認する際は、先に Chrome ウィンドウが前面に表示されていることを
+    確かめてください。
+
+20. **quota API のレスポンス本文を実機で読めていません。**
+    `read_network_requests` はステータスコードのみを返します。
+    `used` / `remaining` の実値は
+    「4 回目に上限メッセージが出たこと」と「committed 3 + released 1 の行構成」から
+    確認したもので、**API レスポンス本文として直接取得したわけではありません**。
+    数値で確定させたい場合は SQL Editor で
+    `quota_reservations` を state 別に集計してください。
 
 ---
 
@@ -609,5 +825,5 @@ HANDOFF_QUOTA_RESERVATION.md を読んで、実環境と照合してから続き
 
 ---
 
-*最終更新: STEP 3 完了時（CHECKPOINT: STEP 3 完了・frontend 連携済み・DB 未適用・未 commit）*
+*最終更新: STEP 4 完了時（CHECKPOINT: STEP 4 完了・本番稼働中）*
 *正式な参照先: リポジトリルートの `HANDOFF_QUOTA_RESERVATION.md`*
