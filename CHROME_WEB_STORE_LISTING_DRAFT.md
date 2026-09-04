@@ -139,6 +139,41 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 
 ---
 
+## 12-2. Sukima サーバーとの通信について（現行ビルドでは未発生）
+
+**現時点のビルドでは、この通信は 1 件も発生しません。**
+`chrome-extension/sukima-api.js` の `QUOTA_ENABLED` が `false` のため、
+拡張機能から sukimacalendar.com へリクエストを送る経路に到達しません。
+したがって §11 および §12 の記載は、現行ビルドについて正確です。
+
+将来 Free の週3回制限（quota）を有効化する場合は次の通信が発生します。
+**有効化と同じ申請で、本ファイルとストアのプライバシー申告を必ず更新すること。**
+
+| 宛先 | 目的 | 送信する内容 |
+|---|---|---|
+| `https://sukimacalendar.com/api/ext/link/start` | 拡張とアカウントの連携画面 | 拡張機能 ID と使い捨ての state のみ |
+| `https://sukimacalendar.com/api/ext/quota/*` | 週3回の残数管理 | 予約 ID と使い捨ての鍵のみ |
+| `https://sukimacalendar.com/api/ext/auth/logout` | 連携の解除 | セッショントークンのみ |
+
+**カレンダーの内容（予定名・参加者・時刻・空き時間の計算結果）は、
+いずれの通信にも一切含まれません。** Google カレンダーから取得したデータの
+送信先は、引き続き `www.googleapis.com` のみです。
+
+保存されるもの:
+
+- 拡張機能側: Sukima のセッショントークンを `localStorage` に保存します。
+  これは Web 標準の `localStorage` であり `chrome.storage` ではないため、
+  **"storage" 権限は引き続き不要**です（§11 の権限に関する記載は維持できます）。
+- サーバー側: 週の利用回数を管理するレコードのみ。
+  **カレンダーの内容は保存しません。**
+
+**manifest.json の変更は不要です。**
+通信はサーバー側の CORS 許可で成立し（host_permissions を追加しない）、
+連携は既存の "identity" 権限だけで動く `launchWebAuthFlow` を使います。
+そのため**新しい権限警告は発生せず、既存ユーザーの再承認も不要**です。
+
+---
+
 ## 13. リモートコードを使用しないことの説明
 
 ```
@@ -217,6 +252,9 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 ```
 ☑ manifest.jsonの "storage" 権限は削除済み（実装コード内に chrome.storage の呼び出しがないことを確認）。現在の permissions は ["sidePanel", "identity"]
 ☑ permissions / host_permissions が実装上必要な最小限であることを確認済み（2026-07-26）
+☑ 拡張 quota 配線を追加しても manifest.json は無変更（host_permissions / permissions を増やしていない）
+□ `sukima-api.js` の `QUOTA_ENABLED` が意図した値になっているか確認する（既定は false。extension_pro の販売導線が整うまで false のまま出荷する）
+□ `QUOTA_ENABLED` を true にする場合は、§12-2 の内容をストアのプライバシー申告へ反映する
 □ OAuthクライアントが公開用（本番）設定になっているか、Google Cloud Console側で確認する（本ファイル作成時点では未確認・未操作）
 ☑ 紹介ページ（https://sukimacalendar.com/extension）、プライバシーポリシー（https://sukimacalendar.com/extension/privacy）、利用規約（https://sukimacalendar.com/terms）の到達確認済み（2026-07-26、いずれもHTTP 200・404ではない）
 □ スクリーンショットを、個人情報が写り込まない状態で撮り直す
@@ -260,3 +298,5 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 ```
 
 "storage" 権限の削除はコミット 8b17ad7 で実施済みです。本ファイルの更新にあたって manifest.json は読み取りのみ行い、変更していません。
+
+拡張 quota 配線（`sukima-api.js` の追加と `sidepanel.js` の変更）でも、manifest.json は変更していません。セッショントークンの保存に `chrome.storage` ではなく `localStorage` を使うため "storage" 権限は不要で、通信はサーバー側 CORS で許可するため host_permissions の追加も不要です。

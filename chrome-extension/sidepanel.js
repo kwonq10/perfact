@@ -3,6 +3,8 @@ const DAY_END = 22;
 const STEP_MIN = 30;
 
 let accessToken = null;
+// 二重実行ガード。検索の入口が複数あるため、ボタンの disabled だけでは足りない。
+let isSearching = false;
 let currentSlots = [];
 let calendarList = [];
 let periodResults = [];
@@ -464,6 +466,16 @@ async function logout() {
   } catch (error) {
     // キャッシュ削除に失敗しても、ローカルの表示はログアウト状態へ進める。
   }
+
+  // Sukima 側のセッションも失効させる。Web のログイン状態には影響しない。
+  try {
+    if (typeof SukimaApi !== "undefined") {
+      await SukimaApi.logout();
+    }
+  } catch (error) {
+    // 失敗してもローカルの表示はログアウト状態へ進める。
+  }
+
   resetSessionState();
   showLoggedOut();
   setStatus("ログアウトしました", false, STATUS_AUTO_CLEAR_MS);
@@ -725,7 +737,7 @@ function findFreeSlots(startDate, endDate, duration, events) {
 
 // 開始日・終了日入力の値を検証し、期間検索を実行する。
 // 1日だけの範囲（開始日=終了日）も同じ期間検索として扱う。
-async function handleSearch() {
+async function handleSearch(options = {}) {
   const startValue = customStartDateInput.value;
   const endValue = customEndDateInput.value;
 
@@ -747,11 +759,65 @@ async function handleSearch() {
     return;
   }
 
-  await runPeriodSearch(start, end);
+  await runPeriodSearch(start, end, { explicit: options.explicit === true });
+}
+
+// 期間検索の入口。
+//
+//   explicit=true は「ユーザーが検索ボタンを押した」場合だけ。
+//   このときだけ quota を消費する。
+//   パネル起動・ログイン・アカウント切替・必要時間変更・カレンダー選択変更
+//   などの自動処理は explicit=false で呼ばれ、quota を消費しない。
+//
+//   二重実行ガード（isSearching）は必須。検索ボタンの disabled だけでは
+//   reserve の待ち時間に別経路（条件変更など）から再入できる。
+async function runPeriodSearch(start, end, options = {}) {
+  const explicit = options.explicit === true;
+
+  if (isSearching) {
+    return;
+  }
+  isSearching = true;
+  searchBtn.disabled = true;
+
+  try {
+    const quotaOn =
+      explicit &&
+      typeof SukimaApi !== "undefined" &&
+      SukimaApi.isQuotaEnabled();
+
+    if (!quotaOn) {
+      await executePeriodSearch(start, end);
+      return;
+    }
+
+    // quota を消費する唯一の経路。reserve -> 検索 -> commit / release。
+    const reservation = await SukimaApi.reserveSearch();
+    if (!reservation.proceed) {
+      // Calendar API は呼ばない。理由をそのまま表示する。
+      setStatus(reservation.message || "検索を開始できませんでした", true);
+      return;
+    }
+
+    const succeeded = await executePeriodSearch(start, end);
+
+    if (reservation.reservationId) {
+      // どちらも best effort。失敗しても表示は差し替えない。
+      if (succeeded) {
+        await SukimaApi.commit(reservation.reservationId);
+      } else {
+        await SukimaApi.release(reservation.reservationId);
+      }
+    }
+  } finally {
+    isSearching = false;
+    searchBtn.disabled = false;
+  }
 }
 
 // 期間内のイベントをまとめて取得し、日付ごとの空き時間を計算する。
-async function runPeriodSearch(start, end) {
+// 成功した場合のみ true を返す（quota の commit / release 判定に使う）。
+async function executePeriodSearch(start, end) {
   periodResults = [];
   periodIndex = 0;
   resultsElement.replaceChildren();
@@ -764,7 +830,7 @@ async function runPeriodSearch(start, end) {
       const loaded = await loadCalendarList();
       if (!loaded) {
         setStatus("カレンダー情報を取得できませんでした", true);
-        return;
+        return false;
       }
     }
 
@@ -786,6 +852,7 @@ async function runPeriodSearch(start, end) {
     periodIndex = 0;
     renderPeriodDay();
     setStatus("");
+    return true;
   } catch (error) {
     periodResults = [];
     periodIndex = 0;
@@ -800,6 +867,7 @@ async function runPeriodSearch(start, end) {
     prevWeekBtn.disabled = true;
     nextWeekBtn.disabled = true;
     setStatus("空き時間の検索に失敗しました", true);
+    return false;
   }
 }
 
@@ -1091,7 +1159,7 @@ customEndDateInput.addEventListener("input", () => {
   updateConditionsToggleLabel();
 });
 
-searchBtn.addEventListener("click", handleSearch);
+searchBtn.addEventListener("click", () => handleSearch({ explicit: true }));
 
 conditionsToggle.addEventListener("click", () => {
   const willOpen = conditionsPanel.hidden;

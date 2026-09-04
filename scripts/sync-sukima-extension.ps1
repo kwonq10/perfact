@@ -17,6 +17,7 @@
       - background.js
       - sidepanel.html
       - sidepanel.js
+      - sukima-api.js
       - sidepanel.css
       - icon-16.png
       - icon-48.png
@@ -34,6 +35,7 @@ $SyncFiles = @(
     "background.js",
     "sidepanel.html",
     "sidepanel.js",
+    "sukima-api.js",
     "sidepanel.css",
     "icon-16.png",
     "icon-48.png",
