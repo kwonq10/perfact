@@ -6,7 +6,7 @@
     コピー元: C:\Users\tetsu\perfact\chrome-extension
     コピー先: C:\Users\tetsu\Projectssukima-sidepanel
 
-    拡張機能ID (dhanoojabkccbaecnkikaadionedabpn) を維持するため、
+    拡張機能ID (cbiheilipajkapmejmpmhjiflgpfhglg) を維持するため、
     Chromeの読み込み元フォルダ自体は変更せず、フォルダ内のファイルだけを同期する。
 
     実行前に、コピー先フォルダ全体を C:\Users\tetsu\Projectssukima-sidepanel-backup へ
