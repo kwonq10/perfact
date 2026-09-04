@@ -26,15 +26,16 @@ ls supabase/migrations/
 ls functions/api/quota 2>/dev/null || echo "(quota API 未実装)"
 ```
 
-STEP 4 完了後の期待値:
+STEP 5A 完了後の期待値:
 
-- HEAD = origin/main = `db5a453a89c8851432ed1fb445b8e1f2e3f35a80`
+- HEAD = origin/main = `2d9d09b69ecbdcd91331b9076b3b1c0c92188421`
 - ahead 0 / behind 0
 - working tree clean（本ファイルの更新分を除く）
 - `supabase/migrations/` に 4 本、うち `20260903015535` は**本番適用済み**
 - `functions/api/quota/{reserve,commit,release}.js` が存在する
 - `tests/frontend/` が存在する
 - `npm test` は 378 / 378 PASS
+- `quota_reservations` は **cleanup 未実施**（8 週より古い行が 0 件のため。「STEP 5 の実績」節を参照）
 
 remote の migration 状態も確認する:
 
@@ -59,21 +60,24 @@ npx supabase migration list --linked
 ## CURRENT CHECKPOINT
 
 ```
-STEP 4 完了（本番稼働中。DB・API・frontend・E2E すべて反映済み）
+STEP 4 完了（本番稼働中）+ STEP 5A 完了（cleanup は設計確定・実装保留）
 ```
 
 **quota reservation は本番で稼働しています。**
 
 - migration `20260903015535` は **本番 DB へ適用済み**（SQL Editor 最終確認 22/22 PASS）
-- STEP 1〜3 のコードは **main へ push 済み**（HEAD = origin/main = `db5a453`）
-- Cloudflare production deployment `4ac2338e` が **source commit `db5a453`** で稼働
+- STEP 1〜3 のコードは **main へ push 済み**（HEAD = origin/main = `2d9d09b`）
+- Cloudflare production deployment `2372a229` が **source commit `2d9d09b`** で稼働
 - production E2E **PASS**（Free で成功 3 回 → 4 回目は `limit_reached`）
+- cleanup 方針は **STEP 5A で確定。ただし実装は保留**（削除対象が 0 件のため）
+- **pg_cron は有効化していない。cron migration も作っていない**
 
 **この時点で Free ユーザーは週 3 回の制限を受けています。**
 以降の作業で quota / session / Calendar 周辺に触れる場合、
 **実利用者に影響が出る可能性がある**ことを前提にしてください。
 
-残っている作業は STEP 5 以降の運用課題のみです（未解決事項を参照）。
+残っている作業は運用課題のみです（未解決事項を参照）。
+cleanup（STEP 5）は設計だけ確定し、実装は保留しています。
 
 ---
 
@@ -90,20 +94,24 @@ C:\Users\tetsu\perfact
 
 ## Git
 
-記録時点（STEP 4 完了時の実測値）:
+記録時点（STEP 5A 完了時の実測値）:
 
 ```
-HEAD        = db5a453a89c8851432ed1fb445b8e1f2e3f35a80
-origin/main = db5a453a89c8851432ed1fb445b8e1f2e3f35a80
+HEAD        = 2d9d09b69ecbdcd91331b9076b3b1c0c92188421
+origin/main = 2d9d09b69ecbdcd91331b9076b3b1c0c92188421
 ahead 0 / behind 0
 working tree clean（本ファイルの更新分を除く）
 tests: 378 / 378 PASS（backend 337 + frontend 41。fail 0 / skipped 0 / todo 0）
 
 直近のコミット（すべて push 済み）:
+  2d9d09b  docs: finalize quota reservation handoff            ← STEP 4 の記録
   db5a453  feat: integrate quota reservation into web search   ← STEP 3
   248240c  feat: add quota reservation backend                 ← STEP 1 + STEP 2
   35ebdd7  docs: add quota reservation handoff
 ```
+
+STEP 5A ではコードを一切変更していないため、HEAD は `2d9d09b` から動いていません。
+本ファイルの更新を commit すると、HEAD は次の docs コミットへ進みます。
 
 migration の SHA256 は `9db791171114ca97ecd32a92a85dea7209c0979e431a876cf1b177e74fe9df4d`。
 STEP 1 の作成時から一度も変更していない（本番適用したのもこのファイル）。
@@ -125,14 +133,14 @@ production branch        : main
 - 記録時点の本番 deployment:
 
 ```
-Deployment ID : 4ac2338e-dea7-4593-8bbd-532bdddb0ca4
+Deployment ID : 2372a229-3ee7-480e-8f24-890b687873a8
 Environment   : Production
 Branch        : main
-Source commit : db5a453
-Preview URL   : https://4ac2338e.sukima-web-8ws.pages.dev
+Source commit : 2d9d09b
+Preview URL   : https://2372a229.sukima-web-8ws.pages.dev
 ```
 
-  1 つ前は `c0ce3e26`（source `35ebdd7`）。
+  1 つ前は `4ac2338e`（source `db5a453`）、その前は `c0ce3e26`（source `35ebdd7`）。
 
 - deploy の成否は `wrangler pages deployment list` では success/failure ラベルが出ないため、
   **実配信内容で判定した**（`/` が新コードを返し、`/api/quota/*` が仕様どおり応答する）。
@@ -346,15 +354,18 @@ used = COUNT(*) FROM quota_reservations
 
 ## 次に行う作業
 
-# STEP 4 まで完了。本番稼働中。
+# STEP 4 まで完了。本番稼働中。STEP 5A まで完了。
 
 **quota reservation 本体の実装は完了しています。**
 次のセッションで STEP 1〜4 をやり直さないでください。
+**cleanup（STEP 5）も方針は確定済みです。STEP 5A をやり直さないでください。**
 
 残っているのは運用課題だけです（詳細は「未解決事項」）。
 
-- 古い `quota_reservations` 行の掃除 Cron（項目 5・12）
-- 拡張機能の配線（項目 8）
+- 古い `quota_reservations` 行の掃除（項目 5・12）
+  → **方針確定・実装保留。** STEP 5A の本番実測で cleanup 対象 0 件。
+    着手条件は「8 週より古い行が発生した時点」（「STEP 5 の実績」節を参照）
+- 拡張機能の配線（項目 8）← **次フェーズの第一候補**
 - `goToNextWeek` の production 実機確認（項目 17）
 - Calendar 401 経路の production 実機確認（項目 18）
 
@@ -456,6 +467,127 @@ users / subscriptions : 変化なし
   **ボタンの見た目の状態変化・スワイプ操作は視覚的に未確認**。
 - **レスポンス本文は読めない**。`read_network_requests` はステータスコードのみを返す。
   本文を読むには観測用に `fetch` を差し替える必要があり、承認範囲外なので行っていない。
+
+---
+
+## STEP 5 の実績（5A 完了・5B〜5F 保留）
+
+**cleanup phase は「設計確定・実装保留」です。**
+STEP 5A の本番実測で削除対象が 0 件だったため、機構はまだ作っていません。
+次のセッションで STEP 5A をやり直さないでください。
+
+### 確定した cleanup 方針（製品判断として確定済み。再検討しないこと）
+
+| 項目 | 確定内容 |
+|---|---|
+| 保持期間 | **8 週間** |
+| 削除対象 | **`quota_reservations` のみ** |
+| `weekly_usage` | **削除しない**（過去週の `search_count` を利用実績として残す） |
+| 判定基準 | **`week_start` のみ**。`state` では選別しない |
+| 削除述語 | `week_start < (public.jst_week_start() - (8 * 7))` ← **DB 側で算出** |
+| 削除方法 | **`quota_reservations` 単独の DELETE**（親 `weekly_usage` に触れない） |
+| 実行方式 | 当面 **Supabase SQL Editor で手動**。**pg_cron は未導入** |
+| cron migration | **作らない**（行数が育ってから再検討） |
+
+週の基準は必ず `public.jst_week_start()` を使い、クライアントの時計は使いません
+（既存 RPC と同じ規律）。
+
+### なぜ `state` で選別してはいけないか
+
+**現在週は `state` を問わず全行を残す**のが唯一の安全な規則です。
+`state` で分岐すると、次の 3 つのいずれかを踏みます。
+
+1. **used の返金** — used は行数から導出されるため、現在週の `pending` /
+   `committed` を 1 行消すと、その利用者は即座に 1 回分検索できるようになる
+2. **release budget の復活** — `release` は同一週の `state='released'` を COUNT して
+   予算判定する。現在週の `released` を消すと返金枠が復活し、`3 + 3 = 6` の上界が
+   壊れる（無限返金の入口）
+3. **idempotency replay の破壊** — UNIQUE は `(user_id, week_start, idempotency_key)`。
+   確定済みの行を消すと同じ鍵が再利用可能になり、本来 `already_settled` を返すべき
+   再送が**新しい予約の発行**に化ける
+
+`week_start` だけで判定すれば、この 3 つは構造的に発生しません。
+
+### lazy reclaim と cleanup の関係（STEP 5A の監査で判明）
+
+`reserve` の Step 3（lazy reclaim）は **`v_week_start`（現在週）に限定**されています。
+
+したがって **過去週の期限切れ `pending` は永久に回収されません。**
+週が変わった瞬間に「誰も触らない孤児 pending」として残り続けます。
+
+- **cleanup は、過去週の孤児 pending を除去できる唯一の機構**です
+- ただし `committed('expired')` へ**変換する必要はありません**。過去週の used は
+  誰も読まないため、UPDATE は無駄な書き込みとロックを増やすだけです
+- **delete-only** とすること
+
+### 週境界の in-flight について
+
+日曜 23:59:59 JST に reserve → 月曜 00:00:01 JST に commit、という経路があります。
+`commit` / `release` は予約行の `week_start` を先読みするため、**前週の行が生きている
+必要**があります。必要な猶予は TTL（120 秒）+ リクエスト寿命で数分オーダーであり、
+8 週保持なら自動的に満たされます。
+
+### `weekly_usage.search_count` との整合（承認済みの仕様）
+
+過去週の `quota_reservations` だけを消すと、その週の `search_count` は
+「行が 0 件なのに 3 のまま」という**意図的に stale なキャッシュ**になります。
+
+これは壊れではありません。
+
+- `search_count` は既に COMMENT で「権威ではない / これを読んで上限判定しないこと」と明記済み
+- 過去週の `search_count` を読むコードは**存在しない**（3 RPC はすべて自分の週しか触らない）
+- 0 へ書き戻すと `weekly_usage` 行をロックする必要が生じ、cleanup が現在週と同じ
+  テーブルに触ることになる（避けたい）
+- `search_count` は**その週の消費実績を残す唯一の集計レコード**であり、潰すのは監査上の損失
+
+### STEP 5A 本番実測（2026-09-04 / Supabase SQL Editor・読み取り専用）
+
+| 項目 | 実測値 |
+|---|---|
+| `quota_reservations` 総行数 | **4** |
+| committed / released / pending | **3 / 1 / 0** |
+| current week（JST 月曜） | **2026-08-31** |
+| 過去週の行 | **0** |
+| 8 週ルールでの cleanup 対象 | **0** |
+| orphan pending（過去週の期限切れ pending） | **0** |
+| `weekly_usage` | **1 行** |
+| `search_count` と導出 used の不一致（cache drift） | **0** |
+| 親 `weekly_usage` を持たない `quota_reservations` | **0** |
+
+STEP 4C の E2E 記録（committed 3 + released 1）と**完全に一致**しています。
+
+**cache drift 0 と親なし 0 は、「used の権威は `quota_reservations` であり、
+`search_count` がそれに追随する」という設計の中核が本番で成立していることの
+直接的な証拠**です（STEP 4C では行構成からの推定に留まっていました）。
+
+実行した SQL は SELECT のみ。`user_id` / `reservation_id` / `idempotency_key` /
+email / token は一切出力していません（すべて集計値と週・state・reason のみ）。
+
+### STEP 5B〜5F（保留中・着手条件つき）
+
+| STEP | 内容 | 状態 |
+|---|---|---|
+| 5A | 本番実測 | **完了**（上記） |
+| 5B | 保持週数・実行方式の確定 | **完了**（上記の表） |
+| 5C | migration 作成（cleanup 関数）+ 使い捨て PG コンテナ検証 | **保留** |
+| 5D | 本番 migration 適用 | **保留** |
+| 5E | cleanup の初回実行 | **保留** |
+| 5F | pg_cron スケジュール登録 | **保留** |
+
+**着手条件:** 8 週より古い行が実際に発生した時点、または総行数が数千行を超えた時点。
+それまでは SQL Editor から手動で確認・削除できます。
+
+### 保留中に決める必要がある事項
+
+- `cron.schedule` を migration に入れるか SQL Editor で行うか（後者は構成 drift になる）
+- pg_cron の有効化には **Dashboard → Database → Extensions での操作**が要る可能性が高い
+  （`CREATE EXTENSION` は superuser 権限が必要で、`db push` の一時ログインロールでは
+  通らない可能性がある）
+- `week_start` を先頭に持つ索引を足すか
+  （現状その索引は無く、`week_start` 単独の絞り込みは seq scan になる。
+  `CREATE INDEX CONCURRENTLY` は migration のトランザクション内では実行できない）
+- `cron.job_run_details` の掃除（pg_cron を入れると**新たな増え続ける表**が生まれる）
+- `sessions` の掃除（`20260901041257` にも同一の TODO があり、同じ機構で解決できる）
 
 ---
 
@@ -621,8 +753,10 @@ return { ok: calendarOk, authExpired: calendarAuthExpired };
 | STEP 2 API + tests | **完了** | `248240c` | — | **済** | quota API 3 本 + helper 2 本 + テスト 5 本 |
 | STEP 3 frontend | **完了** | `db5a453` | — | **済** | index.html + frontend テスト 41 件 |
 | STEP 4 本番適用・E2E | **完了** | （コード変更なし） | **適用済み** | `4ac2338e` | 4A 22/22 PASS / 4B safe probe PASS / 4C E2E PASS |
+| STEP 5A cleanup 実測 | **完了** | （コード変更なし） | — | — | 本番実測 PASS。cleanup 対象 0 件のため 5B〜5F は保留 |
 
 **4 STEP すべて完了。quota reservation は本番稼働中。**
+**cleanup（STEP 5）は設計確定・実装保留。**
 
 STEP 1 の検証結果:
 
@@ -666,6 +800,13 @@ STEP 4 の検証結果:
   `quota_reservations` は committed 3 + released 1 の 4 行
 - `npm test` : **378 / 378 PASS**（STEP 4 でコードは変更していないため不変）
 
+STEP 5A の検証結果:
+
+- Supabase SQL Editor の読み取り専用クエリ（単一 SELECT・集計のみ）で本番を実測
+- cleanup 対象 **0 件** / orphan pending **0 件** / cache drift **0 件** / 親なし QR **0 件**
+- `npm test` : **378 / 378 PASS**（STEP 5A でコードは変更していないため不変）
+- **コード変更・migration 作成・DB 変更なし。読み取りのみ**
+
 ---
 
 ## 未解決事項
@@ -695,10 +836,18 @@ STEP 4 の検証結果:
    ちょうど 3 件 allowed、同一鍵で 1 件作成 + 7 件再利用）は確認済み。
    **本番での並行実行は未検証**（E2E は逐次実行）。
 
-5. **`quota_reservations` の行は増え続けます。**
-   v1 は lazy reclaim のみ。古い週の削除は将来 Cron（`session_schema.sql` と同じ扱い）。
-   **本番では E2E 後に 4 行**（committed 3 + released 1）。まだ小さいが、
-   利用者が増えると週あたり最大 6 行 × ユーザー数で積み上がります。
+5. **【方針確定・実装保留】`quota_reservations` の行は増え続けます。**
+   v1 は lazy reclaim のみで、行の削除は行いません。
+
+   **STEP 5A で cleanup 方針を確定しました**（保持 8 週 / `quota_reservations` 単独
+   DELETE / `weekly_usage` は削除しない / `week_start` のみで判定 / pg_cron は未導入で
+   当面 SQL Editor 手動）。詳細は「STEP 5 の実績」節を参照。
+
+   **ただし実装は保留です。** STEP 5A の本番実測で 8 週より古い行が **0 件**だったため、
+   機構を作っても削除するものがありません。
+
+   行数の上界は **1 ユーザー・1 週あたり最大 6 行**（committed 3 + released 3。
+   `RELEASE_BUDGET = 3` がこの上界を保証する）。Pro は RPC を呼ばないため 0 行。
 
 6. **クライアント主導 rollback は原理的に悪用可能です。**
    `release` の真偽をサーバーは検証できません。`Origin` 検証は cross-site 攻撃を防ぐだけで、正規セッションを持つ利用者が `curl -H "Origin: …"` で release を送ることは防げません。`RELEASE_BUDGET` はこれを **`3 + 3 = 6` 回/週に有界化**する仕組みです（受容済み）。
@@ -764,10 +913,24 @@ STEP 4 の検証結果:
     その週の used を 1 消費しますが、Pro の間は quota 判定を通らないので
     実害はありません（受容済み）。
 
-12. **`quota_reservations` の FK 先を `weekly_usage` にしたため、
+12. **【訂正済み】`quota_reservations` の FK 先を `weekly_usage` にしたため、
     `weekly_usage` の行は予約が残っている限り削除できません。**
-    掃除 Cron を作る際は `quota_reservations` → `weekly_usage` の順に消すか、
-    CASCADE 任せにすること（項目 5 と合わせて設計する）。
+
+    ⚠ **旧記述「`quota_reservations` → `weekly_usage` の順に消す」は誤りです。**
+    同一トランザクションで子 → 親の順に DELETE すると、確立済みのロック順
+    （`weekly_usage` → `quota_reservations`）を**逆行**します。
+    RPC が `weekly_usage` を掴んで `quota_reservations` を待つ一方、cleanup が
+    `quota_reservations` を掴んで `weekly_usage` を待つ形になり、
+    理論上デッドロックします。
+
+    安全なのは次の 2 つだけです。
+
+    - **(a) `quota_reservations` 単独の DELETE**（親に触れない）
+      子行の DELETE は FK トリガを起こさず、親行をロックしません。
+      ロックが 1 テーブルに閉じるため、ロック順の問題が構造的に発生しません。
+    - (b) `weekly_usage` を DELETE して CASCADE に任せる（親 → 子 = 正順）
+
+    **確定方針は (a)。** `weekly_usage` は削除しないため (b) は使いません（項目 5 を参照）。
 
 17. **`goToNextWeek`（翌週検索）は production で未確認です。**
     STEP 4C の 10 手順に含まれていなかったため実機では通していません。
@@ -825,5 +988,5 @@ HANDOFF_QUOTA_RESERVATION.md を読んで、実環境と照合してから続き
 
 ---
 
-*最終更新: STEP 4 完了時（CHECKPOINT: STEP 4 完了・本番稼働中）*
+*最終更新: STEP 5A 完了時（CHECKPOINT: STEP 4 完了・本番稼働中 / STEP 5A 完了・cleanup 実装保留）*
 *正式な参照先: リポジトリルートの `HANDOFF_QUOTA_RESERVATION.md`*
