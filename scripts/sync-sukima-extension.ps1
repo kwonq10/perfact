@@ -3,7 +3,7 @@
     正式ソース (chrome-extension/) を、Chromeが読み込んでいる動作フォルダへ同期する。
 
 .DESCRIPTION
-    コピー元: D:\09_AI_Projects\perfact\chrome-extension
+    コピー元: C:\Users\tetsu\perfact\chrome-extension
     コピー先: C:\Users\tetsu\Projectssukima-sidepanel
 
     拡張機能ID (dhanoojabkccbaecnkikaadionedabpn) を維持するため、
@@ -12,7 +12,7 @@
     実行前に、コピー先フォルダ全体を C:\Users\tetsu\Projectssukima-sidepanel-backup へ
     バックアップする。バックアップ先が既に存在する場合は上書きせず停止する。
 
-    同期対象は以下8ファイルのみ。ファイル削除・Chrome操作は一切行わない。
+    同期対象は以下9ファイルのみ。ファイル削除・Chrome操作は一切行わない。
       - manifest.json
       - background.js
       - sidepanel.html
@@ -26,7 +26,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$SourceDir  = "D:\09_AI_Projects\perfact\chrome-extension"
+$SourceDir  = "C:\Users\tetsu\perfact\chrome-extension"
 $DestDir    = "C:\Users\tetsu\Projectssukima-sidepanel"
 $BackupDir  = "C:\Users\tetsu\Projectssukima-sidepanel-backup"
 
@@ -65,7 +65,7 @@ if (-not (Test-Path -LiteralPath $DestDir -PathType Container)) {
 }
 Write-Host "[OK] コピー元・コピー先の存在を確認しました。" -ForegroundColor Green
 
-# 2. コピー前に8ファイルのSHA256を表示
+# 2. コピー前に9ファイルのSHA256を表示
 Write-Host ""
 Write-Host "=== コピー前 SHA256 ===" -ForegroundColor Cyan
 foreach ($file in $SyncFiles) {
@@ -99,7 +99,7 @@ if (Test-Path -LiteralPath $BackupDir) {
 Copy-Item -LiteralPath $DestDir -Destination $BackupDir -Recurse
 Write-Host "[OK] コピー先をバックアップしました: $BackupDir" -ForegroundColor Green
 
-# 5. 指定8ファイルだけをコピー
+# 5. 指定9ファイルだけをコピー
 Write-Host ""
 Write-Host "=== ファイルコピー ===" -ForegroundColor Cyan
 foreach ($file in $SyncFiles) {
@@ -110,7 +110,7 @@ foreach ($file in $SyncFiles) {
 }
 
 # 6. コピー後にSHA256を比較
-# 7. 8ファイルすべて一致した場合だけ成功表示
+# 7. 9ファイルすべて一致した場合だけ成功表示
 # 8. 不一致の場合はエラー終了
 Write-Host ""
 Write-Host "=== コピー後 SHA256 比較 ===" -ForegroundColor Cyan
@@ -132,7 +132,7 @@ foreach ($file in $SyncFiles) {
 
 Write-Host ""
 if ($allMatched) {
-    Write-Host "=== 成功: 8ファイルすべて一致しました ===" -ForegroundColor Green
+    Write-Host "=== 成功: 9ファイルすべて一致しました ===" -ForegroundColor Green
     Write-Host "バックアップ: $BackupDir"
     exit 0
 } else {
