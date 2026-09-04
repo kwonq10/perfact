@@ -781,17 +781,19 @@ async function runPeriodSearch(start, end, options = {}) {
   searchBtn.disabled = true;
 
   try {
-    const quotaOn =
-      explicit &&
-      typeof SukimaApi !== "undefined" &&
-      SukimaApi.isQuotaEnabled();
+    // 明示検索だけが quota 経路へ入る。
+    // 有効 / 無効の最終判断は SukimaApi.reserveSearch() の中で
+    // サーバー設定（/api/ext/config）を見て行う。拡張側に固定値は持たない。
+    const useQuotaPath = explicit && typeof SukimaApi !== "undefined";
 
-    if (!quotaOn) {
+    if (!useQuotaPath) {
       await executePeriodSearch(start, end);
       return;
     }
 
-    // quota を消費する唯一の経路。reserve -> 検索 -> commit / release。
+    // quota を消費し得る唯一の経路。reserve -> 検索 -> commit / release。
+    // quota が無効なら reserveSearch() が即座に
+    // { proceed: true, reservationId: null } を返し、検索だけが走る。
     const reservation = await SukimaApi.reserveSearch();
     if (!reservation.proceed) {
       // Calendar API は呼ばない。理由をそのまま表示する。

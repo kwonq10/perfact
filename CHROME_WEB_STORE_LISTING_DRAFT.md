@@ -139,18 +139,23 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 
 ---
 
-## 12-2. Sukima サーバーとの通信について（現行ビルドでは未発生）
+## 12-2. Sukima サーバーとの通信について
 
-**現時点のビルドでは、この通信は 1 件も発生しません。**
-`chrome-extension/sukima-api.js` の `QUOTA_ENABLED` が `false` のため、
-拡張機能から sukimacalendar.com へリクエストを送る経路に到達しません。
-したがって §11 および §12 の記載は、現行ビルドについて正確です。
+拡張機能は、**ユーザーが検索ボタンを押したときにかぎり**、
+sukimacalendar.com へ設定値の問い合わせ（`GET /api/ext/config`）を行うことがあります。
+応答は 5 分間キャッシュされるため、実際の通信はごくまれです。
+パネルの起動・ログイン・検索条件の変更・日付の移動では通信しません。
 
-将来 Free の週3回制限（quota）を有効化する場合は次の通信が発生します。
-**有効化と同じ申請で、本ファイルとストアのプライバシー申告を必ず更新すること。**
+この問い合わせで送信するのは**拡張機能の識別子（Origin）だけ**で、
+カレンダーの情報も個人を特定する情報も含みません。
+
+Free の週3回制限（quota）が**サーバー側で有効になっている場合にかぎり**、
+続けて次の通信が発生します。**有効化する際は、本ファイルとストアの
+プライバシー申告の内容が実装と一致していることを必ず確認すること。**
 
 | 宛先 | 目的 | 送信する内容 |
 |---|---|---|
+| `https://sukimacalendar.com/api/ext/config` | 週3回制限が有効かどうかの確認 | 拡張機能の識別子のみ（本文なし） |
 | `https://sukimacalendar.com/api/ext/link/start` | 拡張とアカウントの連携画面 | 拡張機能 ID と使い捨ての state のみ |
 | `https://sukimacalendar.com/api/ext/quota/*` | 週3回の残数管理 | 予約 ID と使い捨ての鍵のみ |
 | `https://sukimacalendar.com/api/ext/auth/logout` | 連携の解除 | セッショントークンのみ |
@@ -253,8 +258,9 @@ Google Calendar API（www.googleapis.com）へ、取得したOAuthアクセス�
 ☑ manifest.jsonの "storage" 権限は削除済み（実装コード内に chrome.storage の呼び出しがないことを確認）。現在の permissions は ["sidePanel", "identity"]
 ☑ permissions / host_permissions が実装上必要な最小限であることを確認済み（2026-07-26）
 ☑ 拡張 quota 配線を追加しても manifest.json は無変更（host_permissions / permissions を増やしていない）
-□ `sukima-api.js` の `QUOTA_ENABLED` が意図した値になっているか確認する（既定は false。extension_pro の販売導線が整うまで false のまま出荷する）
-□ `QUOTA_ENABLED` を true にする場合は、§12-2 の内容をストアのプライバシー申告へ反映する
+☑ 拡張機能のコードに quota の ON / OFF を固定する定数は存在しない（サーバーの `EXTENSION_QUOTA_ENABLED` が唯一の判断元。Store 更新なしで切り替わる）
+□ 申請時点で Cloudflare の `EXTENSION_QUOTA_ENABLED` が意図した値か確認する（extension_pro の販売導線が整うまでは false）
+□ `EXTENSION_QUOTA_ENABLED` を true にする前に、§12-2 の内容がストアのプライバシー申告と一致しているか確認する
 □ OAuthクライアントが公開用（本番）設定になっているか、Google Cloud Console側で確認する（本ファイル作成時点では未確認・未操作）
 ☑ 紹介ページ（https://sukimacalendar.com/extension）、プライバシーポリシー（https://sukimacalendar.com/extension/privacy）、利用規約（https://sukimacalendar.com/terms）の到達確認済み（2026-07-26、いずれもHTTP 200・404ではない）
 □ スクリーンショットを、個人情報が写り込まない状態で撮り直す

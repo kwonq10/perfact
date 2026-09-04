@@ -37,6 +37,16 @@ export const EXTENSION_SCHEME = 'chrome-extension://';
 export const PREFLIGHT_MAX_AGE = 600;
 
 /**
+ * 既定で許可するメソッド。
+ *
+ * quota / link / logout はすべて POST なのでこれで足りる。
+ * 読み取り専用の GET エンドポイント（/api/ext/config）だけが
+ * 明示的に 'GET, OPTIONS' を渡す。**既定値は変更しないこと**
+ * （既存エンドポイントの挙動を変えないため）。
+ */
+export const DEFAULT_ALLOWED_METHODS = 'POST, OPTIONS';
+
+/**
  * env から許可する拡張機能 ID の一覧を取り出す。
  *
  * 形式が不正な要素は無視する（allowlist を広げないため）。
@@ -109,13 +119,14 @@ export function checkExtensionOrigin(request, env) {
  * Access-Control-Allow-Credentials は意図的に付けない。
  *
  * @param {string} origin 検証済みの拡張 origin
+ * @param {string} [methods] 許可するメソッド。既定は POST 系。
  * @returns {object}
  */
-export function buildCorsHeaders(origin) {
+export function buildCorsHeaders(origin, methods = DEFAULT_ALLOWED_METHODS) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': methods,
     'Access-Control-Max-Age': String(PREFLIGHT_MAX_AGE),
     Vary: 'Origin',
   };
@@ -152,9 +163,10 @@ export function extJson(status, body, origin = null, extraHeaders = {}) {
  *
  * @param {Request} request
  * @param {object} env
+ * @param {string} [methods] 許可するメソッド。既定は POST 系。
  * @returns {Response}
  */
-export function handlePreflight(request, env) {
+export function handlePreflight(request, env, methods = DEFAULT_ALLOWED_METHODS) {
   const result = checkExtensionOrigin(request, env);
   if (!result.ok) {
     return new Response(null, {
@@ -165,6 +177,6 @@ export function handlePreflight(request, env) {
 
   return new Response(null, {
     status: 204,
-    headers: { 'Cache-Control': 'no-store', ...buildCorsHeaders(result.origin) },
+    headers: { 'Cache-Control': 'no-store', ...buildCorsHeaders(result.origin, methods) },
   });
 }

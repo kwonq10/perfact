@@ -26,6 +26,7 @@
   var COMMIT_URL = SUKIMA_ORIGIN + '/api/ext/quota/commit';
   var RELEASE_URL = SUKIMA_ORIGIN + '/api/ext/quota/release';
   var LOGOUT_URL = SUKIMA_ORIGIN + '/api/ext/auth/logout';
+  var CONFIG_URL = SUKIMA_ORIGIN + '/api/ext/config';
 
   /** localStorage のキー。値はセッショントークンと有効期限のみ。 */
   var STORAGE_KEY = 'sukima_ext_session_v1';
@@ -34,16 +35,16 @@
   var REDIRECT_PATH = 'link';
 
   /**
-   * quota を有効にするかどうか。
-   *
-   * **本番では false のまま出荷する。**
-   * extension_pro の販売・解除導線が完成するまで、既存ユーザーを
-   * 「無制限 → 週3回」へ変更しない（製品方針 #1）。
-   *
-   * 有効化するときは、この定数ではなくサーバー側のフラグで切り替えられる
-   * ようにしてから行うこと。拡張の再申請なしに戻せるようにするため。
+   * quota 設定キャッシュのキー。保持するのは真偽と取得時刻だけ。
+   * セッションとは別物なので、ログアウトでは消さない。
    */
-  var QUOTA_ENABLED = false;
+  var CONFIG_STORAGE_KEY = 'sukima_ext_config_v1';
+
+  /** 設定キャッシュの有効期間（5 分）。ON / OFF はこの時間内に追随する。 */
+  var CONFIG_TTL_MS = 5 * 60 * 1000;
+
+  /** 設定取得のタイムアウト。検索の体感を落とさない範囲にする。 */
+  var CONFIG_TIMEOUT_MS = 3000;
 
   // ------------------------------------------------------------------
   // セッションの保存（localStorage。storage 権限は不要）
@@ -179,6 +180,109 @@
   }
 
   // ------------------------------------------------------------------
+  // quota の有効・無効（サーバーが唯一の判断元）
+  //
+  //   拡張のコードに固定の ON / OFF は持たない。
+  //   GET /api/ext/config が返す quota_enforced だけが判断材料で、
+  //   Chrome Web Store の更新なしにサーバーの環境変数で切り替えられる。
+  //
+  //   fail 方針:
+  //     - 取得できず、既知値も無い     → false（OFF）
+  //       ＝ Sukima サーバーの障害で検索が止まらない（fail safe）
+  //     - 取得できないが既知値がある   → 直近の既知値を使う（last-known-good）
+  //     - ON と判定したあとの reserve 失敗 → 検索を止める（fail closed。Web と同一）
+  //
+  //   注意: quota が OFF でも、キャッシュが無い / TTL 切れのときは
+  //   明示検索の直前に GET /api/ext/config が 1 回だけ発生する。
+  //   「通信が皆無になる」わけではなく、
+  //   「Sukima サーバーに依存して検索が止まることはない」という意味の fail safe。
+  // ------------------------------------------------------------------
+
+  function loadConfigCache() {
+    try {
+      var raw = global.localStorage.getItem(CONFIG_STORAGE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed
+          || typeof parsed.quotaEnforced !== 'boolean'
+          || typeof parsed.fetchedAt !== 'number') {
+        return null;
+      }
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveConfigCache(quotaEnforced) {
+    try {
+      global.localStorage.setItem(
+        CONFIG_STORAGE_KEY,
+        JSON.stringify({ quotaEnforced: quotaEnforced, fetchedAt: Date.now() })
+      );
+    } catch (e) {
+      // 保存できなくても判断そのものは進める
+    }
+  }
+
+  function isConfigFresh(cache) {
+    return cache !== null && (Date.now() - cache.fetchedAt) < CONFIG_TTL_MS;
+  }
+
+  /** 直近に取得できた quota_enforced。一度も取得できていなければ null。 */
+  function getCachedQuotaEnforced() {
+    var cache = loadConfigCache();
+    return cache === null ? null : cache.quotaEnforced;
+  }
+
+  /** GET /api/ext/config。取得できなければ null を返す（例外は投げない）。 */
+  async function fetchConfig() {
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = controller
+      ? setTimeout(function () { controller.abort(); }, CONFIG_TIMEOUT_MS)
+      : null;
+
+    try {
+      var res = await fetch(CONFIG_URL, {
+        method: 'GET',
+        credentials: 'omit',
+        cache: 'no-store',
+        signal: controller ? controller.signal : undefined
+      });
+      if (!res.ok) return null;
+
+      var data = await res.json();
+      if (!data || typeof data.quota_enforced !== 'boolean') return null;
+      return data.quota_enforced;
+    } catch (e) {
+      return null;
+    } finally {
+      if (timer !== null) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * 明示検索の直前に呼ぶ。quota を適用すべきかを返す。
+   *
+   * @returns {Promise<boolean>}
+   */
+  async function resolveQuotaEnforced() {
+    var cache = loadConfigCache();
+    if (isConfigFresh(cache)) {
+      return cache.quotaEnforced;
+    }
+
+    var fetched = await fetchConfig();
+    if (fetched !== null) {
+      saveConfigCache(fetched);
+      return fetched;
+    }
+
+    // 取得失敗。既知値があればそれを使い、無ければ OFF（fail safe）。
+    return cache === null ? false : cache.quotaEnforced;
+  }
+
+  // ------------------------------------------------------------------
   // quota API
   // ------------------------------------------------------------------
 
@@ -228,7 +332,9 @@
    * @returns {Promise<{proceed:boolean, reservationId:string|null, message:string|null}>}
    */
   async function reserveSearch() {
-    if (!QUOTA_ENABLED) {
+    // 有効・無効の最終判断はここで行う。拡張側に固定値は無い。
+    var enforced = await resolveQuotaEnforced();
+    if (!enforced) {
       return { proceed: true, reservationId: null, message: null };
     }
 
@@ -327,7 +433,10 @@
   }
 
   global.SukimaApi = {
-    isQuotaEnabled: function () { return QUOTA_ENABLED; },
+    // 直近に取得できた設定値。true / false / null（未取得）。
+    // 「今どちらか」を同期で答えるだけで、判断そのものには使わない。
+    getCachedQuotaEnforced: getCachedQuotaEnforced,
+    resolveQuotaEnforced: resolveQuotaEnforced,
     isLinked: isLinked,
     link: link,
     reserveSearch: reserveSearch,
