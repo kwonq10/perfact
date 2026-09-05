@@ -2,6 +2,10 @@ const DAY_START = 9;
 const DAY_END = 22;
 const STEP_MIN = 30;
 
+// slotCount メッセージの中で、太字にする件数の位置を表す目印。
+// messages.json の slotCount にこの文字列を含めること。
+const COUNT_VALUE_TOKEN = "%%VALUE%%";
+
 let accessToken = null;
 // 二重実行ガード。検索の入口が複数あるため、ボタンの disabled だけでは足りない。
 let isSearching = false;
@@ -50,6 +54,75 @@ const resultsElement = document.getElementById("results");
 const copyAllBtn = document.getElementById("copyAllBtn");
 const extensionToastElement = document.getElementById("extensionToast");
 
+// =========================================================
+// i18n（chrome.i18n / _locales）
+//
+//   表示言語は Chrome の UI 言語で決まる。拡張内に切り替えUIは持たない。
+//   messages.json に無いキーはキー名をそのまま返すため、
+//   取りこぼしを画面上で見つけられる。
+// =========================================================
+
+// chrome.i18n.getMessage の薄いラッパー。
+// substitutions の並びは messages.json の placeholders（$1..）と一致させること。
+function t(key, substitutions) {
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.i18n &&
+    typeof chrome.i18n.getMessage === "function"
+  ) {
+    const message = chrome.i18n.getMessage(key, substitutions);
+    if (message) {
+      return message;
+    }
+  }
+  return key;
+}
+
+// data-i18n / data-i18n-aria-label を持つ要素へ、起動時に一度だけ文言を流し込む。
+// HTML 側には英語を残してあるため、ここが動かなくても英語で読める。
+function applyStaticI18n(root = document) {
+  root.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  root.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  });
+
+  // 言語ごとに遷移先が変わるリンク（プライバシーポリシー）。
+  root.querySelectorAll("[data-i18n-href]").forEach((element) => {
+    element.setAttribute("href", t(element.dataset.i18nHref));
+  });
+
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.i18n &&
+    typeof chrome.i18n.getUILanguage === "function"
+  ) {
+    document.documentElement.lang = chrome.i18n.getUILanguage();
+  }
+}
+
+// 曜日・月名はカンマ区切りの1メッセージで持つ（要素数は 7 / 12 で固定）。
+function weekdayName(dayIndex) {
+  return t("weekdaysShort").split(",")[dayIndex] || "";
+}
+
+function monthName(monthIndex) {
+  return t("monthsShort").split(",")[monthIndex] || "";
+}
+
+// dateHeader / dateShort / dateFull へ渡す substitutions を作る。
+// 並び順は messages.json の placeholders（$1..$5）と一致させること。
+function dateSubstitutions(date) {
+  return [
+    String(date.getMonth() + 1),
+    String(date.getDate()),
+    weekdayName(date.getDay()),
+    monthName(date.getMonth()),
+    String(date.getFullYear()),
+  ];
+}
+
 // 開始日〜終了日を "7/24〜7/31" 形式にする。年をまたぐ場合のみ年を表示する。
 function formatDateRangeLabel(start, end) {
   const sameYear = start.getFullYear() === end.getFullYear();
@@ -57,7 +130,7 @@ function formatDateRangeLabel(start, end) {
     const yearPart = withYear ? `${date.getFullYear()}/` : "";
     return `${yearPart}${date.getMonth() + 1}/${date.getDate()}`;
   };
-  return `${formatOne(start, !sameYear)}〜${formatOne(end, !sameYear)}`;
+  return t("rangeFormat", [formatOne(start, !sameYear), formatOne(end, !sameYear)]);
 }
 
 // 折りたたみ見出しに、入力中の開始日〜終了日を添える（例: "▼ 検索条件　7/24〜7/31"）。
@@ -67,13 +140,15 @@ function updateConditionsToggleLabel() {
   const endValue = customEndDateInput.value;
 
   if (!startValue || !endValue) {
-    conditionsToggle.textContent = `${arrow} 検索条件`;
+    conditionsToggle.textContent = `${arrow} ${t("conditionsToggle")}`;
     return;
   }
 
   const start = parseLocalDateString(startValue);
   const end = parseLocalDateString(endValue);
-  conditionsToggle.textContent = `${arrow} 検索条件　${formatDateRangeLabel(start, end)}`;
+  conditionsToggle.textContent = `${arrow} ${t("conditionsToggleWithRange", [
+    formatDateRangeLabel(start, end),
+  ])}`;
 }
 
 // プリセットボタンの選択状態表示を切り替える。
@@ -140,7 +215,7 @@ const copyFeedbackStates = new WeakMap();
 
 // コピー成功時に、押されたボタンの文言だけを一時的に切り替える。
 // 連続クリック時は最初の文言を保持したまま表示時間をリセットする。
-function showCopyFeedback(button, message = "コピーしました") {
+function showCopyFeedback(button, message = t("copied")) {
   const pending = copyFeedbackStates.get(button);
 
   if (pending) {
@@ -181,6 +256,38 @@ function toLocalDateString(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+// 指定日のローカル 00:00 を、そのローカルの UTC オフセット付き RFC3339 で返す。
+// 例: JST なら "2026-09-05T00:00:00+09:00"、米国東部夏時間なら "...-04:00"。
+//
+//   Calendar API へ渡す取得窓は、必ずこの形で作ること。
+//   findFreeSlots() は new Date(y, m, d, 9, 0, 0) のようにブラウザのローカル時刻で
+//   空き時間を計算するため、取得窓もローカル日の境界に揃えないと
+//   「予定を取得する範囲」と「空きを計算する範囲」がずれる。
+//   ずれると、予定があるのに空きとして表示される（誤って空きが増える）。
+//
+//   オフセットはその日のローカル 00:00 時点で求めるため、
+//   夏時間の切り替えを跨ぐ期間でも日ごとに正しい値になる。
+//   ローカル 00:00 が存在しない切り替え日では 1 時間だけ広い窓になるが、
+//   取得範囲が広がるだけで欠落は起きない。
+function toLocalMidnightRfc3339(date) {
+  const local = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+  const offsetMinutes = -local.getTimezoneOffset();
+  const sign = offsetMinutes < 0 ? "-" : "+";
+  const absolute = Math.abs(offsetMinutes);
+  const offsetHours = String(Math.floor(absolute / 60)).padStart(2, "0");
+  const offsetRest = String(absolute % 60).padStart(2, "0");
+
+  return `${toLocalDateString(local)}T00:00:00${sign}${offsetHours}:${offsetRest}`;
 }
 
 function isSameDay(first, second) {
@@ -259,10 +366,11 @@ function daysBetweenInclusive(start, end, cap = Infinity) {
 // 日付見出しの表示のみを更新する（ナビゲーションボタンの状態は変更しない）。
 // 十字ナビの中央は短縮形式（例: "8/2（日）"）。年は表示しない。
 function renderDateHeaderText() {
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
   const weekday = displayedDate.getDay();
-  displayDateElement.textContent =
-    `${displayedDate.getMonth() + 1}/${displayedDate.getDate()}（${weekdays[weekday]}）`;
+  displayDateElement.textContent = t(
+    "dateHeader",
+    dateSubstitutions(displayedDate),
+  );
   displayDateElement.classList.toggle("sunday", weekday === 0);
   displayDateElement.classList.toggle("saturday", weekday === 6);
 
@@ -341,7 +449,7 @@ function getAuthToken(interactive) {
 
       const token = typeof result === "string" ? result : result?.token;
       if (!token) {
-        reject(new Error("アクセストークンを取得できませんでした"));
+        reject(new Error("access_token_unavailable"));
         return;
       }
 
@@ -391,29 +499,29 @@ function classifyAuthError(error) {
     error && typeof error.message === "string" ? error.message.toLowerCase() : "";
 
   if (message.includes("did not approve")) {
-    return "ログインがキャンセルされました";
+    return t("authCancelled");
   }
   if (message.includes("not granted") || message.includes("revoked") || message.includes("denied")) {
-    return "Googleカレンダーへのアクセス権限が拒否されました";
+    return t("authDenied");
   }
   if (message.includes("not signed in") || message.includes("no accounts") || message.includes("sign in")) {
-    return "Googleにログインしていません。ブラウザでGoogleアカウントにログインしてください";
+    return t("authNotSignedIn");
   }
-  return "ログインに失敗しました。しばらくしてから再度お試しください";
+  return t("authFailed");
 }
 
 // Calendar API呼び出し中のエラーを、権限エラー/ネットワークエラー/その他に分類する。
 function describeRequestError(error) {
   if (error instanceof CalendarApiError) {
     if (error.status === 401 || error.status === 403) {
-      return "Googleカレンダーへのアクセス権限がありません";
+      return t("calNoPermission");
     }
-    return "カレンダー情報の取得に失敗しました";
+    return t("calLoadFailed");
   }
   if (typeof TypeError !== "undefined" && error instanceof TypeError) {
-    return "ネットワークエラーが発生しました。接続を確認してください";
+    return t("networkError");
   }
-  return "予期しないエラーが発生しました";
+  return t("unexpectedError");
 }
 
 // manifest.jsonのoauth2設定を使ってChromeからトークンを取得する（ユーザーがボタンを押した時のみ）。
@@ -441,7 +549,7 @@ async function switchAccount() {
   try {
     await clearAllCachedAuthTokens();
     resetSessionState();
-    setStatus("アカウントを切り替えています…");
+    setStatus(t("switchingAccount"));
     accessToken = await getAuthToken(true);
     showLoggedIn();
     setStatus("");
@@ -478,7 +586,7 @@ async function logout() {
 
   resetSessionState();
   showLoggedOut();
-  setStatus("ログアウトしました", false, STATUS_AUTO_CLEAR_MS);
+  setStatus(t("signedOut"), false, STATUS_AUTO_CLEAR_MS);
   logoutBtn.disabled = false;
 }
 
@@ -742,7 +850,7 @@ async function handleSearch(options = {}) {
   const endValue = customEndDateInput.value;
 
   if (!startValue || !endValue) {
-    setStatus("開始日と終了日を選択してください", true);
+    setStatus(t("needDates"), true);
     return;
   }
 
@@ -750,12 +858,12 @@ async function handleSearch(options = {}) {
   const end = parseLocalDateString(endValue);
 
   if (start > end) {
-    setStatus("開始日は終了日以前にしてください", true);
+    setStatus(t("invalidDateOrder"), true);
     return;
   }
 
   if (daysBetweenInclusive(start, end, 31) > 31) {
-    setStatus("検索期間は31日以内にしてください", true);
+    setStatus(t("rangeTooLong"), true);
     return;
   }
 
@@ -797,7 +905,7 @@ async function runPeriodSearch(start, end, options = {}) {
     const reservation = await SukimaApi.reserveSearch();
     if (!reservation.proceed) {
       // Calendar API は呼ばない。理由をそのまま表示する。
-      setStatus(reservation.message || "検索を開始できませんでした", true);
+      setStatus(reservation.message || t("searchNotStarted"), true);
       return;
     }
 
@@ -825,21 +933,22 @@ async function executePeriodSearch(start, end) {
   resultsElement.replaceChildren();
   copyAllBtn.hidden = true;
   periodPositionElement.hidden = true;
-  setStatus("読み込み中…");
+  setStatus(t("loading"));
 
   try {
     if (calendarList.length === 0) {
       const loaded = await loadCalendarList();
       if (!loaded) {
-        setStatus("カレンダー情報を取得できませんでした", true);
+        setStatus(t("calFetchFailed"), true);
         return false;
       }
     }
 
     const duration = Number(durationSelect.value);
     const calendarIds = getSelectedCalendarIds();
-    const timeMin = `${toLocalDateString(start)}T00:00:00+09:00`;
-    const timeMax = `${toLocalDateString(addDays(end, 1))}T00:00:00+09:00`;
+    // 利用者のローカル日の 00:00 境界。findFreeSlots() の計算窓と必ず一致させる。
+    const timeMin = toLocalMidnightRfc3339(start);
+    const timeMax = toLocalMidnightRfc3339(addDays(end, 1));
 
     const events = await fetchEvents(calendarIds, timeMin, timeMax);
 
@@ -868,7 +977,7 @@ async function executePeriodSearch(start, end) {
     nextDayBtn.disabled = true;
     prevWeekBtn.disabled = true;
     nextWeekBtn.disabled = true;
-    setStatus("空き時間の検索に失敗しました", true);
+    setStatus(t("searchFailed"), true);
     return false;
   }
 }
@@ -901,8 +1010,8 @@ function updatePeriodNavigationButtons() {
   prevWeekBtn.setAttribute("aria-disabled", "true");
   nextWeekBtn.setAttribute("aria-disabled", "true");
 
-  prevWeekBtn.title = "検索期間中は週移動できません";
-  nextWeekBtn.title = "検索期間中は週移動できません";
+  prevWeekBtn.title = t("weekNavDisabled");
+  nextWeekBtn.title = t("weekNavDisabled");
 }
 
 // 前週/翌週ボタンの案内表示を、1日検索モードに戻る際にクリアする。
@@ -934,16 +1043,16 @@ function updatePeriodBoundaryMessage() {
   let boundaryLabel = "";
 
   if (periodResults.length === 1) {
-    boundaryLabel = "この日のみ";
+    boundaryLabel = t("boundarySingle");
   } else if (periodIndex === 0) {
-    boundaryLabel = "検索期間の開始日";
+    boundaryLabel = t("boundaryFirst");
   } else if (periodIndex === periodResults.length - 1) {
-    boundaryLabel = "検索期間の最終日";
+    boundaryLabel = t("boundaryLast");
   }
 
   periodPositionElement.hidden = false;
   periodPositionElement.textContent = boundaryLabel
-    ? `${positionText}　${boundaryLabel}`
+    ? t("periodPosition", [positionText, boundaryLabel])
     : positionText;
   periodBoundaryMessageElement.textContent = boundaryLabel;
 }
@@ -965,7 +1074,7 @@ function refreshCurrentSearch() {
 function slotToTimeText(slot) {
   const startTime = `${pad(slot.start.getHours())}:${pad(slot.start.getMinutes())}`;
   const endTime = `${pad(slot.end.getHours())}:${pad(slot.end.getMinutes())}`;
-  return `${startTime}〜${endTime}`;
+  return t("rangeFormat", [startTime, endTime]);
 }
 
 function pad(number) {
@@ -973,11 +1082,10 @@ function pad(number) {
 }
 
 function slotToText(slot) {
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  const date = `${slot.start.getMonth() + 1}月${slot.start.getDate()}日(${weekdays[slot.start.getDay()]})`;
+  const date = t("dateShort", dateSubstitutions(slot.start));
   const startTime = `${pad(slot.start.getHours())}:${pad(slot.start.getMinutes())}`;
   const endTime = `${pad(slot.end.getHours())}:${pad(slot.end.getMinutes())}`;
-  return `${date} ${startTime}〜${endTime}`;
+  return `${date} ${t("rangeFormat", [startTime, endTime])}`;
 }
 
 function slotToCalendarUrl(slot) {
@@ -991,13 +1099,9 @@ function slotToCalendarUrl(slot) {
   );
 }
 
-// 完全な日付を「2026年7月27日（月）」の形式で返す。
+// 完全な日付を返す（日本語なら「2026年7月27日（月）」、英語なら "Mon, Jul 27, 2026"）。
 function formatFullDateLabel(date) {
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  return (
-    `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日` +
-    `（${weekdays[date.getDay()]}）`
-  );
+  return t("dateFull", dateSubstitutions(date));
 }
 
 // 1件の空き時間カードを作る（コピー・予定作成ボタン付き）。
@@ -1014,21 +1118,21 @@ function buildSlotCard(slot) {
 
   copyButton.type = "button";
   copyButton.className = "btn-copy";
-  copyButton.textContent = "コピー";
+  copyButton.textContent = t("copyBtn");
   copyButton.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(slotToText(slot));
-      setStatus("コピーしました");
+      setStatus(t("copied"));
       showCopyFeedback(copyButton);
     } catch (error) {
       console.error("Failed to copy slot:", error);
-      setStatus(`コピーに失敗しました: ${error.message}`, true);
+      setStatus(t("copyFailed", [error.message]), true);
     }
   });
 
   calendarButton.type = "button";
   calendarButton.className = "btn-calendar";
-  calendarButton.textContent = "Googleカレンダーで予定作成";
+  calendarButton.textContent = t("addToCalendar");
   calendarButton.addEventListener("click", () => {
     window.open(slotToCalendarUrl(slot), "_blank", "noopener");
   });
@@ -1059,13 +1163,17 @@ function renderDayResultCard(day) {
   countElement.className = "day-result-count";
   if (day.slots.length > 0) {
     // 件数だけを太字にするため、数値部分だけを span で包む。
+    // 語順は言語ごとに変わるため、slotCount の %%VALUE%% 位置で前後に切り分ける。
     const countValue = document.createElement("span");
     countValue.className = "day-result-count-value";
-    countValue.textContent = `${day.slots.length}件`;
-    countElement.append("空き時間 ", countValue);
+    countValue.textContent = t("slotCountValue", [String(day.slots.length)]);
+
+    const template = t("slotCount", [COUNT_VALUE_TOKEN]);
+    const [before, after = ""] = template.split(COUNT_VALUE_TOKEN);
+    countElement.append(before, countValue, after);
   } else {
     countElement.classList.add("is-empty");
-    countElement.textContent = "空き時間なし";
+    countElement.textContent = t("noAvailability");
   }
 
   header.append(dateElement, countElement);
@@ -1093,11 +1201,11 @@ async function copyAllResults() {
   try {
     const text = currentSlots.map(slotToText).join("\n");
     await navigator.clipboard.writeText(text);
-    setStatus("全件コピーしました");
+    setStatus(t("copiedAll"));
     showCopyFeedback(copyAllBtn);
   } catch (error) {
     console.error("Failed to copy all slots:", error);
-    setStatus(`コピーに失敗しました: ${error.message}`, true);
+    setStatus(t("copyFailed", [error.message]), true);
   }
 }
 
@@ -1109,7 +1217,7 @@ prevDayBtn.addEventListener("click", () => {
     return;
   }
   if (periodIndex <= 0) {
-    showToast("検索期間の開始日です");
+    showToast(t("atFirstDay"));
     return;
   }
   movePeriodDay(-1);
@@ -1118,14 +1226,14 @@ prevWeekBtn.addEventListener("click", () => {
   if (periodResults.length === 0) {
     return;
   }
-  showToast("検索期間中は週移動できません");
+  showToast(t("weekNavDisabled"));
 });
 nextDayBtn.addEventListener("click", () => {
   if (periodResults.length === 0) {
     return;
   }
   if (periodIndex >= periodResults.length - 1) {
-    showToast("検索期間の最終日です");
+    showToast(t("atLastDay"));
     return;
   }
   movePeriodDay(1);
@@ -1134,7 +1242,7 @@ nextWeekBtn.addEventListener("click", () => {
   if (periodResults.length === 0) {
     return;
   }
-  showToast("検索期間中は週移動できません");
+  showToast(t("weekNavDisabled"));
 });
 copyAllBtn.addEventListener("click", copyAllResults);
 
@@ -1188,6 +1296,8 @@ calendarListElement.addEventListener("change", (event) => {
   }
 });
 
+// 先に静的文言を適用してから、日付や検索条件の描画を行う。
+applyStaticI18n();
 resetDateInputsToDefault();
 renderDateHeaderText();
 initializeAuthentication();

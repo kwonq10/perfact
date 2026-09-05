@@ -1,0 +1,416 @@
+{
+  "appName": {
+    "message": "スキマ",
+    "description": "Extension name shown in the toolbar and the Web Store."
+  },
+  "appDesc": {
+    "message": "Googleカレンダーから空き時間を自動検索するツール",
+    "description": "Extension description shown in the Web Store."
+  },
+  "authHeading": {
+    "message": "ログイン",
+    "description": "Heading of the signed-out view."
+  },
+  "loginBtn": {
+    "message": "Googleでログイン",
+    "description": "Button that starts Google sign-in."
+  },
+  "loginDesc": {
+    "message": "Googleカレンダーと連携して、空き時間を検索します",
+    "description": "Explanation under the sign-in button."
+  },
+  "connectedInfo": {
+    "message": "Googleカレンダーに接続しました",
+    "description": "Shown after Google Calendar access is granted."
+  },
+  "switchAccountBtn": {
+    "message": "アカウントを切り替える",
+    "description": "Button that signs in with a different Google account."
+  },
+  "logoutBtn": {
+    "message": "ログアウト",
+    "description": "Button that signs the user out."
+  },
+  "legendCalendars": {
+    "message": "対象カレンダー",
+    "description": "Legend of the calendar selection fieldset."
+  },
+  "allCalendars": {
+    "message": "全カレンダー",
+    "description": "Checkbox that selects every calendar."
+  },
+  "labelDuration": {
+    "message": "必要な空き時間",
+    "description": "Label for the minimum length of a free slot."
+  },
+  "dur30": {
+    "message": "30分",
+    "description": "Duration option."
+  },
+  "dur60": {
+    "message": "60分",
+    "description": "Duration option."
+  },
+  "dur90": {
+    "message": "90分",
+    "description": "Duration option."
+  },
+  "dur120": {
+    "message": "120分",
+    "description": "Duration option."
+  },
+  "searchRangeHeading": {
+    "message": "検索期間",
+    "description": "Heading of the date range section."
+  },
+  "labelStart": {
+    "message": "開始日",
+    "description": "Label for the start date input."
+  },
+  "labelEnd": {
+    "message": "終了日",
+    "description": "Label for the end date input."
+  },
+  "presetToday": {
+    "message": "今日",
+    "description": "Date range preset."
+  },
+  "presetThisWeek": {
+    "message": "今週",
+    "description": "Date range preset."
+  },
+  "presetNextWeek": {
+    "message": "来週",
+    "description": "Date range preset."
+  },
+  "presetThisMonth": {
+    "message": "今月",
+    "description": "Date range preset."
+  },
+  "presetNextMonth": {
+    "message": "来月",
+    "description": "Date range preset."
+  },
+  "searchBtn": {
+    "message": "空き時間を検索する",
+    "description": "Main search button."
+  },
+  "prevWeekBtn": {
+    "message": "↑ 前週",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "prevDayBtn": {
+    "message": "← 前日",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "nextDayBtn": {
+    "message": "→ 翌日",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "nextWeekBtn": {
+    "message": "↓ 翌週",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "todayBadge": {
+    "message": "今日",
+    "description": "Badge shown when the displayed day is today."
+  },
+  "copyAllBtn": {
+    "message": "この日の空き枠を一括コピー",
+    "description": "Button that copies every slot of the day."
+  },
+  "privacyPolicy": {
+    "message": "プライバシーポリシー",
+    "description": "Footer link to the privacy policy."
+  },
+  "privacyPolicyUrl": {
+    "message": "https://sukimacalendar.com/extension/privacy",
+    "description": "URL of the privacy policy page for this language. Both pages describe the same implementation."
+  },
+  "ariaAccount": {
+    "message": "アカウント",
+    "description": "aria-label of the account section."
+  },
+  "ariaSearchRange": {
+    "message": "検索期間",
+    "description": "aria-label of the search range section."
+  },
+  "ariaPresets": {
+    "message": "期間プリセット",
+    "description": "aria-label of the preset button group."
+  },
+  "ariaDateNav": {
+    "message": "表示日の移動",
+    "description": "aria-label of the day navigation."
+  },
+  "ariaResults": {
+    "message": "空き時間",
+    "description": "aria-label of the results section."
+  },
+  "conditionsToggle": {
+    "message": "検索条件",
+    "description": "Collapsible heading, shown without a date range."
+  },
+  "conditionsToggleWithRange": {
+    "message": "検索条件　$RANGE$",
+    "description": "Collapsible heading with the selected date range. $1 = range such as 7/24-7/31.",
+    "placeholders": {
+      "range": {
+        "content": "$1"
+      }
+    }
+  },
+  "weekdaysShort": {
+    "message": "日,月,火,水,木,金,土",
+    "description": "Comma separated weekday abbreviations, starting with Sunday. Exactly 7 items."
+  },
+  "monthsShort": {
+    "message": "1,2,3,4,5,6,7,8,9,10,11,12",
+    "description": "Comma separated month names, starting with January. Exactly 12 items."
+  },
+  "dateHeader": {
+    "message": "$MONTH$/$DAY$（$WEEKDAY$）",
+    "description": "Compact date in the navigation. $1 month, $2 day, $3 weekday, $4 month name, $5 year.",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "weekday": {
+        "content": "$3"
+      },
+      "monthname": {
+        "content": "$4"
+      },
+      "year": {
+        "content": "$5"
+      }
+    }
+  },
+  "dateShort": {
+    "message": "$MONTH$月$DAY$日($WEEKDAY$)",
+    "description": "Date used in copied text. $1 month, $2 day, $3 weekday, $4 month name, $5 year.",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "weekday": {
+        "content": "$3"
+      },
+      "monthname": {
+        "content": "$4"
+      },
+      "year": {
+        "content": "$5"
+      }
+    }
+  },
+  "dateFull": {
+    "message": "$YEAR$年$MONTH$月$DAY$日（$WEEKDAY$）",
+    "description": "Full date on the result card. $1 month, $2 day, $3 weekday, $4 month name, $5 year.",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "weekday": {
+        "content": "$3"
+      },
+      "monthname": {
+        "content": "$4"
+      },
+      "year": {
+        "content": "$5"
+      }
+    }
+  },
+  "rangeFormat": {
+    "message": "$START$〜$END$",
+    "description": "Range separator used for both time ranges (10:00-11:00) and date ranges (7/24-7/31). $1 = start, $2 = end.",
+    "placeholders": {
+      "start": {
+        "content": "$1"
+      },
+      "end": {
+        "content": "$2"
+      }
+    }
+  },
+  "slotCount": {
+    "message": "空き時間 %%VALUE%%",
+    "description": "Free slot count line. %%VALUE%% is replaced with slotCountValue, rendered in bold."
+  },
+  "slotCountValue": {
+    "message": "$COUNT$件",
+    "description": "Bold part of the free slot count. $1 = number of slots.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "noAvailability": {
+    "message": "空き時間なし",
+    "description": "Shown when a day has no free slot."
+  },
+  "copyBtn": {
+    "message": "コピー",
+    "description": "Button that copies one slot."
+  },
+  "copied": {
+    "message": "コピーしました",
+    "description": "Shown after a slot is copied."
+  },
+  "copiedAll": {
+    "message": "全件コピーしました",
+    "description": "Shown after every slot is copied."
+  },
+  "copyFailed": {
+    "message": "コピーに失敗しました: $ERROR$",
+    "description": "Shown when copying fails. $1 = error message.",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "addToCalendar": {
+    "message": "Googleカレンダーで予定作成",
+    "description": "Button that opens the Google Calendar event editor."
+  },
+  "authCancelled": {
+    "message": "ログインがキャンセルされました",
+    "description": "Sign-in error."
+  },
+  "authDenied": {
+    "message": "Googleカレンダーへのアクセス権限が拒否されました",
+    "description": "Sign-in error."
+  },
+  "authNotSignedIn": {
+    "message": "Googleにログインしていません。ブラウザでGoogleアカウントにログインしてください",
+    "description": "Sign-in error."
+  },
+  "authFailed": {
+    "message": "ログインに失敗しました。しばらくしてから再度お試しください",
+    "description": "Sign-in error."
+  },
+  "calNoPermission": {
+    "message": "Googleカレンダーへのアクセス権限がありません",
+    "description": "Calendar API error."
+  },
+  "calLoadFailed": {
+    "message": "カレンダー情報の取得に失敗しました",
+    "description": "Calendar API error."
+  },
+  "networkError": {
+    "message": "ネットワークエラーが発生しました。接続を確認してください",
+    "description": "Network failure."
+  },
+  "unexpectedError": {
+    "message": "予期しないエラーが発生しました",
+    "description": "Fallback error."
+  },
+  "switchingAccount": {
+    "message": "アカウントを切り替えています…",
+    "description": "Status while switching account."
+  },
+  "signedOut": {
+    "message": "ログアウトしました",
+    "description": "Status after signing out."
+  },
+  "loading": {
+    "message": "読み込み中…",
+    "description": "Status while loading."
+  },
+  "needDates": {
+    "message": "開始日と終了日を選択してください",
+    "description": "Validation error."
+  },
+  "invalidDateOrder": {
+    "message": "開始日は終了日以前にしてください",
+    "description": "Validation error."
+  },
+  "rangeTooLong": {
+    "message": "検索期間は31日以内にしてください",
+    "description": "Validation error."
+  },
+  "searchNotStarted": {
+    "message": "検索を開始できませんでした",
+    "description": "Shown when a search cannot begin."
+  },
+  "calFetchFailed": {
+    "message": "カレンダー情報を取得できませんでした",
+    "description": "Shown when the calendar list cannot be loaded."
+  },
+  "searchFailed": {
+    "message": "空き時間の検索に失敗しました",
+    "description": "Shown when the search fails."
+  },
+  "weekNavDisabled": {
+    "message": "検索期間中は週移動できません",
+    "description": "Tooltip and toast for the week buttons."
+  },
+  "boundarySingle": {
+    "message": "この日のみ",
+    "description": "Position label when the range is one day."
+  },
+  "boundaryFirst": {
+    "message": "検索期間の開始日",
+    "description": "Position label."
+  },
+  "boundaryLast": {
+    "message": "検索期間の最終日",
+    "description": "Position label."
+  },
+  "atFirstDay": {
+    "message": "検索期間の開始日です",
+    "description": "Toast at the range start."
+  },
+  "atLastDay": {
+    "message": "検索期間の最終日です",
+    "description": "Toast at the range end."
+  },
+  "periodPosition": {
+    "message": "$POSITION$　$BOUNDARY$",
+    "description": "Position line during a range search. $1 = position such as 3 / 7, $2 = boundary label.",
+    "placeholders": {
+      "position": {
+        "content": "$1"
+      },
+      "boundary": {
+        "content": "$2"
+      }
+    }
+  },
+  "linkCancelled": {
+    "message": "連携がキャンセルされました",
+    "description": "Account linking was cancelled."
+  },
+  "linkFailed": {
+    "message": "Sukima との連携に失敗しました",
+    "description": "Account linking failed."
+  },
+  "linkRequired": {
+    "message": "Sukima との連携が必要です",
+    "description": "Linking is required."
+  },
+  "linkExpired": {
+    "message": "連携が切れました。もう一度お試しください",
+    "description": "The linked session expired."
+  },
+  "quotaLimitReached": {
+    "message": "今週の無料検索回数（3回）を使い切りました",
+    "description": "Weekly free search limit reached."
+  },
+  "quotaRetry": {
+    "message": "検索を開始できませんでした。もう一度お試しください",
+    "description": "Retryable quota error."
+  }
+}

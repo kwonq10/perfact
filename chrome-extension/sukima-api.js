@@ -47,6 +47,26 @@
   var CONFIG_TIMEOUT_MS = 3000;
 
   // ------------------------------------------------------------------
+  // i18n
+  //
+  //   表示文言は _locales/{ja,en}/messages.json が持つ。
+  //   ここが返すのは「利用者に見えるメッセージ」だけで、
+  //   quota の判定に使う code や状態は一切通さない。
+  // ------------------------------------------------------------------
+
+  function t(key) {
+    if (
+      typeof chrome !== 'undefined' &&
+      chrome.i18n &&
+      typeof chrome.i18n.getMessage === 'function'
+    ) {
+      var message = chrome.i18n.getMessage(key);
+      if (message) return message;
+    }
+    return key;
+  }
+
+  // ------------------------------------------------------------------
   // セッションの保存（localStorage。storage 権限は不要）
   // ------------------------------------------------------------------
 
@@ -345,8 +365,8 @@
           proceed: false,
           reservationId: null,
           message: linked.code === 'cancelled'
-            ? '連携がキャンセルされました'
-            : 'Sukima との連携に失敗しました'
+            ? t('linkCancelled')
+            : t('linkFailed')
         };
       }
     }
@@ -355,22 +375,22 @@
     try {
       out = await postWithBearer(RESERVE_URL, { idempotency_key: newIdempotencyKey() });
     } catch (e) {
-      return { proceed: false, reservationId: null, message: '検索を開始できませんでした' };
+      return { proceed: false, reservationId: null, message: t('searchNotStarted') };
     }
 
     if (out.notLinked) {
-      return { proceed: false, reservationId: null, message: 'Sukima との連携が必要です' };
+      return { proceed: false, reservationId: null, message: t('linkRequired') };
     }
     if (!out.httpOk) {
       if (out.status === 401) {
-        return { proceed: false, reservationId: null, message: '連携が切れました。もう一度お試しください' };
+        return { proceed: false, reservationId: null, message: t('linkExpired') };
       }
-      return { proceed: false, reservationId: null, message: '検索を開始できませんでした' };
+      return { proceed: false, reservationId: null, message: t('searchNotStarted') };
     }
 
     var data = out.data;
     if (!data || typeof data !== 'object') {
-      return { proceed: false, reservationId: null, message: '検索を開始できませんでした' };
+      return { proceed: false, reservationId: null, message: t('searchNotStarted') };
     }
 
     // Pro（quota 免除）。reservation_id が無いので commit / release は呼ばない。
@@ -383,8 +403,8 @@
         proceed: false,
         reservationId: null,
         message: data.code === 'limit_reached'
-          ? '今週の無料検索回数（3回）を使い切りました'
-          : '検索を開始できませんでした。もう一度お試しください'
+          ? t('quotaLimitReached')
+          : t('quotaRetry')
       };
     }
 

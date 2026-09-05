@@ -1,7 +1,7 @@
 # スキマ Chrome拡張 Chrome Web Store 掲載情報（下書き）
 
 作成日：2026-07-25
-最終更新：2026-09-05
+最終更新：2026-09-05（1.2.0 / 多言語化対応）
 ステータス：下書き・未提出。Chrome Web Storeへの提出はまだ行っていない。
 
 このファイルは調査・文章作成のみを目的とした下書きです。`chrome-extension/manifest.json` の実装内容（permissions / host_permissions / oauth2.scopes）と突き合わせて作成しています。
@@ -302,8 +302,15 @@ Cloudflare Production の `EXTENSION_QUOTA_ENABLED` は **`false`** です。
 □ Chrome Web Store Developer Dashboardのプライバシー診断項目（データ利用目的の申告）と、本ファイルの記載内容が一致していることを確認する
 □ Chrome Web Store デベロッパー登録（初回登録料）が完了しているか確認する
 ☑ Chrome Web Store の update manifest で公開中バージョンを確認済み（1.0.0）
-□ manifest.json の version を 1.0.0 → 1.1.0 へ更新する（公開中と同一バージョンはアップロードが拒否されるため必須）
+☑ manifest.json の version を 1.2.0 にした（1.1.0 は審査未提出のまま飛ばす。番号の飛びは Store 上問題ない）
+☑ manifest に default_locale: "en" を追加し、name / description を __MSG_*__ にした
+☑ _locales/ja/messages.json と _locales/en/messages.json を追加した（提出物は 9 → 11 ファイル）
 □ public/extension/privacy.html の §5 / §6 / §7 / §10 / §12 の更新を本番へ反映してから申請する
+□ **英語プライバシーポリシー（public/extension/privacy/en.html）を本番へ反映してから申請する**
+  拡張の英語 UI はフッターから https://sukimacalendar.com/extension/privacy/en を開く。
+  未デプロイのまま申請すると英語利用者が 404 に当たる。
+□ デプロイ後、日本語版 /extension/privacy が 200 のままであることを再確認する
+  （privacy.html と privacy/ ディレクトリが同居する構成になったため）
 □ Store Developer Dashboard のデータ使用申告に、認証情報（連携用セッショントークン）と利用回数の記録を反映する
 □ Store Developer Dashboard の identity 権限の justification を、launchWebAuthFlow を含む内容へ更新する
 □ 単一目的の説明とストア掲載の説明文に矛盾がないか最終確認する
@@ -345,3 +352,170 @@ Cloudflare Production の `EXTENSION_QUOTA_ENABLED` は **`false`** です。
 "storage" 権限の削除はコミット 8b17ad7 で実施済みです。本ファイルの更新にあたって manifest.json は読み取りのみ行い、変更していません。
 
 拡張 quota 配線（`sukima-api.js` の追加と `sidepanel.js` の変更）でも、manifest.json は変更していません。セッショントークンの保存に `chrome.storage` ではなく `localStorage` を使うため "storage" 権限は不要で、通信はサーバー側 CORS で許可するため host_permissions の追加も不要です。
+
+---
+
+## 19. 英語版 Store 掲載文（海外展開・1.2.0 から）
+
+1.2.0 で拡張機能が日本語＋英語に対応したため、Store 掲載情報も英語を用意する。
+Chrome Web Store は言語ごとに掲載情報を登録できる。以下は英語ロケール用の原稿。
+
+**方針**
+
+- 未実装の機能は書かない（Extension Pro / All Pro の購入導線は未実装のため触れない）
+- 週3回制限は「サーバー側の設定で有効・無効を切り替える仕組み」であり、
+  公開文では現在の env 値に依存する断定を書かない
+- 表示言語は Chrome の UI 言語に自動追従する。拡張内に言語切替 UI は無い
+
+### 19-1. Name
+
+```
+Sukima - Free Time Finder for Google Calendar
+```
+
+（manifest の `name` は `__MSG_appName__` → 英語では `Sukima`。
+  ツールバーに出る短い名前と、Store 掲載名を分けている。日本語掲載名は §1 を参照）
+
+### 19-2. Short description (132 characters or fewer)
+
+```
+Find free time in your Google Calendar from the Chrome side panel. Pick a range and duration, then copy slots or create events.
+```
+
+### 19-3. Detailed description
+
+```
+Sukima finds the free time in your Google Calendar and shows it right in the Chrome side panel.
+
+Features:
+- Finds free time in your Google Calendar automatically
+- Works in the Chrome side panel, next to whatever you are doing
+- Search any range up to 31 days by picking a start and end date
+- Presets for Today, This week, Next week, This month and Next month
+- Choose which of your calendars to include
+- Set the minimum length of a free slot
+- Shows results day by day
+- Copy a single slot, or copy every slot for the day at once
+- Open the Google Calendar event editor prefilled with a slot
+- Available in English and Japanese, following your Chrome language
+
+About your data:
+- Access to the Google Calendar API is read-only
+- Calendar information is used only to calculate free time and display it in the side panel
+- Calendar content is never sent to the developer's servers
+- No advertising, no analytics, no behavioural tracking
+
+Sukima is also available as a web app at https://sukimacalendar.com, and this extension brings the
+same idea to the Chrome side panel.
+```
+
+### 19-4. Single purpose
+
+```
+The single purpose of this extension is to read the user's own Google Calendar events with read-only
+access, calculate the free time within a range and conditions the user specifies, and display the
+result in the Chrome side panel.
+It has no other purpose, such as showing advertising, integrating with other services, or collecting
+data other than calendar information.
+```
+
+### 19-5. Justification for the identity permission
+
+```
+The identity permission is used for exactly two purposes.
+
+1. Signing in with a Google Account and obtaining the OAuth access token used to call the Google
+   Calendar API (chrome.identity.getAuthToken()).
+2. Linking the extension with an account on Sukima (sukimacalendar.com), the web service operated by
+   the same developer (chrome.identity.launchWebAuthFlow() / chrome.identity.getRedirectURL()).
+   This runs only when the user explicitly chooses to link, and only while the free usage limit is
+   enabled on the server. No Google Calendar information is exchanged during linking, and the Google
+   access token is never sent to the developer's server.
+
+Both are called directly from the extension's own code, and the permission is not used for anything
+else.
+```
+
+### 19-6. Justification for the sidePanel permission
+
+```
+This extension presents its interface in the Chrome side panel rather than in a popup. Entering search
+conditions and reading the results all happen inside the side panel, so the sidePanel permission is
+required.
+```
+
+### 19-7. Justification for the googleapis.com host permission
+
+```
+The extension sends HTTP requests directly to the Google Calendar API (www.googleapis.com) using the
+OAuth access token it obtains, so https://www.googleapis.com/* is declared in host_permissions.
+It is used only to read the calendar list and event information, and the extension does not call any
+API on other domains through host_permissions.
+```
+
+### 19-8. Justification for calendar.events.readonly
+
+```
+Required to read the events in the requested range (start time, end time, busy/free state) in order to
+calculate free time. Only the read-only scope is requested. The extension never creates, edits or
+deletes events itself; it only opens the Google Calendar event editor in a new tab.
+```
+
+### 19-9. Justification for calendar.calendarlist.readonly
+
+```
+Required to read the list of calendars the user owns, so that the user can choose which calendars to
+include in the search. Only the read-only scope is requested. The extension does not add, remove or
+reconfigure calendars.
+```
+
+### 19-10. Reviewer instructions
+
+```
+1. Install the extension and click its icon in the Chrome toolbar to open the side panel.
+2. Choose "Sign in with Google" and sign in with a test Google Account.
+3. On the OAuth consent screen, confirm and grant read-only access to Google Calendar.
+4. After granting access, a search runs automatically for today through seven days ahead, and the
+   results are displayed.
+5. Even with no events in the calendar, free time candidates are shown between 09:00 and 22:00.
+6. Set a start and end date directly, or choose a preset such as "This week", and confirm the date
+   fields update.
+7. Confirm that choosing a preset alone does not run a search, and that pressing the search button
+   updates the results.
+8. If the account has several calendars, change the calendar selection and search again.
+9. Use the "Copy" button on a candidate to copy that time range.
+10. Use "Copy all slots for this day" to copy every candidate of the day shown.
+11. Use "Add to Calendar" to open the Google Calendar event editor in a new tab.
+12. Confirm that switching accounts and signing out both work.
+13. Close and reopen the side panel and confirm the signed-in state is kept.
+
+Language:
+- The interface follows the browser UI language. There is no language switch inside the extension.
+- English and Japanese are provided; other languages fall back to English (default_locale is "en").
+- To review the Japanese interface, set the Chrome UI language to Japanese and reopen the side panel.
+
+Communication with the Sukima server:
+- When the search button is pressed, the extension makes one request to
+  sukimacalendar.com/api/ext/config to read a setting. The response is cached for 5 minutes.
+  This request needs no sign-in and sends only the extension's identifier. It contains no calendar
+  information.
+- That setting controls whether a free weekly usage limit applies. While it is not enabled, no account
+  linking screen appears, and steps 1-13 above can all be completed without linking a Sukima account.
+
+Notes:
+- A personal Google Account is recommended.
+- Accounts managed by Google Workspace may be blocked by administrator settings.
+- An account with no events can still be used for review.
+- If a review account is needed, it will be supplied separately through the Chrome Web Store form.
+```
+
+### 19-11. 英語掲載に必要な Store 側の作業（コードでは完結しない）
+
+| 項目 | 状態 |
+|---|---|
+| 英語ロケールの掲載情報登録（19-1〜19-4） | Dashboard で登録が必要 |
+| identity の justification 更新（19-5） | Dashboard で更新が必要。launchWebAuthFlow を含む内容へ |
+| データ使用申告（認証情報・利用回数の記録） | Dashboard で判断・登録が必要 |
+| 英語プライバシーポリシー URL | https://sukimacalendar.com/extension/privacy/en を登録。**先に本番反映が必要** |
+| 販売地域 | 英語圏を追加する必要がある（現状は要確認） |
+| スクリーンショット | 英語 UI で撮り直す必要がある。Store は言語ごとに登録できる |

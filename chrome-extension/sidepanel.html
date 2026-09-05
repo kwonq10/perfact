@@ -3,26 +3,26 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>スキマ</title>
+    <title data-i18n="appName">Sukima</title>
     <link rel="stylesheet" href="sidepanel.css">
   </head>
   <body>
     <header class="app-header">
-      <h1>スキマ</h1>
+      <h1 data-i18n="appName">Sukima</h1>
     </header>
 
     <main>
       <section id="authView" aria-labelledby="authHeading">
-        <h2 id="authHeading">ログイン</h2>
-        <button id="loginBtn" type="button">Googleでログイン</button>
-        <p class="login-description">Googleカレンダーと連携して、空き時間を検索します</p>
+        <h2 id="authHeading" data-i18n="authHeading">Sign in</h2>
+        <button id="loginBtn" type="button" data-i18n="loginBtn">Sign in with Google</button>
+        <p class="login-description" data-i18n="loginDesc">Connect your Google Calendar to find free time</p>
       </section>
 
-      <section id="accountSection" hidden aria-label="アカウント">
-        <p id="connectedInfo" class="login-info">Googleカレンダーに接続しました</p>
+      <section id="accountSection" hidden data-i18n-aria-label="ariaAccount" aria-label="Account">
+        <p id="connectedInfo" class="login-info" data-i18n="connectedInfo">Google Calendar connected</p>
         <div class="account-actions">
-          <button id="switchAccountBtn" type="button">アカウントを切り替える</button>
-          <button id="logoutBtn" type="button">ログアウト</button>
+          <button id="switchAccountBtn" type="button" data-i18n="switchAccountBtn">Switch account</button>
+          <button id="logoutBtn" type="button" data-i18n="logoutBtn">Sign out</button>
         </div>
       </section>
 
@@ -35,67 +35,67 @@
             type="button"
             aria-expanded="false"
             aria-controls="conditionsPanel"
-          >▼ 検索条件</button>
+          ></button>
 
           <div id="conditionsPanel" hidden>
             <fieldset>
-              <legend>対象カレンダー</legend>
+              <legend data-i18n="legendCalendars">Calendars</legend>
               <label for="allCalendars">
                 <input id="allCalendars" type="checkbox" checked>
-                全カレンダー
+                <span data-i18n="allCalendars">All calendars</span>
               </label>
               <div id="calendarList" aria-live="polite"></div>
             </fieldset>
 
-            <label for="duration">必要な空き時間</label>
+            <label for="duration" data-i18n="labelDuration">Minimum duration</label>
             <select id="duration">
-              <option value="30">30分</option>
-              <option value="60">60分</option>
-              <option value="90">90分</option>
-              <option value="120">120分</option>
+              <option value="30" data-i18n="dur30">30 min</option>
+              <option value="60" data-i18n="dur60">1 hour</option>
+              <option value="90" data-i18n="dur90">1.5 hours</option>
+              <option value="120" data-i18n="dur120">2 hours</option>
             </select>
           </div>
         </section>
 
-        <section class="search-range" aria-label="検索期間">
-          <p class="search-range-heading">検索期間</p>
+        <section class="search-range" data-i18n-aria-label="ariaSearchRange" aria-label="Search range">
+          <p class="search-range-heading" data-i18n="searchRangeHeading">Date range</p>
 
           <div id="customRangeInputs">
-            <label for="customStartDate">開始日</label>
+            <label for="customStartDate" data-i18n="labelStart">Start date</label>
             <input id="customStartDate" type="date">
-            <label for="customEndDate">終了日</label>
+            <label for="customEndDate" data-i18n="labelEnd">End date</label>
             <input id="customEndDate" type="date">
           </div>
 
-          <div class="preset-buttons" role="group" aria-label="期間プリセット">
-            <button id="presetTodayBtn" type="button" class="preset-btn">今日</button>
-            <button id="presetThisWeekBtn" type="button" class="preset-btn">今週</button>
-            <button id="presetNextWeekBtn" type="button" class="preset-btn">来週</button>
-            <button id="presetThisMonthBtn" type="button" class="preset-btn">今月</button>
-            <button id="presetNextMonthBtn" type="button" class="preset-btn">来月</button>
+          <div class="preset-buttons" role="group" data-i18n-aria-label="ariaPresets" aria-label="Date range presets">
+            <button id="presetTodayBtn" type="button" class="preset-btn" data-i18n="presetToday">Today</button>
+            <button id="presetThisWeekBtn" type="button" class="preset-btn" data-i18n="presetThisWeek">This week</button>
+            <button id="presetNextWeekBtn" type="button" class="preset-btn" data-i18n="presetNextWeek">Next week</button>
+            <button id="presetThisMonthBtn" type="button" class="preset-btn" data-i18n="presetThisMonth">This month</button>
+            <button id="presetNextMonthBtn" type="button" class="preset-btn" data-i18n="presetNextMonth">Next month</button>
           </div>
         </section>
 
         <button id="searchBtn" type="button">
-          <span class="search-icon" aria-hidden="true"></span>空き時間を検索する
+          <span class="search-icon" aria-hidden="true"></span><span data-i18n="searchBtn">Find free time</span>
         </button>
 
-        <nav class="date-navigation" aria-label="表示日の移動">
-          <button id="prevWeekBtn" type="button" class="nav-prev-week">↑ 前週</button>
-          <button id="prevDayBtn" type="button" class="nav-prev-day">← 前日</button>
+        <nav class="date-navigation" data-i18n-aria-label="ariaDateNav" aria-label="Change displayed day">
+          <button id="prevWeekBtn" type="button" class="nav-prev-week" data-i18n="prevWeekBtn">↑ Prev week</button>
+          <button id="prevDayBtn" type="button" class="nav-prev-day" data-i18n="prevDayBtn">← Prev day</button>
           <div class="nav-center">
             <h2 id="displayDate"></h2>
-            <span id="todayBadge" hidden>今日</span>
+            <span id="todayBadge" hidden data-i18n="todayBadge">Today</span>
           </div>
-          <button id="nextDayBtn" type="button" class="nav-next-day">→ 翌日</button>
-          <button id="nextWeekBtn" type="button" class="nav-next-week">↓ 翌週</button>
+          <button id="nextDayBtn" type="button" class="nav-next-day" data-i18n="nextDayBtn">→ Next day</button>
+          <button id="nextWeekBtn" type="button" class="nav-next-week" data-i18n="nextWeekBtn">↓ Next week</button>
         </nav>
 
         <p id="periodPosition" class="period-position" hidden></p>
         <p id="periodBoundaryMessage" class="period-boundary-message" aria-live="polite"></p>
 
-        <section id="results" aria-label="空き時間" aria-live="polite"></section>
-        <button id="copyAllBtn" type="button" hidden>この日の空き枠を一括コピー</button>
+        <section id="results" data-i18n-aria-label="ariaResults" aria-label="Free time slots" aria-live="polite"></section>
+        <button id="copyAllBtn" type="button" hidden data-i18n="copyAllBtn">Copy all slots for this day</button>
       </div>
     </main>
 
@@ -104,7 +104,9 @@
         href="https://sukimacalendar.com/extension/privacy"
         target="_blank"
         rel="noopener"
-      >プライバシーポリシー</a>
+        data-i18n="privacyPolicy"
+        data-i18n-href="privacyPolicyUrl"
+      >Privacy Policy</a>
     </footer>
 
     <div id="extensionToast" class="extension-toast" role="status" aria-live="polite"></div>

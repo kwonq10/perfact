@@ -1,0 +1,416 @@
+{
+  "appName": {
+    "message": "Sukima",
+    "description": "Extension name shown in the toolbar and the Web Store."
+  },
+  "appDesc": {
+    "message": "Find free time in your Google Calendar automatically",
+    "description": "Extension description shown in the Web Store."
+  },
+  "authHeading": {
+    "message": "Sign in",
+    "description": "Heading of the signed-out view."
+  },
+  "loginBtn": {
+    "message": "Sign in with Google",
+    "description": "Button that starts Google sign-in."
+  },
+  "loginDesc": {
+    "message": "Connect your Google Calendar to find free time",
+    "description": "Explanation under the sign-in button."
+  },
+  "connectedInfo": {
+    "message": "Google Calendar connected",
+    "description": "Shown after Google Calendar access is granted."
+  },
+  "switchAccountBtn": {
+    "message": "Switch account",
+    "description": "Button that signs in with a different Google account."
+  },
+  "logoutBtn": {
+    "message": "Sign out",
+    "description": "Button that signs the user out."
+  },
+  "legendCalendars": {
+    "message": "Calendars",
+    "description": "Legend of the calendar selection fieldset."
+  },
+  "allCalendars": {
+    "message": "All calendars",
+    "description": "Checkbox that selects every calendar."
+  },
+  "labelDuration": {
+    "message": "Minimum duration",
+    "description": "Label for the minimum length of a free slot."
+  },
+  "dur30": {
+    "message": "30 min",
+    "description": "Duration option."
+  },
+  "dur60": {
+    "message": "1 hour",
+    "description": "Duration option."
+  },
+  "dur90": {
+    "message": "1.5 hours",
+    "description": "Duration option."
+  },
+  "dur120": {
+    "message": "2 hours",
+    "description": "Duration option."
+  },
+  "searchRangeHeading": {
+    "message": "Date range",
+    "description": "Heading of the date range section."
+  },
+  "labelStart": {
+    "message": "Start date",
+    "description": "Label for the start date input."
+  },
+  "labelEnd": {
+    "message": "End date",
+    "description": "Label for the end date input."
+  },
+  "presetToday": {
+    "message": "Today",
+    "description": "Date range preset."
+  },
+  "presetThisWeek": {
+    "message": "This week",
+    "description": "Date range preset."
+  },
+  "presetNextWeek": {
+    "message": "Next week",
+    "description": "Date range preset."
+  },
+  "presetThisMonth": {
+    "message": "This month",
+    "description": "Date range preset."
+  },
+  "presetNextMonth": {
+    "message": "Next month",
+    "description": "Date range preset."
+  },
+  "searchBtn": {
+    "message": "Find free time",
+    "description": "Main search button."
+  },
+  "prevWeekBtn": {
+    "message": "↑ Prev week",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "prevDayBtn": {
+    "message": "← Prev day",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "nextDayBtn": {
+    "message": "→ Next day",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "nextWeekBtn": {
+    "message": "↓ Next week",
+    "description": "Navigation button. Keep the arrow first."
+  },
+  "todayBadge": {
+    "message": "Today",
+    "description": "Badge shown when the displayed day is today."
+  },
+  "copyAllBtn": {
+    "message": "Copy all slots for this day",
+    "description": "Button that copies every slot of the day."
+  },
+  "privacyPolicy": {
+    "message": "Privacy Policy",
+    "description": "Footer link to the privacy policy."
+  },
+  "privacyPolicyUrl": {
+    "message": "https://sukimacalendar.com/extension/privacy/en",
+    "description": "URL of the privacy policy page for this language. Both pages describe the same implementation."
+  },
+  "ariaAccount": {
+    "message": "Account",
+    "description": "aria-label of the account section."
+  },
+  "ariaSearchRange": {
+    "message": "Search range",
+    "description": "aria-label of the search range section."
+  },
+  "ariaPresets": {
+    "message": "Date range presets",
+    "description": "aria-label of the preset button group."
+  },
+  "ariaDateNav": {
+    "message": "Change displayed day",
+    "description": "aria-label of the day navigation."
+  },
+  "ariaResults": {
+    "message": "Free time slots",
+    "description": "aria-label of the results section."
+  },
+  "conditionsToggle": {
+    "message": "Search options",
+    "description": "Collapsible heading, shown without a date range."
+  },
+  "conditionsToggleWithRange": {
+    "message": "Search options · $RANGE$",
+    "description": "Collapsible heading with the selected date range. $1 = range such as 7/24-7/31.",
+    "placeholders": {
+      "range": {
+        "content": "$1"
+      }
+    }
+  },
+  "weekdaysShort": {
+    "message": "Sun,Mon,Tue,Wed,Thu,Fri,Sat",
+    "description": "Comma separated weekday abbreviations, starting with Sunday. Exactly 7 items."
+  },
+  "monthsShort": {
+    "message": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec",
+    "description": "Comma separated month names, starting with January. Exactly 12 items."
+  },
+  "dateHeader": {
+    "message": "$MONTH$/$DAY$ ($WEEKDAY$)",
+    "description": "Compact date in the navigation. $1 month, $2 day, $3 weekday, $4 month name, $5 year.",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "weekday": {
+        "content": "$3"
+      },
+      "monthname": {
+        "content": "$4"
+      },
+      "year": {
+        "content": "$5"
+      }
+    }
+  },
+  "dateShort": {
+    "message": "$MONTHNAME$ $DAY$ ($WEEKDAY$)",
+    "description": "Date used in copied text. $1 month, $2 day, $3 weekday, $4 month name, $5 year.",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "weekday": {
+        "content": "$3"
+      },
+      "monthname": {
+        "content": "$4"
+      },
+      "year": {
+        "content": "$5"
+      }
+    }
+  },
+  "dateFull": {
+    "message": "$WEEKDAY$, $MONTHNAME$ $DAY$, $YEAR$",
+    "description": "Full date on the result card. $1 month, $2 day, $3 weekday, $4 month name, $5 year.",
+    "placeholders": {
+      "month": {
+        "content": "$1"
+      },
+      "day": {
+        "content": "$2"
+      },
+      "weekday": {
+        "content": "$3"
+      },
+      "monthname": {
+        "content": "$4"
+      },
+      "year": {
+        "content": "$5"
+      }
+    }
+  },
+  "rangeFormat": {
+    "message": "$START$–$END$",
+    "description": "Range separator used for both time ranges (10:00-11:00) and date ranges (7/24-7/31). $1 = start, $2 = end.",
+    "placeholders": {
+      "start": {
+        "content": "$1"
+      },
+      "end": {
+        "content": "$2"
+      }
+    }
+  },
+  "slotCount": {
+    "message": "Free time: %%VALUE%%",
+    "description": "Free slot count line. %%VALUE%% is replaced with slotCountValue, rendered in bold."
+  },
+  "slotCountValue": {
+    "message": "$COUNT$ slot(s)",
+    "description": "Bold part of the free slot count. $1 = number of slots.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "noAvailability": {
+    "message": "No availability",
+    "description": "Shown when a day has no free slot."
+  },
+  "copyBtn": {
+    "message": "Copy",
+    "description": "Button that copies one slot."
+  },
+  "copied": {
+    "message": "Copied",
+    "description": "Shown after a slot is copied."
+  },
+  "copiedAll": {
+    "message": "Copied all",
+    "description": "Shown after every slot is copied."
+  },
+  "copyFailed": {
+    "message": "Copy failed: $ERROR$",
+    "description": "Shown when copying fails. $1 = error message.",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "addToCalendar": {
+    "message": "Add to Calendar",
+    "description": "Button that opens the Google Calendar event editor."
+  },
+  "authCancelled": {
+    "message": "Sign-in was cancelled",
+    "description": "Sign-in error."
+  },
+  "authDenied": {
+    "message": "Access to Google Calendar was denied",
+    "description": "Sign-in error."
+  },
+  "authNotSignedIn": {
+    "message": "You are not signed in to Google. Please sign in to your Google Account in Chrome",
+    "description": "Sign-in error."
+  },
+  "authFailed": {
+    "message": "Sign-in failed. Please try again later",
+    "description": "Sign-in error."
+  },
+  "calNoPermission": {
+    "message": "You do not have permission to access Google Calendar",
+    "description": "Calendar API error."
+  },
+  "calLoadFailed": {
+    "message": "Failed to load calendar information",
+    "description": "Calendar API error."
+  },
+  "networkError": {
+    "message": "Network error. Please check your connection",
+    "description": "Network failure."
+  },
+  "unexpectedError": {
+    "message": "An unexpected error occurred",
+    "description": "Fallback error."
+  },
+  "switchingAccount": {
+    "message": "Switching account…",
+    "description": "Status while switching account."
+  },
+  "signedOut": {
+    "message": "Signed out",
+    "description": "Status after signing out."
+  },
+  "loading": {
+    "message": "Loading…",
+    "description": "Status while loading."
+  },
+  "needDates": {
+    "message": "Please select a start and end date",
+    "description": "Validation error."
+  },
+  "invalidDateOrder": {
+    "message": "Start date must be on or before the end date",
+    "description": "Validation error."
+  },
+  "rangeTooLong": {
+    "message": "The date range must be 31 days or less",
+    "description": "Validation error."
+  },
+  "searchNotStarted": {
+    "message": "Could not start the search",
+    "description": "Shown when a search cannot begin."
+  },
+  "calFetchFailed": {
+    "message": "Could not load your calendars",
+    "description": "Shown when the calendar list cannot be loaded."
+  },
+  "searchFailed": {
+    "message": "Could not find free time. Please try again",
+    "description": "Shown when the search fails."
+  },
+  "weekNavDisabled": {
+    "message": "Week navigation is unavailable in range search",
+    "description": "Tooltip and toast for the week buttons."
+  },
+  "boundarySingle": {
+    "message": "Single day",
+    "description": "Position label when the range is one day."
+  },
+  "boundaryFirst": {
+    "message": "First day of range",
+    "description": "Position label."
+  },
+  "boundaryLast": {
+    "message": "Last day of range",
+    "description": "Position label."
+  },
+  "atFirstDay": {
+    "message": "This is the first day of the range",
+    "description": "Toast at the range start."
+  },
+  "atLastDay": {
+    "message": "This is the last day of the range",
+    "description": "Toast at the range end."
+  },
+  "periodPosition": {
+    "message": "$POSITION$ · $BOUNDARY$",
+    "description": "Position line during a range search. $1 = position such as 3 / 7, $2 = boundary label.",
+    "placeholders": {
+      "position": {
+        "content": "$1"
+      },
+      "boundary": {
+        "content": "$2"
+      }
+    }
+  },
+  "linkCancelled": {
+    "message": "Linking was cancelled",
+    "description": "Account linking was cancelled."
+  },
+  "linkFailed": {
+    "message": "Could not link your Sukima account",
+    "description": "Account linking failed."
+  },
+  "linkRequired": {
+    "message": "Please link your Sukima account",
+    "description": "Linking is required."
+  },
+  "linkExpired": {
+    "message": "Your link expired. Please try again",
+    "description": "The linked session expired."
+  },
+  "quotaLimitReached": {
+    "message": "You have used all 3 free searches for this week.",
+    "description": "Weekly free search limit reached."
+  },
+  "quotaRetry": {
+    "message": "Could not start the search. Please try again.",
+    "description": "Retryable quota error."
+  }
+}

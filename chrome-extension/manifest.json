@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "スキマ",
-  "version": "1.1.0",
-  "description": "Googleカレンダーから空き時間を自動検索するツール",
+  "name": "__MSG_appName__",
+  "version": "1.2.0",
+  "default_locale": "en",
+  "description": "__MSG_appDesc__",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkaHPjBXiMfDjYF+gVxrxN1Ntb3PVtDZb80Cnfg83jl03WVS5UhNyWsPfRGRWBCVQPyNVuvk26rAJ8S9A4Y6Q+m4aDnzOVNJSJM4NSGS2h+FfGOPOOeVux/WlbHApj2lLrRT3UUvVZwpNnwaQiiLi6NRFJUlLYUBq/S+SSuTRYuMYwrV2UMe2nov3VKDIR/Yh8j0xneRNU3y6wOb8I9XZJUJJAtRRd1udclKX+YTOq1nCwabdr1fipalD219f9herqyeaKs4dpWIbRSvcjU9MZ7FPtU4xqAV68jr0nuu6i3p/DdKsnzGgCwdCdxuauMN/2XgHRCD1Ns2LU91xPNrS/QIDAQAB",
   "icons": {
     "16": "icon-16.png",

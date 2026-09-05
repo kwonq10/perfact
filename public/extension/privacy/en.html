@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy (Chrome Extension) - Sukima</title>
+  <link rel="alternate" hreflang="ja" href="https://sukimacalendar.com/extension/privacy">
+  <link rel="alternate" hreflang="en" href="https://sukimacalendar.com/extension/privacy/en">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      line-height: 1.8;
+    }
+
+    header {
+      background: #4f8ef7;
+      color: white;
+      padding: 20px 24px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header p {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 24px 64px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      font-size: 14px;
+      color: #555;
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+
+    .updated {
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 32px;
+    }
+
+    a {
+      color: #4f8ef7;
+      text-decoration: none;
+    }
+
+    .card li,
+    .card a {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .back-link a {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #777;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>Sukima Chrome Extension - Privacy Policy</h1>
+    <p>日本語版は <a href="/extension/privacy" style="color:white;text-decoration:underline;">こちら</a></p>
+  </header>
+
+  <div class="container">
+
+    <div class="card">
+      <h2>1. Introduction</h2>
+      <p>This page is the privacy policy for the Chrome extension &ldquo;Sukima&rdquo; (the &ldquo;Extension&rdquo;), which runs in the Chrome side panel. It explains how the Extension handles information.</p>
+      <p>This policy applies to the Extension only. It is separate from the privacy policy of the Sukima web app (sukimacalendar.com). If you use the web app, please see its own privacy policy (<a href="/privacy">/privacy</a>).</p>
+      <p class="note">This is an English translation of the Japanese original at <a href="/extension/privacy">/extension/privacy</a>. Both describe the same implementation.</p>
+    </div>
+
+    <div class="card">
+      <h2>2. Information we collect</h2>
+      <p>When you sign in with your Google Account, the Extension retrieves only your Google Calendar list and the date and time of your events.</p>
+      <p>The Extension does not collect your email address or any other personal information.</p>
+    </div>
+
+    <div class="card">
+      <h2>3. Information retrieved from Google Calendar</h2>
+      <p>The Extension retrieves the following from the Google Calendar API.</p>
+      <ul>
+        <li>Calendar list: calendar name, calendar ID, and access role (owner / writer / reader)</li>
+        <li>Event information: start time and end time only</li>
+      </ul>
+      <p>Event titles, attendees, locations, and descriptions are not used to calculate free time.</p>
+    </div>
+
+    <div class="card">
+      <h2>4. How we use the information</h2>
+      <p>The information we retrieve is used only to calculate and display your free time for the period you specify.</p>
+      <p>We do not use it for any other purpose.</p>
+    </div>
+
+    <div class="card">
+      <h2>5. Storage</h2>
+      <p><strong>Calendar information:</strong> The Extension does not store calendar information (your calendar list, event date and time, or the calculated free time) in <code>chrome.storage</code>, <code>localStorage</code>, <code>sessionStorage</code>, or <code>IndexedDB</code>.</p>
+      <p>This information is held in browser memory only while the side panel is open, and it is discarded when you close the side panel.</p>
+      <p><strong>The Extension's own settings:</strong> Separately from the above, the Extension stores information needed to use the Sukima service in your browser's <code>localStorage</code>. Only the following two items are stored.</p>
+      <ul>
+        <li>A session token for linking with Sukima, and its expiry</li>
+        <li>A setting retrieved from the Sukima server (whether the free usage limit is enabled), and the time it was retrieved</li>
+      </ul>
+      <p>Neither of these two items contains <strong>any calendar content</strong>. Both are stored only in your own browser. The linking session token is deleted when you sign out of the Extension. <code>chrome.storage</code> is not used.</p>
+    </div>
+
+    <div class="card">
+      <h2>6. Data sent to external services</h2>
+      <p><strong>Calendar information is sent only to the Google Calendar API (googleapis.com).</strong> Your calendar list, event date and time, and calculated free time are never sent to any server or database operated by the developer.</p>
+      <p>Separately from that, the Extension communicates with <code>sukimacalendar.com</code>, operated by the developer, in order to use the Sukima service. <strong>None of this communication contains any calendar content.</strong> The purpose of each request and what it sends are as follows.</p>
+      <ul>
+        <li><strong>Checking a setting (<code>/api/ext/config</code>)</strong><br>
+          Checks whether the free usage limit is enabled. It sends only the Extension's identifier, has no request body, and does not require sign-in. The check runs when you press the search button, and the result is cached for 5 minutes, so the request is rarely made. No request is sent when you open the side panel, sign in, change search conditions, or move between days.</li>
+        <li><strong>Account linking (<code>/api/ext/link/</code>)</strong><br>
+          Sends only the Extension's identifier and a single-use verification string.</li>
+        <li><strong>Usage management (<code>/api/ext/quota/</code>)</strong><br>
+          Sends only the linking session token, a reservation ID, and a single-use key.</li>
+        <li><strong>Unlinking (<code>/api/ext/auth/logout</code>)</strong><br>
+          Sends only the linking session token.</li>
+      </ul>
+      <p>Of these, the requests for account linking and usage management <strong>occur only while the free usage limit is enabled on the Sukima server.</strong> When the limit is not enabled, those requests do not occur.</p>
+      <p>The only thing the Sukima server stores is a record used to manage weekly usage counts while the free usage limit is enabled. <strong>It does not store any calendar content.</strong></p>
+    </div>
+
+    <div class="card">
+      <h2>7. Access tokens</h2>
+      <p>The access token used to call the Google Calendar API is held only in the Extension's JavaScript memory.</p>
+      <p>The token cache itself is managed by Chrome's <code>chrome.identity</code> mechanism; the Extension does not persist it independently. When you close the side panel, the values the Extension held in memory are discarded.</p>
+      <p>Note that the Sukima linking session token described in sections 5 and 6 is <strong>an entirely separate credential</strong> from the Google access token. <strong>The Google access token is never sent to the Sukima server.</strong></p>
+    </div>
+
+    <div class="card">
+      <h2>8. Sharing with third parties</h2>
+      <p>We never sell, provide, or share the information we retrieve with any third party.</p>
+    </div>
+
+    <div class="card">
+      <h2>9. Advertising, analytics, and tracking</h2>
+      <p>The Extension does not serve advertising, run analytics, or track your behaviour.</p>
+    </div>
+
+    <div class="card">
+      <h2>10. Cookies</h2>
+      <p>The Extension does not use cookies.</p>
+      <p>The communication with <code>sukimacalendar.com</code> described in section 6 does not send or receive cookies either; the linking session token is sent in the <code>Authorization</code> header instead.</p>
+    </div>
+
+    <div class="card">
+      <h2>11. Revoking access and signing out</h2>
+      <p>The Extension has a sign-out function that you can use at any time.</p>
+      <p>You can also revoke the Extension's access at any time from your Google Account permissions page.</p>
+      <p><a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/permissions</a></p>
+    </div>
+
+    <div class="card">
+      <h2>12. Security</h2>
+      <p>Communication with the Google Calendar API uses HTTPS.</p>
+      <p>The Extension does not have permission to read the content of the web page you are viewing, and it does not read it. Its network access is limited to the Google Calendar API (googleapis.com) and the Sukima service (sukimacalendar.com) described in section 6, and both use HTTPS.</p>
+    </div>
+
+    <div class="card">
+      <h2>13. Google API Services User Data Policy</h2>
+      <p>The Extension is developed in compliance with the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>.</p>
+    </div>
+
+    <div class="card">
+      <h2>14. Limited Use compliance</h2>
+      <p>The Extension's use of Google user data complies with the <a href="https://developers.google.com/terms/api-services-user-data-policy#additional_requirements_for_specific_api_scopes" target="_blank" rel="noopener noreferrer">Limited Use requirements</a>. The information we retrieve is used only to provide the intended feature of calculating and displaying free time, and never for other purposes such as advertising or training AI models.</p>
+    </div>
+
+    <div class="card">
+      <h2>15. Changes to this policy</h2>
+      <p>This policy may change without prior notice as the Extension changes. Any change takes effect when it is published on this page.</p>
+    </div>
+
+    <div class="card">
+      <h2>16. Contact</h2>
+      <p>If you have questions about this policy, please contact us at:</p>
+      <p>Email: <a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></p>
+    </div>
+
+    <p class="updated">Last updated: September 5, 2026</p>
+
+    <p class="back-link"><a href="/extension">&larr; Back to the extension page</a></p>
+    <p class="back-link"><a href="/">Back to the Sukima home page</a></p>
+
+  </div>
+
+</body>
+
+</html>

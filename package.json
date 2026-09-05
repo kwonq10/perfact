@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test functions/api/_tests/*.test.mjs tests/frontend/*.test.mjs"
+    "test": "node --test functions/api/_tests/*.test.mjs tests/frontend/*.test.mjs tests/extension/*.test.mjs"
   },
   "dependencies": {
     "jose": "^6.1.0"

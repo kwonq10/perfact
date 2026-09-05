@@ -12,7 +12,7 @@
     実行前に、コピー先フォルダ全体を C:\Users\tetsu\Projectssukima-sidepanel-backup へ
     バックアップする。バックアップ先が既に存在する場合は上書きせず停止する。
 
-    同期対象は以下9ファイルのみ。ファイル削除・Chrome操作は一切行わない。
+    同期対象は以下11ファイルのみ。ファイル削除・Chrome操作は一切行わない。
       - manifest.json
       - background.js
       - sidepanel.html
@@ -22,6 +22,11 @@
       - icon-16.png
       - icon-48.png
       - icon-128.png
+      - _locales\ja\messages.json
+      - _locales\en\messages.json
+
+    _locales はサブディレクトリ構造を保ったままコピーする。
+    コピー先に該当ディレクトリが無い場合は作成する（削除は行わない）。
 #>
 
 $ErrorActionPreference = "Stop"
@@ -39,7 +44,9 @@ $SyncFiles = @(
     "sidepanel.css",
     "icon-16.png",
     "icon-48.png",
-    "icon-128.png"
+    "icon-128.png",
+    "_locales\ja\messages.json",
+    "_locales\en\messages.json"
 )
 
 function Get-FileHashSafe {
@@ -105,6 +112,14 @@ Write-Host "=== ファイルコピー ===" -ForegroundColor Cyan
 foreach ($file in $SyncFiles) {
     $srcPath  = Join-Path $SourceDir $file
     $destPath = Join-Path $DestDir $file
+
+    # _locales\<locale>\ のようなサブディレクトリは、コピー先に無ければ作る。
+    $destParent = Split-Path -Parent $destPath
+    if (-not (Test-Path -LiteralPath $destParent -PathType Container)) {
+        New-Item -ItemType Directory -Path $destParent -Force | Out-Null
+        Write-Host "  ディレクトリ作成: $destParent"
+    }
+
     Copy-Item -LiteralPath $srcPath -Destination $destPath -Force
     Write-Host "  コピー完了: $file"
 }
@@ -132,7 +147,7 @@ foreach ($file in $SyncFiles) {
 
 Write-Host ""
 if ($allMatched) {
-    Write-Host "=== 成功: 9ファイルすべて一致しました ===" -ForegroundColor Green
+    Write-Host "=== 成功: $($SyncFiles.Count)ファイルすべて一致しました ===" -ForegroundColor Green
     Write-Host "バックアップ: $BackupDir"
     exit 0
 } else {
