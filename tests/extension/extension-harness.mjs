@@ -201,8 +201,11 @@ class StubElement {
   }
 }
 
-// sidepanel.html から、id と data-i18n / data-i18n-aria-label だけを読み取る。
+// sidepanel.html から、id・data-i18n 系の属性・開始タグ直後のテキストを読み取る。
 // 完全な HTML パーサではなく、この構造に必要な情報だけを取り出す。
+//
+//   開始タグ直後のテキストは「i18n が解決できなかったときに残る既定値」であり、
+//   フォールバックの検証に必須なので必ず拾う。
 function parseSidepanelHtml(html) {
   const tags = [];
   const tagPattern = /<(\w+)((?:\s+[^<>]*?)?)\/?>/g;
@@ -215,7 +218,13 @@ function parseSidepanelHtml(html) {
     while ((attributeMatch = attributePattern.exec(rawAttributes)) !== null) {
       attributes[attributeMatch[1]] = attributeMatch[2] === undefined ? "" : attributeMatch[2];
     }
-    tags.push({ tagName, attributes });
+
+    // 開始タグの直後から、次のタグが始まるまでをテキストとみなす。
+    const after = html.slice(match.index + match[0].length);
+    const nextTag = after.indexOf("<");
+    const defaultText = nextTag === -1 ? after : after.slice(0, nextTag);
+
+    tags.push({ tagName, attributes, defaultText });
   }
   return tags;
 }
@@ -227,8 +236,10 @@ export function createDocument(html) {
   const hrefElements = [];
   const all = [];
 
-  for (const { tagName, attributes } of parseSidepanelHtml(html)) {
+  for (const { tagName, attributes, defaultText } of parseSidepanelHtml(html)) {
     const element = new StubElement(tagName);
+    // HTML に書かれた既定テキスト（i18n が解決できないときに残る値）。
+    element.textContent = defaultText;
     if (attributes.id) {
       element.id = attributes.id;
       byId.set(attributes.id, element);
@@ -294,7 +305,8 @@ export function createDocument(html) {
  * @param {string} options.locale            "ja" | "en"
  * @param {function} options.fetchImpl       グローバル fetch の差し替え
  * @param {string|null} options.authToken    null なら未ログイン状態から始まる
- * @param {object} options.quotaConfig       /api/ext/config が返す内容
+ * @param {object|null} options.i18n         chrome.i18n の差し替え。
+ *                                           カタログ不在・破損の再現に使う。
  */
 export function loadExtension(options = {}) {
   const {
@@ -303,6 +315,7 @@ export function loadExtension(options = {}) {
       throw new Error("fetch was not stubbed");
     },
     authToken = null,
+    i18n = null,
   } = options;
 
   const html = readExtensionFile("sidepanel.html");
@@ -311,7 +324,7 @@ export function loadExtension(options = {}) {
   const identityCalls = [];
   const chrome = {
     runtime: { id: "cbiheilipajkapmejmpmhjiflgpfhglg", lastError: undefined },
-    i18n: createI18n(locale),
+    i18n: i18n || createI18n(locale),
     identity: {
       getAuthToken(details, callback) {
         identityCalls.push({ method: "getAuthToken", details });

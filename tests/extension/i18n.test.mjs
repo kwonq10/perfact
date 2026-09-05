@@ -108,6 +108,26 @@ test("slotCount は両言語で件数の差し込み位置 %%VALUE%% を持つ",
   assert.ok(en.slotCount.message.includes("%%VALUE%%"));
 });
 
+test("件数の単数形・複数形が両言語に用意されている", () => {
+  for (const [locale, messages] of [["ja", ja], ["en", en]]) {
+    assert.ok("slotCountValueOne" in messages, `${locale} に slotCountValueOne が無い`);
+    assert.ok("slotCountValueOther" in messages, `${locale} に slotCountValueOther が無い`);
+  }
+
+  // 英語は語形が変わる。日本語は変わらないので同じ文言でよい。
+  assert.equal(en.slotCountValueOne.message, "$COUNT$ slot");
+  assert.equal(en.slotCountValueOther.message, "$COUNT$ slots");
+  assert.equal(ja.slotCountValueOne.message, ja.slotCountValueOther.message);
+});
+
+test('英語のメッセージに "(s)" のような逃げの複数形が残っていない', () => {
+  const offenders = Object.entries(en)
+    .filter(([, entry]) => /\(s\)|\(es\)/i.test(entry.message))
+    .map(([key, entry]) => `${key}: ${entry.message}`);
+
+  assert.deepEqual(offenders, [], `英語に (s) が残っている:\n${offenders.join("\n")}`);
+});
+
 // ---------------------------------------------------------
 // コードとの対応
 // ---------------------------------------------------------
@@ -363,6 +383,79 @@ test("検索条件トグルのラベルが言語ごとに組み立てられる",
   assert.ok(label(enLoaded).endsWith("Search options · 7/24–7/31"));
 });
 
+// ---------------------------------------------------------
+// 件数表示の単数・複数
+//
+//   chrome.i18n には複数形の仕組みが無いため、単数形と複数形を別メッセージに分け、
+//   slotCountValueKey() が選ぶ。ここでは組み立て結果そのものを固定する。
+// ---------------------------------------------------------
+
+function slotCountLine(locale, count) {
+  return evaluate(
+    loadExtension({ locale }),
+    `(() => {
+       const { before, value, after } = buildSlotCountParts(${count});
+       return before + value + after;
+     })()`,
+  );
+}
+
+test("英語の件数表示が単数・複数を正しく切り替える", () => {
+  assert.equal(slotCountLine("en", 0), "Free time: 0 slots");
+  assert.equal(slotCountLine("en", 1), "Free time: 1 slot");
+  assert.equal(slotCountLine("en", 2), "Free time: 2 slots");
+  assert.equal(slotCountLine("en", 3), "Free time: 3 slots");
+  assert.equal(slotCountLine("en", 11), "Free time: 11 slots");
+});
+
+test("日本語の件数表示は従来のまま（数による語形変化なし）", () => {
+  assert.equal(slotCountLine("ja", 0), "空き時間 0件");
+  assert.equal(slotCountLine("ja", 1), "空き時間 1件");
+  assert.equal(slotCountLine("ja", 2), "空き時間 2件");
+  assert.equal(slotCountLine("ja", 3), "空き時間 3件");
+  assert.equal(slotCountLine("ja", 11), "空き時間 11件");
+});
+
+test("単数形が選ばれるのは 1 のときだけ", () => {
+  const key = (count) =>
+    evaluate(loadExtension({ locale: "en" }), `slotCountValueKey(${count})`);
+
+  assert.equal(key(1), "slotCountValueOne");
+  for (const count of [0, 2, 3, 10, 100]) {
+    assert.equal(key(count), "slotCountValueOther", `count=${count}`);
+  }
+});
+
+test("実際に描画される件数カードでも単数・複数が正しい", () => {
+  const render = (locale, count) =>
+    evaluate(
+      loadExtension({ locale }),
+      `(() => {
+         const slots = [];
+         for (let i = 0; i < ${count}; i += 1) {
+           slots.push({
+             start: new Date(2026, 8, 5, 10 + i, 0),
+             end: new Date(2026, 8, 5, 11 + i, 0),
+           });
+         }
+         renderDayResultCard({ date: new Date(2026, 8, 5), slots });
+         const countElement = resultsElement.descendants().find(
+           (e) => e.className === "day-result-count",
+         );
+         return countElement.textContent;
+       })()`,
+    );
+
+  assert.equal(render("en", 1), "Free time: 1 slot");
+  assert.equal(render("en", 2), "Free time: 2 slots");
+  assert.equal(render("ja", 1), "空き時間 1件");
+  assert.equal(render("ja", 2), "空き時間 2件");
+
+  // 0 件のときは従来どおり専用の文言を出す（この挙動は変えていない）。
+  assert.equal(render("en", 0), "No availability");
+  assert.equal(render("ja", 0), "空き時間なし");
+});
+
 test("件数表示は数値部分だけを太字の span に入れ、語順は言語ごとに変わる", () => {
   const render = (locale) =>
     evaluate(
@@ -390,8 +483,8 @@ test("件数表示は数値部分だけを太字の span に入れ、語順は�
   assert.equal(jaResult.bold, "2件");
 
   const enResult = JSON.parse(render("en"));
-  assert.equal(enResult.full, "Free time: 2 slot(s)");
-  assert.equal(enResult.bold, "2 slot(s)");
+  assert.equal(enResult.full, "Free time: 2 slots");
+  assert.equal(enResult.bold, "2 slots");
 });
 
 test("空き時間0件の表示が両言語で出る", () => {

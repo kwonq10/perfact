@@ -249,11 +249,20 @@
   },
   "slotCount": {
     "message": "Free time: %%VALUE%%",
-    "description": "Free slot count line. %%VALUE%% is replaced with slotCountValue, rendered in bold."
+    "description": "Free slot count line. %%VALUE%% is replaced with slotCountValueOne or slotCountValueOther, rendered in bold. Move %%VALUE%% to suit the word order."
   },
-  "slotCountValue": {
-    "message": "$COUNT$ slot(s)",
-    "description": "Bold part of the free slot count. $1 = number of slots.",
+  "slotCountValueOne": {
+    "message": "$COUNT$ slot",
+    "description": "Bold part of the free slot count, singular form (exactly 1). $1 = number of slots. Languages without a plural distinction use the same text as slotCountValueOther.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "slotCountValueOther": {
+    "message": "$COUNT$ slots",
+    "description": "Bold part of the free slot count, plural form (0, 2, 3, ...). $1 = number of slots. English uses the plural for zero as well.",
     "placeholders": {
       "count": {
         "content": "$1"

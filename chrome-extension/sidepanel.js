@@ -64,7 +64,13 @@ const extensionToastElement = document.getElementById("extensionToast");
 
 // chrome.i18n.getMessage の薄いラッパー。
 // substitutions の並びは messages.json の placeholders（$1..）と一致させること。
-function t(key, substitutions) {
+//
+//   解決できなかったときは fallback（既定は空文字）を返す。
+//   **キー名は絶対に返さない。**
+//   拡張機能を再読み込みする前は manifest の default_locale が Chrome に反映されず、
+//   カタログが存在しない状態になる。そのとき getMessage() は全キーで空文字を返す。
+//   ここでキー名を返すと "loginBtn" のような文字列がそのまま画面に出てしまう。
+function t(key, substitutions, fallback = "") {
   if (
     typeof chrome !== "undefined" &&
     chrome.i18n &&
@@ -75,22 +81,36 @@ function t(key, substitutions) {
       return message;
     }
   }
-  return key;
+  return fallback;
 }
 
-// data-i18n / data-i18n-aria-label を持つ要素へ、起動時に一度だけ文言を流し込む。
-// HTML 側には英語を残してあるため、ここが動かなくても英語で読める。
+// data-i18n / data-i18n-aria-label / data-i18n-href を持つ要素へ、
+// 起動時に一度だけ文言を流し込む。
+//
+//   **解決できたときだけ上書きする。**
+//   sidepanel.html には英語の既定値が書いてあるので、カタログが読めない状態でも
+//   上書きしなければ英語のまま読める。空文字で潰すとボタンの文字が消える。
 function applyStaticI18n(root = document) {
   root.querySelectorAll("[data-i18n]").forEach((element) => {
-    element.textContent = t(element.dataset.i18n);
+    const message = t(element.dataset.i18n);
+    if (message) {
+      element.textContent = message;
+    }
   });
   root.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
-    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+    const message = t(element.dataset.i18nAriaLabel);
+    if (message) {
+      element.setAttribute("aria-label", message);
+    }
   });
 
   // 言語ごとに遷移先が変わるリンク（プライバシーポリシー）。
+  // 解決できなければ HTML に書かれた既定 URL を残す。書き換えるとリンクが壊れる。
   root.querySelectorAll("[data-i18n-href]").forEach((element) => {
-    element.setAttribute("href", t(element.dataset.i18nHref));
+    const url = t(element.dataset.i18nHref);
+    if (url) {
+      element.setAttribute("href", url);
+    }
   });
 
   if (
@@ -103,12 +123,41 @@ function applyStaticI18n(root = document) {
 }
 
 // 曜日・月名はカンマ区切りの1メッセージで持つ（要素数は 7 / 12 で固定）。
+//
+//   日付は「読めない」と機能そのものが成立しないため、この2つだけは
+//   コード側にも英語の既定値を持つ。カタログが読めない場合や、
+//   要素数が足りない・空要素が混じる場合はこちらへ落とす。
+const FALLBACK_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const FALLBACK_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+// カンマ区切りのメッセージを配列にする。
+// 期待する要素数に満たない、または空要素があるときはカタログが壊れているとみなす。
+function localizedList(key, expectedLength, fallback) {
+  const message = t(key);
+  if (!message) {
+    return fallback;
+  }
+
+  const items = message.split(",");
+  if (items.length !== expectedLength) {
+    return fallback;
+  }
+  if (items.some((item) => item.trim() === "")) {
+    return fallback;
+  }
+
+  return items;
+}
+
 function weekdayName(dayIndex) {
-  return t("weekdaysShort").split(",")[dayIndex] || "";
+  return localizedList("weekdaysShort", 7, FALLBACK_WEEKDAYS)[dayIndex] || "";
 }
 
 function monthName(monthIndex) {
-  return t("monthsShort").split(",")[monthIndex] || "";
+  return localizedList("monthsShort", 12, FALLBACK_MONTHS)[monthIndex] || "";
 }
 
 // dateHeader / dateShort / dateFull へ渡す substitutions を作る。
@@ -121,6 +170,26 @@ function dateSubstitutions(date) {
     monthName(date.getMonth()),
     String(date.getFullYear()),
   ];
+}
+
+// chrome.i18n には複数形の仕組みが無いため、単数形と複数形を別メッセージに分け、
+// どちらを使うかをここで決める。
+//
+//   英語は 1 だけが単数で、0 と 2 以上は複数形になる（0 slots / 1 slot / 2 slots）。
+//   日本語は数による語形変化が無いため、messages.json の両方へ同じ文言を入れてある。
+//   複数形の規則が異なる言語を足すときは、この関数と messages.json の両方を見直すこと。
+function slotCountValueKey(count) {
+  return count === 1 ? "slotCountValueOne" : "slotCountValueOther";
+}
+
+// 件数行を「太字にする部分」と、その前後のテキストへ分けて返す。
+// 語順は言語ごとに変わるため、slotCount の %%VALUE%% の位置で切り分ける。
+function buildSlotCountParts(count) {
+  const value = t(slotCountValueKey(count), [String(count)]);
+  const template = t("slotCount", [COUNT_VALUE_TOKEN]);
+  const [before, after = ""] = template.split(COUNT_VALUE_TOKEN);
+
+  return { before, value, after };
 }
 
 // 開始日〜終了日を "7/24〜7/31" 形式にする。年をまたぐ場合のみ年を表示する。
@@ -1163,13 +1232,12 @@ function renderDayResultCard(day) {
   countElement.className = "day-result-count";
   if (day.slots.length > 0) {
     // 件数だけを太字にするため、数値部分だけを span で包む。
-    // 語順は言語ごとに変わるため、slotCount の %%VALUE%% 位置で前後に切り分ける。
+    const { before, value, after } = buildSlotCountParts(day.slots.length);
+
     const countValue = document.createElement("span");
     countValue.className = "day-result-count-value";
-    countValue.textContent = t("slotCountValue", [String(day.slots.length)]);
+    countValue.textContent = value;
 
-    const template = t("slotCount", [COUNT_VALUE_TOKEN]);
-    const [before, after = ""] = template.split(COUNT_VALUE_TOKEN);
     countElement.append(before, countValue, after);
   } else {
     countElement.classList.add("is-empty");
