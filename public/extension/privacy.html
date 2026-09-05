@@ -150,20 +150,39 @@
 
     <div class="card">
       <h2>5. 情報の保存</h2>
-      <p>本拡張機能は、取得したカレンダー情報を <code>chrome.storage</code>、<code>localStorage</code>、<code>sessionStorage</code>、<code>IndexedDB</code> のいずれにも保存しません。</p>
+      <p><strong>カレンダー情報について：</strong>本拡張機能は、取得したカレンダー情報（カレンダー一覧・予定の日時・空き時間の計算結果）を <code>chrome.storage</code>、<code>localStorage</code>、<code>sessionStorage</code>、<code>IndexedDB</code> のいずれにも保存しません。</p>
       <p>取得した情報は拡張機能のサイドパネルを表示している間のみ、ブラウザのメモリ上で一時的に扱われ、サイドパネルを閉じるとその内容は破棄されます。</p>
+      <p><strong>拡張機能自身の設定について：</strong>上記とは別に、本拡張機能はスキマのサービスを利用するための情報を、ブラウザの <code>localStorage</code> に保存します。保存するのは次の2種類だけです。</p>
+      <ul>
+        <li>スキマとの連携用セッショントークンと、その有効期限</li>
+        <li>スキマのサーバーから取得した設定値（無料利用回数の制限が有効かどうか）と、その取得時刻</li>
+      </ul>
+      <p>これら2種類の情報に、<strong>カレンダーの内容は一切含まれません。</strong>いずれもお使いのブラウザ内にのみ保存されます。連携用セッショントークンは、本拡張機能のログアウト操作で削除されます。<code>chrome.storage</code> は使用していません。</p>
     </div>
 
     <div class="card">
       <h2>6. 外部送信</h2>
-      <p>本拡張機能が通信を行う先は、Google Calendar API（googleapis.com）のみです。</p>
-      <p>開発者が運営する自社サーバーやデータベースへ、取得した情報を送信することはありません。</p>
+      <p><strong>カレンダー情報の送信先は、Google Calendar API（googleapis.com）のみです。</strong>カレンダー一覧・予定の日時・空き時間の計算結果を、開発者が運営するサーバーやデータベースへ送信することは一切ありません。</p>
+      <p>これとは別に、本拡張機能はスキマのサービスを利用するために、開発者が運営する <code>sukimacalendar.com</code> と通信します。<strong>この通信に、カレンダーの内容は一切含まれません。</strong>通信の目的と送信する内容は次のとおりです。</p>
+      <ul>
+        <li><strong>設定値の確認（<code>/api/ext/config</code>）</strong><br>
+          無料利用回数の制限が有効かどうかを確認します。送信するのは拡張機能の識別子のみで、本文はなく、ログインも必要ありません。ユーザーが検索ボタンを押したときに確認し、結果は5分間キャッシュするため、実際の通信はごくまれです。サイドパネルの起動、ログイン、検索条件の変更、日付の移動では通信しません。</li>
+        <li><strong>アカウント連携（<code>/api/ext/link/</code>）</strong><br>
+          送信するのは、拡張機能の識別子と使い捨ての照合用文字列のみです。</li>
+        <li><strong>利用回数の管理（<code>/api/ext/quota/</code>）</strong><br>
+          送信するのは、連携用セッショントークン、予約ID、使い捨ての鍵のみです。</li>
+        <li><strong>連携の解除（<code>/api/ext/auth/logout</code>）</strong><br>
+          送信するのは、連携用セッショントークンのみです。</li>
+      </ul>
+      <p>このうち、アカウント連携と利用回数の管理にかかわる通信は、<strong>無料利用回数の制限がスキマのサーバー側で有効になっている場合にのみ発生します。</strong>制限が有効になっていない場合、これらの通信は発生しません。</p>
+      <p>スキマのサーバーが保存するのは、無料利用回数の制限が有効な場合に、週あたりの利用回数を管理するための記録だけです。<strong>カレンダーの内容は保存しません。</strong></p>
     </div>
 
     <div class="card">
       <h2>7. アクセストークンの扱い</h2>
       <p>Google Calendar APIへのアクセスに使用するアクセストークンは、拡張機能内のJavaScriptのメモリ上にのみ保持されます。</p>
       <p>トークンの認証キャッシュ自体は、Chromeの <code>chrome.identity</code> 機構が管理しており、本拡張機能側で独自に永続化することはありません。サイドパネルを閉じると、拡張機能側で保持していたメモリ上の値は破棄されます。</p>
+      <p>なお、§5・§6 で述べたスキマとの連携用セッショントークンは、Googleのアクセストークンとは<strong>まったく別のもの</strong>です。<strong>Googleのアクセストークンがスキマのサーバーへ送信されることはありません。</strong></p>
     </div>
 
     <div class="card">
@@ -179,6 +198,7 @@
     <div class="card">
       <h2>10. Cookie</h2>
       <p>本拡張機能はCookieを使用しません。</p>
+      <p>§6 に記載した <code>sukimacalendar.com</code> との通信でもCookieは送受信せず、連携用セッショントークンを <code>Authorization</code> ヘッダで送る方式を用いています。</p>
     </div>
 
     <div class="card">
@@ -191,7 +211,7 @@
     <div class="card">
       <h2>12. セキュリティ</h2>
       <p>Google Calendar APIとの通信はHTTPSで行われます。</p>
-      <p>本拡張機能は、閲覧中のWebページの内容を取得する権限を持たず、実際に取得も行いません。アクセス先はGoogle Calendar API（googleapis.com）に限定されています。</p>
+      <p>本拡張機能は、閲覧中のWebページの内容を取得する権限を持たず、実際に取得も行いません。アクセス先は、Google Calendar API（googleapis.com）と、§6 に記載したスキマのサービス（sukimacalendar.com）に限定されており、いずれもHTTPSで通信します。</p>
     </div>
 
     <div class="card">
@@ -215,7 +235,7 @@
       <p>メール：<a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></p>
     </div>
 
-    <p class="updated">最終更新日：2026年7月25日</p>
+    <p class="updated">最終更新日：2026年9月5日</p>
 
     <p class="back-link"><a href="/extension">← 拡張機能紹介ページに戻る</a></p>
     <p class="back-link"><a href="/">スキマ トップページに戻る</a></p>
