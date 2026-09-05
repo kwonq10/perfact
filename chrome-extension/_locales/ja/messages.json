@@ -1,7 +1,11 @@
 {
   "appName": {
     "message": "スキマ",
-    "description": "Extension name shown in the toolbar and the Web Store."
+    "description": "Short product name. Used for the side panel heading and document title. Keep it short: the heading is 20px bold in a narrow side panel."
+  },
+  "appNameLong": {
+    "message": "スキマ - Googleカレンダー空き時間検索",
+    "description": "Full extension name used by manifest.name, so it appears in the toolbar, the extension list and the Web Store listing. Must be 45 characters or fewer."
   },
   "appDesc": {
     "message": "Googleカレンダーから空き時間を自動検索するツール",

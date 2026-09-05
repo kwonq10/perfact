@@ -38,8 +38,10 @@ test("default_locale は en（未対応言語で英語へ落ちる）", () => {
   assert.equal(manifest.default_locale, "en");
 });
 
-test("name と description は __MSG_*__ 参照になっている", () => {
-  assert.equal(manifest.name, "__MSG_appName__");
+test("name は長い名前（appNameLong）、description は appDesc を参照する", () => {
+  // name は Store 掲載名とツールバー表示を兼ねるので、検索性のある長い名前を使う。
+  // サイドパネルの見出しは短い appName のまま（sidepanel.html 側で参照している）。
+  assert.equal(manifest.name, "__MSG_appNameLong__");
   assert.equal(manifest.description, "__MSG_appDesc__");
 });
 

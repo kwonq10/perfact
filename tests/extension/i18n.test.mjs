@@ -146,10 +146,79 @@ test("manifest の __MSG_*__ が messages.json に実在する", () => {
     .match(/__MSG_([A-Za-z0-9_]+)__/g)
     .map((token) => token.replace(/^__MSG_|__$/g, ""));
 
-  assert.deepEqual(referenced, ["appName", "appDesc"]);
+  assert.deepEqual(referenced, ["appNameLong", "appDesc"]);
   for (const key of referenced) {
     assert.ok(key in ja, `ja/messages.json に ${key} が無い`);
     assert.ok(key in en, `en/messages.json に ${key} が無い`);
+  }
+});
+
+// ---------------------------------------------------------
+// 名前の二本立て（UI 用の短い名前 / manifest・Store 用の長い名前）
+//
+//   appName を長い名前に差し替えると、サイドパネルの <h1>（20px 太字）が
+//   2〜3 行に折り返して検索 UI が下へ押し出される。
+//   ここでは「短い名前が短いままであること」を値そのもので固定する。
+// ---------------------------------------------------------
+
+test("appName と appNameLong が ja / en の両方に存在する", () => {
+  for (const [locale, messages] of [["ja", ja], ["en", en]]) {
+    assert.ok("appName" in messages, `${locale} に appName が無い`);
+    assert.ok("appNameLong" in messages, `${locale} に appNameLong が無い`);
+  }
+});
+
+test("appName は短い名前のまま（Sukima / スキマ）", () => {
+  assert.equal(en.appName.message, "Sukima");
+  assert.equal(ja.appName.message, "スキマ");
+});
+
+test("appNameLong は検索性のある長い名前", () => {
+  assert.equal(en.appNameLong.message, "Free Time Finder for Google Calendar - Sukima");
+  assert.equal(ja.appNameLong.message, "スキマ - Googleカレンダー空き時間検索");
+});
+
+test("appNameLong は Chrome の name 上限 45 文字以内", () => {
+  for (const [locale, messages] of [["ja", ja], ["en", en]]) {
+    const length = messages.appNameLong.message.length;
+    assert.ok(
+      length <= 45,
+      `${locale}/appNameLong が ${length} 文字（上限 45）`,
+    );
+  }
+});
+
+test("appName はサイドパネルの見出しに収まる短さである", () => {
+  // 20px 太字。パネル幅は利用者が変えられるため、折り返さない長さに保つ。
+  for (const [locale, messages] of [["ja", ja], ["en", en]]) {
+    assert.ok(
+      messages.appName.message.length <= 12,
+      `${locale}/appName が長すぎる: ${messages.appName.message}`,
+    );
+  }
+});
+
+test("sidepanel.html の <title> と <h1> は短い appName を参照する", () => {
+  const html = readExtensionFile("sidepanel.html");
+
+  assert.match(html, /<title data-i18n="appName">/);
+  assert.match(html, /<h1 data-i18n="appName">/);
+
+  // 長い名前が画面に出ていないこと。
+  assert.ok(
+    !html.includes('data-i18n="appNameLong"'),
+    "sidepanel.html が appNameLong を参照している（見出しが折り返す）",
+  );
+});
+
+test("サイドパネルの見出しが両言語とも短い名前で描画される", () => {
+  for (const [locale, expected] of [["ja", "スキマ"], ["en", "Sukima"]]) {
+    const loaded = loadExtension({ locale });
+    const heading = evaluate(
+      loaded,
+      'document.querySelectorAll("[data-i18n]").filter((e) => e.tagName === "H1")[0].textContent',
+    );
+    assert.equal(heading, expected, `${locale} の見出し`);
   }
 });
 

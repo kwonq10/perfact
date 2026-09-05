@@ -1,7 +1,11 @@
 {
   "appName": {
     "message": "Sukima",
-    "description": "Extension name shown in the toolbar and the Web Store."
+    "description": "Short product name. Used for the side panel heading and document title. Keep it short: the heading is 20px bold in a narrow side panel."
+  },
+  "appNameLong": {
+    "message": "Free Time Finder for Google Calendar - Sukima",
+    "description": "Full extension name used by manifest.name, so it appears in the toolbar, the extension list and the Web Store listing. Must be 45 characters or fewer."
   },
   "appDesc": {
     "message": "Find free time in your Google Calendar automatically",

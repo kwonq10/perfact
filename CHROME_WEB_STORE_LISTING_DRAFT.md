@@ -16,6 +16,10 @@
 スキマ - Googleカレンダー空き時間検索
 ```
 
+この値は `_locales/ja/messages.json` の **`appNameLong`** と同一で、
+`manifest.json` の `name`（`__MSG_appNameLong__`）から反映される。
+英語掲載名は §19-1 を参照。
+
 ---
 
 ## 2. 短い説明（132文字以内）
@@ -370,11 +374,28 @@ Chrome Web Store は言語ごとに掲載情報を登録できる。以下は英
 ### 19-1. Name
 
 ```
-Sukima - Free Time Finder for Google Calendar
+Free Time Finder for Google Calendar - Sukima
 ```
 
-（manifest の `name` は `__MSG_appName__` → 英語では `Sukima`。
-  ツールバーに出る短い名前と、Store 掲載名を分けている。日本語掲載名は §1 を参照）
+この値は `_locales/en/messages.json` の **`appNameLong`** と同一で、
+`manifest.json` の `name`（`__MSG_appNameLong__`）から反映される。
+日本語掲載名は §1 を参照。
+
+**名前を 2 つに分けている理由**
+
+| キー | 値（en / ja） | 使われる場所 |
+|---|---|---|
+| `appName` | `Sukima` / `スキマ` | サイドパネルの見出し `<h1>` と `<title>` |
+| `appNameLong` | `Free Time Finder for Google Calendar - Sukima` / `スキマ - Googleカレンダー空き時間検索` | `manifest.name`（ツールバー・拡張機能一覧・Store 掲載名） |
+
+サイドパネルの見出しは 20px の太字で、パネル幅は利用者が変えられる（既定でおよそ
+320〜400px、`body` の padding を引くと描画幅は約 292〜372px）。
+検索性を意識した長い名前をそのまま見出しに出すと 2〜3 行に折り返し、
+検索 UI が下へ押し出される。そのため **見出しは短い名前のまま**にし、
+検索性が要る manifest / Store 側だけ長い名前を使う。
+
+`appNameLong` の英語は **45 文字ちょうど**で、Chrome の `name` 上限と同じ。
+語を足す余地は無いので、変更する場合は必ず文字数を数えること。
 
 ### 19-2. Short description (132 characters or fewer)
 
