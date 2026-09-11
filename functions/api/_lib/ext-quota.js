@@ -21,7 +21,10 @@ import { checkExtensionOrigin, extJson } from './ext-cors.js';
 import { readJsonBody } from './request-body.js';
 import { requireExtSession } from './ext-session.js';
 import { SESSION_RESULT } from './session.js';
-import { WEB_UNLIMITED_STATUSES } from './quota.js';
+import {
+  EXTENSION_PRO_PLAN_IDS,
+  hasExtensionEntitlement,
+} from './entitlement.js';
 
 /**
  * 拡張で quota 無制限になる plan_id。
@@ -31,25 +34,30 @@ import { WEB_UNLIMITED_STATUSES } from './quota.js';
  *   web_pro       … Web は無制限だが**拡張では quota 対象**
  *   extension_pro … 拡張は無制限
  *   all_pro       … 両方とも無制限
+ *
+ * 実体は _lib/entitlement.js の EXTENSION_PRO_PLAN_IDS。
+ * 既存の import 互換のためこの名前を残している（値は同一）。
  */
-export const EXTENSION_UNLIMITED_PLAN_IDS = Object.freeze(['extension_pro', 'all_pro']);
+export const EXTENSION_UNLIMITED_PLAN_IDS = EXTENSION_PRO_PLAN_IDS;
 
 /**
  * 拡張の quota が免除されるか。
  *
- * plan_id と status の両方を満たしたときだけ true。
- * status の条件（active / trialing のみ。past_due は Pro 扱いしない）は
- * Web と共通なので _lib/quota.js の定数を再利用する。
+ * 判定本体は _lib/entitlement.js に集約した。ここは薄い wrapper で、
+ * **シグネチャ・戻り値の型は従来どおり**（context だけを取り boolean を返す）。
+ * 呼び出し側（/api/ext/quota/{reserve,commit,release}）は変更不要。
  *
- * hasWebUnlimited とは**別関数**であり、あちらは変更しない。
+ * status の扱い（active / trialing は無条件、past_due は
+ * past_due_since から 7 日未満のときだけ）は Web と共通で、
+ * 違うのは対象 plan の集合だけ。
+ *
+ * hasWebUnlimited とは**別関数**であり、あちらの挙動には影響しない。
  *
  * @param {object} context requireExtSession が返す session context
  * @returns {boolean}
  */
 export function hasExtensionUnlimited(context) {
-  if (!context || typeof context !== 'object') return false;
-  return EXTENSION_UNLIMITED_PLAN_IDS.includes(context.plan_id)
-      && WEB_UNLIMITED_STATUSES.includes(context.status);
+  return hasExtensionEntitlement(context);
 }
 
 /** body 検証コード -> HTTP ステータス。サイズ超過だけ 413 にする。 */

@@ -72,6 +72,47 @@
     .status { text-align: center; margin-top: 16px; font-size: 14px; color: #666; min-height: 20px; }
     .login-info { text-align: center; font-size: 13px; color: #4f8ef7; margin-top: 12px; font-weight: 600; }
 
+    /* Free の残り回数。検索ボタンの直下に小さく控えめに出す。 */
+    .quota-info {
+      text-align: center; font-size: 12px; color: #8a94a6;
+      margin: 8px 0 0; line-height: 1.5;
+    }
+    /* 使い切ったときだけ少し目立たせる（modal は出さない）。 */
+    .quota-info.is-exhausted {
+      font-size: 13px; color: #b4553d; font-weight: 600;
+      background: #fdf3f0; border: 1px solid #f3d9d1;
+      border-radius: 10px; padding: 10px 12px;
+    }
+    .quota-info .quota-sub {
+      display: block; margin-top: 4px; font-size: 12px;
+      font-weight: 500; color: #8a6a60;
+    }
+
+    /* 現在のプラン表示 / アップグレード導線。
+       表示の正は /api/auth/me の entitlement で、ここは描画だけを行う。 */
+    .plan-info {
+      text-align: center; font-size: 12px; color: #8a94a6;
+      margin: 8px 0 0; line-height: 1.6;
+    }
+    .plan-info .plan-name { font-weight: 600; color: #4a5568; }
+    .plan-info .plan-active { color: #2f8f5b; font-weight: 600; margin-left: 4px; }
+    .plan-cta { display: inline-block; margin-left: 6px; color: #4f8ef7; font-weight: 600; }
+    .plan-manage {
+      display: inline-block; margin-left: 6px; color: #4f8ef7;
+      font-weight: 600; background: none; border: none; padding: 0;
+      font-size: 12px; cursor: pointer; font-family: inherit;
+    }
+    .plan-manage:disabled { color: #b9c6d8; cursor: not-allowed; }
+    .plan-summary { display: block; margin-top: 6px; color: #6b7280; line-height: 1.8; }
+    .plan-summary .plan-row { display: block; }
+    .plan-summary .plan-row-label { color: #9aa3b2; margin-right: 6px; }
+    .plan-summary .plan-row-value { color: #4a5568; font-weight: 600; }
+    .plan-note { display: block; margin-top: 4px; color: #9aa3b2; font-size: 11px; }
+    .plan-pastdue { display: block; margin-top: 4px; color: #8a6a60; font-weight: 600; }
+    .plan-cancel { display: block; margin-top: 4px; color: #8a6a60; font-weight: 600; }
+    .plan-error { display: block; margin-top: 4px; color: #8a1f1f; }
+    .quota-info .quota-cta { color: #4f8ef7; font-weight: 600; margin-left: 4px; }
+
     #resultView { display: none; min-height: 100vh; background: #f0f4f8; touch-action: pan-y; user-select: none; }
     #resultHeader {
       background: white; padding: 16px 20px;
@@ -503,6 +544,19 @@
       font-size: 15px; font-weight: 600; cursor: pointer; padding: 0;
     }
     #bgSettingsTitle { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+
+    /* Free 向けの案内。ロック演出や煽りはしない。 */
+    .bg-pro-notice {
+      font-size: 12px;
+      color: #8a94a6;
+      background: #f6f8fb;
+      border: 1px solid #e3e9f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 0 0 12px;
+      line-height: 1.6;
+    }
+    .bg-pro-notice a { color: #4f8ef7; font-weight: 600; margin-left: 4px; }
     #bgImageInput {
       position: absolute;
       width: 1px;
@@ -654,6 +708,8 @@
     <p id="startDesc">Googleカレンダーから空き時間を確認して、<br>そのままコピー・予定追加できます。</p>
     <button id="startBtn" onclick="showSearch()">はじめる</button>
     <p style="margin-top: 20px;"><a class="app-footer-link" id="startAboutLink" href="/about/">スキマとは</a></p>
+    <!-- 料金プラン / 購入導線。導線を貼るだけで、判定はこの画面では行わない。 -->
+    <p style="margin-top: 8px;"><a class="app-footer-link" id="startPricingLink" href="/pricing">料金プラン</a></p>
   </div>
 
   <div id="searchView" style="display:none">
@@ -672,6 +728,8 @@
       </div>
       <p style="text-align: center; margin-top: 15px;">
         <a href="/privacy.html" style="font-size: 14px; color: #666; text-decoration: none;">プライバシー ポリシー</a>
+        <span style="font-size: 14px; color: #ccc;">／</span>
+        <a href="/pricing" id="searchPricingLink" style="font-size: 14px; color: #666; text-decoration: none;">料金プラン</a>
       </p>
 
       <div id="formSection" style="display:none;">
@@ -702,6 +760,9 @@
         </div>
         <button type="button" class="btn-sub" id="openBgSettingsBtn" onclick="showBackgroundSettings()">背景画像を設定</button>
         <button class="btn" id="searchBtn" onclick="startSearch()">空き時間を検索する</button>
+        <p class="quota-info" id="quotaInfo" style="display:none;"></p>
+        <!-- 現在のプラン。判定は /api/auth/me の entitlement のみ。 -->
+        <p class="plan-info" id="planInfo" style="display:none;"></p>
         <p class="login-info" id="loginInfo"></p>
         <button class="btn-sub" id="logoutBtn" onclick="logout()">別のアカウントでログインする</button>
         <p class="status" id="statusForm"></p>
@@ -737,6 +798,9 @@
         </div>
         <p class="status" id="bgImageError"></p>
       </div>
+
+      <!-- Free 向けの控えめな案内。表示は entitlement.web のみで決める。 -->
+      <p class="bg-pro-notice" id="bgProNotice" style="display:none;"></p>
 
       <div class="form-group" id="bgWhiteRangeSection">
         <label id="labelBgWhiteRange">白くする範囲</label>
@@ -824,6 +888,12 @@
     let sukimaAuthenticated = false;
     let sukimaPlanId = null;
     let sukimaSubscriptionStatus = null;
+    // /api/auth/me の entitlement。**null は「不明」**で、Free とは別物。
+    // 不明のまま Free 扱いして購入を勧めない（fail closed）。
+    let sukimaEntitlement = null;
+    // /api/auth/me の契約情報（解約予定の表示にだけ使う）。null は不明。
+    // **権限判定には使わない**（正は entitlement）。
+    let sukimaBilling = null;
     // /api/auth/me が 5xx を返した状態。「未ログイン」と同一視しない。
     let sukimaSessionCheckFailed = false;
     let sukimaAuthBusy = false;
@@ -865,9 +935,16 @@
     const BG_WHITE_RANGE_LABEL_KEYS = ['bgWhiteRangeFull', 'bgWhiteRangeTime', 'bgWhiteRangeHeader'];
     let bgImageObjectUrl = null;
     let lastBgImageErrorKey = null;
-    let bgPositionX = 50;
-    let bgPositionY = 50;
-    let bgWhiteRange = 0;
+    // 既存のデフォルト値をそのまま定数化した（新しい値は作らない）。
+    // Free ではこの値で「表示だけ」行い、保存済みの Pro 値は書き換えない。
+    const BG_POS_DEFAULT_X = 50;
+    const BG_POS_DEFAULT_Y = 50;
+    const BG_WHITE_RANGE_DEFAULT = 0;
+
+    // **保存されている値**（= Pro が設定した値）。Free でもここは書き換えない。
+    let bgPositionX = BG_POS_DEFAULT_X;
+    let bgPositionY = BG_POS_DEFAULT_Y;
+    let bgWhiteRange = BG_WHITE_RANGE_DEFAULT;
     // Incremented on any user-initiated select/remove so a slower,
     // already-in-flight restoreSavedBackground() can detect it was
     // superseded and avoid clobbering the newer state.
@@ -936,6 +1013,9 @@
     }
 
     function saveBgPositionToStorage() {
+      // **Free では書かない。** Free の表示は既定値だが、それを保存すると
+      // 再契約したときに以前の Pro 設定が失われる（既存データ保護）。
+      if (!canCustomizeBackground()) return;
       try {
         localStorage.setItem(BG_POS_X_KEY, String(bgPositionX));
         localStorage.setItem(BG_POS_Y_KEY, String(bgPositionY));
@@ -966,6 +1046,8 @@
     }
 
     function saveBgWhiteRangeToStorage() {
+      // **Free では書かない**（理由は saveBgPositionToStorage と同じ）。
+      if (!canCustomizeBackground()) return;
       try {
         localStorage.setItem(BG_WHITE_RANGE_KEY, String(bgWhiteRange));
       } catch (e) {}
@@ -1054,6 +1136,32 @@
         sessionCheckFailed: 'ログイン状態を確認できませんでした。通信環境をご確認ください。',
         needsSignIn: 'まずGoogleでログインしてください',
         quotaLimitReached: '今週の無料検索回数（3回）を使い切りました。',
+        quotaRemaining: (n) => '今週あと' + n + '回',
+        quotaExhausted: '今週の無料検索回数を使い切りました',
+        quotaProPitch: 'Web Proなら検索無制限',
+        quotaNextReset: (d) => '次回リセット: ' + d,
+        planLabel: '現在のプラン',
+        planFree: '無料プラン',
+        planWebPro: 'Web Pro',
+        planActive: 'ご利用中',
+        planUpgradeCta: 'Web Proを見る',
+        bgProNotice: '背景の位置調整とホワイトレンジは Web Pro で利用できます。',
+        planManageCta: 'お支払い・契約を管理',
+        planPerMonthTaxIncluded: '／月（税込）',
+        planAmountLabel: '月額料金',
+        planNextRenewal: '次回更新日',
+        planStateLabel: '契約状態',
+        planStateActive: '継続中',
+        planStatePastDue: 'お支払いの確認が必要です',
+        planPastDueUntil: (d) => d + 'まではWeb Proをご利用いただけます。お支払い方法をご確認ください。',
+        planPastDueCheck: 'お支払い方法をご確認ください。',
+        planLaunchNote: (d, a) => d + 'から通常価格の' + a + 'になります',
+        planCancelScheduled: '解約予定',
+        planCancelUntil: (d) => d + 'までWeb Proをご利用いただけます',
+        portalOpening: '処理中…',
+        portalError: '契約管理画面を開けませんでした。時間をおいてもう一度お試しください。',
+        portalNoAccount: 'お支払い情報が見つかりませんでした。',
+        portalUnauthenticated: 'ログインが必要です。ログインしてからもう一度お試しください。',
         quotaRetry: '検索を開始できませんでした。もう一度お試しください。',
         quotaError: '検索を開始できませんでした。時間をおいてお試しください。',
         calendarFetchFailed: 'カレンダーを取得できませんでした。時間をおいてお試しください。',
@@ -1147,6 +1255,34 @@
         sessionCheckFailed: 'Could not verify your sign-in status. Please check your connection.',
         needsSignIn: 'Please sign in with Google first',
         quotaLimitReached: 'You have used all 3 free searches for this week.',
+        quotaRemaining: (n) => (n === 1
+          ? '1 free search left this week'
+          : n + ' free searches left this week'),
+        quotaExhausted: "You've used all your free searches this week",
+        quotaProPitch: 'Unlimited searches with Web Pro',
+        quotaNextReset: (d) => 'Resets: ' + d,
+        planLabel: 'Current plan',
+        planFree: 'Free',
+        planWebPro: 'Web Pro',
+        planActive: 'Active',
+        planUpgradeCta: 'See Web Pro',
+        bgProNotice: 'Background position and white range are available with Web Pro.',
+        planManageCta: 'Manage billing',
+        planPerMonthTaxIncluded: ' / month (tax incl.)',
+        planAmountLabel: 'Monthly price',
+        planNextRenewal: 'Next renewal',
+        planStateLabel: 'Status',
+        planStateActive: 'Active',
+        planStatePastDue: 'A payment needs your attention',
+        planPastDueUntil: (d) => 'Web Pro remains available until ' + d + '. Please check your payment method.',
+        planPastDueCheck: 'Please check your payment method.',
+        planLaunchNote: (d, a) => 'From ' + d + ', the standard price of ' + a + ' applies',
+        planCancelScheduled: 'Cancellation scheduled',
+        planCancelUntil: (d) => 'Web Pro remains available until ' + d,
+        portalOpening: 'Working…',
+        portalError: "We couldn't open the billing page. Please try again later.",
+        portalNoAccount: 'No billing information was found.',
+        portalUnauthenticated: 'Please sign in and try again.',
         quotaRetry: 'Could not start the search. Please try again.',
         quotaError: 'Could not start the search. Please try again later.',
         calendarFetchFailed: 'Could not load your calendar. Please try again later.',
@@ -1178,10 +1314,11 @@
       }
     };
 
-    function t(key, arg) {
+    function t(key, ...args) {
       const dict = I18N[currentLang] || I18N.ja;
       const val = dict[key] !== undefined ? dict[key] : (I18N.ja[key] !== undefined ? I18N.ja[key] : key);
-      if (typeof val === 'function') return val(arg);
+      // 引数は 0 個以上。既存の 1 引数呼び出しはそのまま動く。
+      if (typeof val === 'function') return val(...args);
       return val;
     }
 
@@ -1221,6 +1358,10 @@
       }
       document.getElementById('searchBtn').textContent = t('searchBtn');
       document.getElementById('logoutBtn').textContent = t('logoutBtn');
+      // 残数表示は quotaStatus から組み立て直す（数値は再計算しない）。
+      renderQuotaInfo();
+      // プラン表示も言語に追従させる（判定は entitlement のまま）。
+      renderPlanInfo();
       const footerTitle = q('#searchView .app-footer-text');
       if (footerTitle) footerTitle.textContent = t('footerTitle');
 
@@ -1342,7 +1483,7 @@
     }
 
     function updateBackgroundPosition() {
-      const posStr = `${bgPositionX}% ${bgPositionY}%`;
+      const posStr = `${effectiveBgPositionX()}% ${effectiveBgPositionY()}%`;
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundPosition = posStr;
       updateBgPreviewHighlight();
@@ -1353,7 +1494,7 @@
     // in sync on every pointermove without writing to localStorage on every
     // frame (that only happens once, on pointerup).
     function applyBgPositionRealtime() {
-      const posStr = `${bgPositionX}% ${bgPositionY}%`;
+      const posStr = `${effectiveBgPositionX()}% ${effectiveBgPositionY()}%`;
       const layer = document.getElementById('bgImageLayer');
       if (layer) layer.style.backgroundPosition = posStr;
     }
@@ -1392,8 +1533,8 @@
       const movableW = renderW - highlightW;
       const movableH = renderH - highlightH;
       // -100 -> 0% (left/top edge), 50 -> 50% (center), 200 -> 100% (right/bottom edge)
-      const fracX = Math.min(Math.max((bgPositionX + 100) / 300, 0), 1);
-      const fracY = Math.min(Math.max((bgPositionY + 100) / 300, 0), 1);
+      const fracX = Math.min(Math.max((effectiveBgPositionX() + 100) / 300, 0), 1);
+      const fracY = Math.min(Math.max((effectiveBgPositionY() + 100) / 300, 0), 1);
       const highlightLeft = renderLeft + fracX * movableW;
       const highlightTop = renderTop + fracY * movableH;
       bgPreviewMovableBounds = { renderLeft, renderTop, movableW, movableH };
@@ -1405,6 +1546,8 @@
     }
 
     function handleBgPreviewHighlightPointerDown(e) {
+      // **Free は位置調整できない。** ドラッグを開始させない。
+      if (!canCustomizeBackground()) return;
       if (!bgPreviewMovableBounds) return;
       if (e.isPrimary === false) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -1472,25 +1615,33 @@
       const resultView = document.getElementById('resultView');
       if (resultView) {
         resultView.classList.remove('bg-white-range-0', 'bg-white-range-1', 'bg-white-range-2');
-        resultView.classList.add(`bg-white-range-${bgWhiteRange}`);
+        resultView.classList.add(`bg-white-range-${effectiveBgWhiteRange()}`);
       }
       updateBgWhiteRangeUI();
       saveBgWhiteRangeToStorage();
     }
 
     function updateBgWhiteRangeUI() {
+      const value = effectiveBgWhiteRange();
       const slider = document.getElementById('bgWhiteRangeSlider');
-      if (slider) slider.value = bgWhiteRange;
+      if (slider) slider.value = value;
       const valueText = document.getElementById('bgWhiteRangeValueText');
-      if (valueText) valueText.textContent = t(BG_WHITE_RANGE_LABEL_KEYS[bgWhiteRange]);
+      if (valueText) valueText.textContent = t(BG_WHITE_RANGE_LABEL_KEYS[value]);
     }
 
     function setBgWhiteRangeControlEnabled(enabled) {
+      // 背景画像があっても、**Pro でなければ操作させない**。
+      const allowed = enabled && canCustomizeBackground();
       const slider = document.getElementById('bgWhiteRangeSlider');
-      if (slider) slider.disabled = !enabled;
+      if (slider) slider.disabled = !allowed;
     }
 
     function handleBgWhiteRangeSliderInput() {
+      // disabled でも念のため二重に止める（UI だけに頼らない）。
+      if (!canCustomizeBackground()) {
+        updateBgWhiteRangeUI();
+        return;
+      }
       bgWhiteRange = Number(document.getElementById('bgWhiteRangeSlider').value);
       applyBgWhiteRange();
     }
@@ -1680,7 +1831,12 @@
       }
 
       // Sukima サーバーセッションの復元（Cookie のみ。ID Token は使わない）
-      restoreSukimaSession().then(updateAuthUi);
+      //   復元できたら timezone を同期し、quota の残数を取りに行く。
+      //   どちらも表示のためだけで、失敗しても検索は止めない。
+      restoreSukimaSession().then(() => {
+        updateAuthUi();
+        syncQuotaContext();
+      });
       // Google Identity Services（本人確認用）の初期化。読み込み待ちを含む。
       setupGoogleIdentity();
       updateAuthUi();
@@ -1809,6 +1965,10 @@
           sukimaAuthenticated = true;
           sukimaPlanId = data.plan_id;
           sukimaSubscriptionStatus = data.status;
+          // entitlement は server が計算した値だけを受け取る。
+          // 形が違えば「不明」に倒す（client 側で組み立てない）。
+          sukimaEntitlement = readEntitlement(data);
+          sukimaBilling = readBillingState(data);
           sukimaSessionCheckFailed = false;
           return 'authenticated';
         }
@@ -1841,6 +2001,136 @@
       sukimaAuthenticated = false;
       sukimaPlanId = null;
       sukimaSubscriptionStatus = null;
+      sukimaEntitlement = null;
+      sukimaBilling = null;
+    }
+
+    /**
+     * /api/auth/me の契約情報を読む。
+     * **表示専用。** 権限判定には使わない。
+     * 形が違えば null（不明）にして、解約予定の表示を出さない。
+     */
+    function readBillingState(data) {
+      if (!data || typeof data !== 'object') return null;
+      const cancel = data.cancel_at_period_end;
+      if (typeof cancel !== 'boolean') return null;
+      const end = typeof data.current_period_end === 'string' ? data.current_period_end : null;
+      // 金額は server が決めた値だけを使う。**client では計算も既定値の補完もしない。**
+      const amount = Number.isInteger(data.amount) ? data.amount : null;
+      const nextAmount = Number.isInteger(data.next_phase_amount) ? data.next_phase_amount : null;
+      const currency = typeof data.currency === 'string' ? data.currency : null;
+      const phase = typeof data.price_phase === 'string' ? data.price_phase : null;
+      return {
+        cancelAtPeriodEnd: cancel,
+        currentPeriodEnd: end,
+        amount,
+        currency,
+        pricePhase: phase,
+        nextPhaseAmount: nextAmount,
+        // **grace 期限は server が算出した値だけを使う。**
+        // 「past_due になってから 7 日」を client で計算しない。
+        graceUntil: typeof data.grace_until === 'string' ? data.grace_until : null,
+        status: typeof data.status === 'string' ? data.status : null,
+      };
+    }
+
+    /**
+     * 契約中の月額を表示用に整える。
+     * **server が amount / currency を返したときだけ**文字列を作る。
+     * 引けなければ null で、画面は金額行ごと出さない。
+     */
+    function formatBillingAmount(billing, amountOverride) {
+      const amount = amountOverride === undefined ? (billing && billing.amount) : amountOverride;
+      if (!billing || amount === null || amount === undefined || billing.currency === null) return null;
+      if (billing.currency === 'jpy') {
+        // JPY は整数円。小数を作らない。
+        return '¥' + String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+          + t('planPerMonthTaxIncluded');
+      }
+      // 現在の販売は JPY のみ。他通貨は表示しない（推測で単位を作らない）。
+      return null;
+    }
+
+    /**
+     * 契約期間の終了日を日本語の日付にする。
+     * **server 由来の ISO をそのまま解釈する。** client の timezone で
+     * 契約期間そのものを動かさない（表示だけ JST に寄せる）。
+     */
+    function formatBillingDate(iso) {
+      if (typeof iso !== 'string' || iso.length === 0) return null;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return null;
+      const locale = currentLang === 'en' ? 'en-US' : 'ja-JP';
+      try {
+        return d.toLocaleDateString(locale, {
+          timeZone: 'Asia/Tokyo',
+          year: 'numeric', month: 'long', day: 'numeric',
+        });
+      } catch (e) {
+        return null;
+      }
+    }
+
+    /**
+     * /api/auth/me の entitlement を読む。
+     * **boolean が 2 つそろっているときだけ**採用し、それ以外は null（不明）。
+     * query parameter / localStorage / plan_id からは組み立てない。
+     */
+    function readEntitlement(data) {
+      const e = data && data.entitlement;
+      if (!e || typeof e !== 'object') return null;
+      if (typeof e.web !== 'boolean' || typeof e.extension !== 'boolean') return null;
+      return { web: e.web, extension: e.extension };
+    }
+
+    /** Web Pro を使えると**確認できている**か。不明のときは false。 */
+    function hasWebProEntitlement() {
+      return sukimaEntitlement !== null && sukimaEntitlement.web === true;
+    }
+
+    /** Free だと**確認できている**か。不明・Pro のときは false。 */
+    function isConfirmedFreeUser() {
+      return sukimaAuthenticated
+        && sukimaEntitlement !== null
+        && sukimaEntitlement.web === false;
+    }
+
+    /**
+     * 背景の位置調整 / ホワイトレンジを操作できるか。
+     *
+     * **正は `/api/auth/me` の entitlement.web だけ。**
+     * plan_id 文字列・localStorage の保存値・query parameter からは判定しない。
+     * boolean として確定できないときは Pro 扱いしない（fail closed）。
+     */
+    function canCustomizeBackground() {
+      return hasWebProEntitlement();
+    }
+
+    /** 実際に描画へ使う位置。Free は既定値で「表示だけ」行う。 */
+    function effectiveBgPositionX() {
+      return canCustomizeBackground() ? bgPositionX : BG_POS_DEFAULT_X;
+    }
+
+    function effectiveBgPositionY() {
+      return canCustomizeBackground() ? bgPositionY : BG_POS_DEFAULT_Y;
+    }
+
+    /** 実際に描画へ使うホワイトレンジ。Free は既定値。 */
+    function effectiveBgWhiteRange() {
+      return canCustomizeBackground() ? bgWhiteRange : BG_WHITE_RANGE_DEFAULT;
+    }
+
+    /**
+     * 契約状態が変わったときに背景まわりを描き直す。
+     *
+     * **保存済みの値（bgPositionX/Y・bgWhiteRange）は一切変更しない。**
+     * 変わるのは「何を表示するか」と「操作できるか」だけ。
+     */
+    function applyBackgroundEntitlement() {
+      if (typeof document === 'undefined') return;
+      updateBackgroundPosition();
+      applyBgWhiteRange();
+      renderBackgroundProUi();
     }
 
     /** Calendar 側のローカル状態だけを消す（サーバーセッションには触れない）。 */
@@ -1894,6 +2184,8 @@
           //                          doLogin() -> requestCalendarAuthorization() が走る。
           //   Calendar token あり -> 状態A のまま（余計な同意を求めない）。
           updateAuthUi();
+          // 別アカウントへ切り替えた場合もここで timezone を送り直す。
+          syncQuotaContext();
           return;
         }
         if (result.kind === 'identity') setStatus(t('signInFailed'));
@@ -2012,6 +2304,9 @@
       if (!loginSection || !formSection) return;
 
       const state = getAuthState();
+      renderPlanInfo();
+      // 契約状態が変わったら背景の表示と操作可否も合わせ直す。
+      applyBackgroundEntitlement();
       if (state === 'A') {
         loginSection.style.display = 'none';
         formSection.style.display = 'block';
@@ -2077,6 +2372,11 @@
         clearSukimaSessionState();
         sukimaSessionCheckFailed = false;
         clearCalendarAuthorization();
+        // quota の表示状態と timezone の送信記録を捨てる。
+        // 同じタブで別アカウントへログインしたとき、必ず送り直させるため。
+        quotaStatus = null;
+        clearTimezoneSyncMark();
+        renderQuotaInfo();
         // 次回アクセス時の自動サインインだけ止める。
         // Calendar の同意は revoke しない（再同意を強制すると UX が悪化する）。
         try {
@@ -2103,9 +2403,47 @@
       document.getElementById('backgroundSettingsView').style.display = 'none';
     }
 
+    /**
+     * 背景設定画面の Pro 案内と操作可否を描き直す。
+     *
+     * Free   -> 控えめな案内 + /pricing リンク。スライダーは disabled
+     * Pro    -> 案内を出さず通常の設定 UI
+     * 不明   -> Pro 扱いしない（= Free と同じ表示）が、**保存値は書き換えない**
+     */
+    function renderBackgroundProUi() {
+      const notice = document.getElementById('bgProNotice');
+      const pro = canCustomizeBackground();
+
+      if (notice) {
+        if (pro) {
+          notice.style.display = 'none';
+          notice.textContent = '';
+          notice.innerHTML = '';
+        } else {
+          notice.innerHTML = '';
+          notice.style.display = '';
+          const label = document.createElement('span');
+          label.textContent = t('bgProNotice');
+          notice.appendChild(label);
+          const link = document.createElement('a');
+          link.id = 'bgProNoticeCta';
+          link.href = '/pricing';
+          link.textContent = t('planUpgradeCta');
+          notice.appendChild(link);
+        }
+      }
+
+      // 背景画像がある場合だけスライダーを触れるようにする条件は従来どおり。
+      setBgWhiteRangeControlEnabled(bgImageObjectUrl !== null);
+      // 表示は effective 値で描き直す（保存はしない経路）。
+      updateBgWhiteRangeUI();
+      updateBgPreviewHighlight();
+    }
+
     function showBackgroundSettings() {
       document.getElementById('searchView').style.display = 'none';
       document.getElementById('backgroundSettingsView').style.display = 'flex';
+      renderBackgroundProUi();
       // The preview may have been sized while hidden (e.g. a background was
       // restored before this view was ever opened), so its bounds could be
       // stale or missing. Recompute now that the container has real layout.
@@ -2335,6 +2673,8 @@
     async function runGuardedSearch() {
       const reservation = await reserveQuota();
       if (!reservation.proceed) {
+        // 上限に達していた場合はサーバーの見解に表示を合わせる。
+        if (reservation.enforced) await refreshQuotaStatus();
         return { searched: false, blocked: true, result: null, message: reservation.message };
       }
 
@@ -2343,9 +2683,513 @@
       if (reservation.reservationId) {
         if (result && result.success) await commitQuota(reservation.reservationId);
         else await releaseQuota(reservation.reservationId);
+        // 残数が変わり得たので取り直す。client 側で減算はしない。
+        await refreshQuotaStatus();
       }
 
       return { searched: true, blocked: false, result, message: null };
+    }
+
+
+    // =====================================================
+    // timezone 同期と quota 残数表示
+    //
+    //   サーバーが唯一の権威。ブラウザ側では:
+    //     - 残数を加減算しない（reserve/commit のたびに status を取り直す）
+    //     - 週の起点も次回リセットも計算しない（DB の値をそのまま表示する）
+    //     - plan / status で quota の可否を判定しない
+    //   表示のためだけの層で、検索の可否は /api/quota/reserve が決める。
+    // =====================================================
+
+    const USER_TIMEZONE_URL = '/api/user/timezone';
+    const QUOTA_STATUS_URL  = '/api/quota/status';
+
+    /**
+     * この「タブのセッション」で最後に送った timezone。
+     * 同じ値の再送を減らすためだけの通信最適化で、権限判定には使わない。
+     *
+     * sessionStorage を使うのはタブを閉じれば消えるため。加えて logout でも
+     * 消す。同じブラウザで別アカウントへログインし直したとき、
+     * 「前のユーザーが送ったから」という理由で送信を飛ばさないようにする
+     * （client は user_id を持たないので、送信済みかを user 単位で判断できない）。
+     */
+    const TZ_SYNC_KEY = 'sukima_tz_synced';
+
+    /** 直近に取得した quota status。表示専用。null は「不明」で 0 でも無制限でもない。 */
+    let quotaStatus = null;
+
+    /**
+     * ブラウザの IANA timezone。取得できなければ null。
+     * 失敗しても検索は止めない（timezone は quota の表示にしか効かない）。
+     */
+    function detectBrowserTimezone() {
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (typeof tz !== 'string') return null;
+        const trimmed = tz.trim();
+        return trimmed.length > 0 && trimmed.length <= 64 ? trimmed : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    /**
+     * ブラウザの timezone をサーバーへ同期する。best effort。
+     *
+     * - 未ログインなら送らない
+     * - 取得できなければ送らない
+     * - このタブのセッションで同じ値を送っていれば送らない
+     * - 失敗しても記録しない（次の機会に再送される）
+     * - 失敗しても検索体験は壊さない
+     */
+    async function syncTimezone() {
+      if (!sukimaAuthenticated) return false;
+      const tz = detectBrowserTimezone();
+      if (!tz) return false;
+
+      let last = null;
+      try { last = sessionStorage.getItem(TZ_SYNC_KEY); } catch (e) { last = null; }
+      if (last === tz) return false;
+
+      let res;
+      try {
+        res = await fetch(USER_TIMEZONE_URL, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timezone: tz })
+        });
+      } catch (e) {
+        // 通信障害。検索は続行できるので静かに諦める。
+        console.warn('[timezone] 同期に到達できませんでした');
+        return false;
+      }
+
+      if (!res.ok) {
+        // migration 未適用（502）などもここに来る。ユーザーには何も見せない。
+        console.warn('[timezone] 同期が status=' + res.status + ' を返しました');
+        return false;
+      }
+
+      try { sessionStorage.setItem(TZ_SYNC_KEY, tz); } catch (e) {}
+      return true;
+    }
+
+    /** ログアウト時に送信記録を捨てる。次のユーザーで必ず送り直させる。 */
+    function clearTimezoneSyncMark() {
+      try { sessionStorage.removeItem(TZ_SYNC_KEY); } catch (e) {}
+    }
+
+    /** status の応答が契約どおりか。壊れていたら「不明」に倒す（fail closed）。 */
+    function isValidQuotaStatus(data) {
+      if (!data || typeof data !== 'object') return false;
+      if (data.unlimited === true) return true;
+      if (data.unlimited !== false) return false;
+      return Number.isInteger(data.used) && data.used >= 0
+          && Number.isInteger(data.remaining) && data.remaining >= 0
+          && Number.isInteger(data.limit) && data.limit >= 0
+          && typeof data.week_start === 'string'
+          && typeof data.next_reset_at === 'string';
+    }
+
+    /**
+     * quota status を取り直して表示を更新する。
+     *
+     * 失敗時は quotaStatus を null にして表示を隠す。
+     * **0 回扱いにも Pro 扱いにもしない。** 表示 API の障害で検索の可否を
+     * client が決めてはいけない（正は /api/quota/reserve）。
+     */
+    async function refreshQuotaStatus() {
+      if (!sukimaAuthenticated) {
+        quotaStatus = null;
+        renderQuotaInfo();
+        return null;
+      }
+
+      let res;
+      try {
+        res = await fetch(QUOTA_STATUS_URL, sukimaApiInit({ method: 'GET' }));
+      } catch (e) {
+        console.warn('[quota] status に到達できませんでした');
+        quotaStatus = null;
+        renderQuotaInfo();
+        return null;
+      }
+
+      if (res.status === 401) {
+        // Sukima のサーバーセッションが切れている。
+        sukimaAuthenticated = false;
+        quotaStatus = null;
+        updateAuthUi();
+        renderQuotaInfo();
+        return null;
+      }
+
+      if (!res.ok) {
+        console.warn('[quota] status が status=' + res.status + ' を返しました');
+        quotaStatus = null;
+        renderQuotaInfo();
+        return null;
+      }
+
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (!isValidQuotaStatus(data)) {
+        console.warn('[quota] status の応答を解釈できませんでした');
+        quotaStatus = null;
+        renderQuotaInfo();
+        return null;
+      }
+
+      quotaStatus = data;
+      renderQuotaInfo();
+      return data;
+    }
+
+    /**
+     * 次回リセット日時の整形。
+     *
+     * **サーバーが返した瞬間をそのまま表示する。**
+     * 月曜 00:00 へ丸めたり +7 日したりしない。timezone を大きく動かした
+     * 利用者では現地の月曜 00:00 とずれることがあるが、実際に枠が戻るのは
+     * この時刻なので、正確な値を見せる（確定仕様）。
+     */
+    function formatNextReset(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return null;
+      const locale = currentLang === 'en' ? 'en-US' : 'ja-JP';
+      try {
+        return d.toLocaleString(locale, {
+          month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit'
+        });
+      } catch (e) {
+        return d.toISOString();
+      }
+    }
+
+    /**
+     * launch 価格の終了条件（表示専用）。
+     * **Pricing ページと Subscription Terms の記載と同じ条件**を指す。
+     * 実際の価格切り替えは server の LAUNCH_END_AT が正。
+     */
+    const LAUNCH_NOTE_FROM = '2027年に入って最初の更新日';
+
+    /** Portal を開く処理の二重実行ガード。 */
+    let sukimaPortalBusy = false;
+
+    /**
+     * Stripe Billing Portal を開く。
+     *
+     * client は customer_id / return_url を送らない。
+     * 応答の url へ遷移するだけで、契約状態の判定はしない。
+     */
+    async function openBillingPortal() {
+      if (sukimaPortalBusy) return;
+      const btn = document.getElementById('planManageBtn');
+      const err = document.getElementById('planPortalError');
+      const setError = (key) => {
+        if (!err) return;
+        err.textContent = t(key);
+        err.style.display = '';
+      };
+
+      sukimaPortalBusy = true;
+      if (err) { err.textContent = ''; err.style.display = 'none'; }
+      if (btn) { btn.disabled = true; btn.textContent = t('portalOpening'); }
+
+      let res;
+      try {
+        res = await fetch('/api/billing/portal', sukimaApiInit({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        }));
+      } catch (e) {
+        setError('portalError');
+        sukimaPortalBusy = false;
+        if (btn) { btn.disabled = false; btn.textContent = t('planManageCta'); }
+        return;
+      }
+
+      if (res.status === 200) {
+        let data = null;
+        try { data = await res.json(); } catch (e) { data = null; }
+        const url = data && typeof data.url === 'string' ? data.url : '';
+        if (url !== '') {
+          window.location.href = url;
+          return;   // 遷移するので busy は解除しない
+        }
+        setError('portalError');
+      } else if (res.status === 401) {
+        setError('portalUnauthenticated');
+      } else if (res.status === 409) {
+        setError('portalNoAccount');
+      } else {
+        // **生のエラー本文は読まない / 出さない。**
+        setError('portalError');
+      }
+
+      sukimaPortalBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = t('planManageCta'); }
+    }
+
+    /**
+     * 現在のプランを描き直す。
+     *
+     * 判定材料は `/api/auth/me` の entitlement **だけ**。
+     * query parameter / localStorage / plan_id 文字列からは判定しない。
+     *
+     *   Pro と確認できた   -> 「Web Pro ご利用中」。アップグレード導線は出さない
+     *   Free と確認できた  -> 「無料プラン」+ /pricing への導線
+     *   不明 / 未ログイン  -> 何も出さない（Free と断定して購入を勧めない）
+     */
+    function renderPlanInfo() {
+      const el = document.getElementById('planInfo');
+      if (!el) return;
+
+      const hide = () => {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.innerHTML = '';
+      };
+
+      if (!sukimaAuthenticated || sukimaEntitlement === null) { hide(); return; }
+
+      el.innerHTML = '';
+      el.style.display = '';
+
+      const label = document.createElement('span');
+      label.className = 'plan-label';
+      label.textContent = t('planLabel') + ': ';
+      el.appendChild(label);
+
+      const name = document.createElement('span');
+      name.className = 'plan-name';
+      el.appendChild(name);
+
+      if (hasWebProEntitlement()) {
+        // 契約中。**購入導線は出さない。**
+        name.textContent = t('planWebPro');
+        const active = document.createElement('span');
+        active.className = 'plan-active';
+        active.textContent = t('planActive');
+        el.appendChild(active);
+
+        // 契約概要。**表示値はすべて server 由来**で、
+        // client では金額も期間も計算しない。引けない項目は行ごと出さない。
+        const summary = document.createElement('span');
+        summary.className = 'plan-summary';
+        summary.id = 'planSummary';
+
+        const addRow = (id, labelKey, value) => {
+          if (value === null || value === undefined || value === '') return;
+          const row = document.createElement('span');
+          row.className = 'plan-row';
+          row.id = id;
+          const label = document.createElement('span');
+          label.className = 'plan-row-label';
+          label.textContent = t(labelKey);
+          const val = document.createElement('span');
+          val.className = 'plan-row-value';
+          val.textContent = value;
+          row.appendChild(label);
+          row.appendChild(val);
+          summary.appendChild(row);
+        };
+
+        const amountText = formatBillingAmount(sukimaBilling);
+        addRow('planAmountRow', 'planAmountLabel', amountText);
+
+        const cancelScheduled = sukimaBilling !== null
+          && sukimaBilling.cancelAtPeriodEnd === true;
+        const endText = sukimaBilling !== null
+          ? formatBillingDate(sukimaBilling.currentPeriodEnd)
+          : null;
+
+        // **表示の優先順位**: past_due 警告 > 解約予定 > 通常 active。
+        //   status は server が正。ここで書き換えない。
+        //   past_due の 7 日 grace 判定も server（entitlement.js）が正で、
+        //   ここは server が返した `grace_until` を表示するだけ。
+        const isPastDue = sukimaBilling !== null && sukimaBilling.status === 'past_due';
+        const graceText = sukimaBilling !== null
+          ? formatBillingDate(sukimaBilling.graceUntil)
+          : null;
+
+        // past_due 中は「次回更新日」を出さない（更新が止まっているため）。
+        if (!cancelScheduled && !isPastDue) {
+          addRow('planRenewalRow', 'planNextRenewal', endText);
+        }
+
+        // 契約状態の行は通常時だけ。past_due / 解約予定は専用の行で出す。
+        if (!cancelScheduled && !isPastDue) {
+          addRow('planStateRow', 'planStateLabel', t('planStateActive'));
+        }
+
+        if (summary.children.length > 0) el.appendChild(summary);
+
+        // --- past_due の警告（最優先。煽らない文言にする） ---
+        if (isPastDue) {
+          const warn = document.createElement('span');
+          warn.className = 'plan-pastdue';
+          warn.id = 'planPastDueNotice';
+          warn.textContent = t('planStatePastDue');
+          el.appendChild(warn);
+
+          const detail = document.createElement('span');
+          detail.className = 'plan-note';
+          detail.id = 'planPastDueDetail';
+          // 期限が取れたときだけ日付を出す。**残り日数は計算しない。**
+          detail.textContent = graceText
+            ? t('planPastDueUntil', graceText)
+            : t('planPastDueCheck');
+          el.appendChild(detail);
+        }
+
+        // launch 契約者への補足（Pricing / Terms と同じ条件のみ）。
+        const nextAmountText = sukimaBilling !== null
+          ? formatBillingAmount(sukimaBilling, sukimaBilling.nextPhaseAmount)
+          : null;
+        if (sukimaBilling !== null && sukimaBilling.pricePhase === 'launch'
+            && nextAmountText !== null && !cancelScheduled && !isPastDue) {
+          const note = document.createElement('span');
+          note.className = 'plan-note';
+          note.id = 'planLaunchNote';
+          note.textContent = t('planLaunchNote', LAUNCH_NOTE_FROM, nextAmountText);
+          el.appendChild(note);
+        }
+
+        // 契約管理（Stripe Billing Portal）への導線。
+        // 解約・解約取り消し・支払い方法・請求書はすべて Portal 側で行う。
+        const manage = document.createElement('button');
+        manage.type = 'button';
+        manage.className = 'plan-manage';
+        manage.id = 'planManageBtn';
+        manage.textContent = t('planManageCta');
+        manage.addEventListener('click', openBillingPortal);
+        el.appendChild(manage);
+
+        // 解約予定なら期間末まで使えることを添える（表示専用）。
+        if (cancelScheduled && !isPastDue) {
+          const cancel = document.createElement('span');
+          cancel.className = 'plan-cancel';
+          cancel.id = 'planCancelNotice';
+          const until = sukimaBilling.currentPeriodEnd
+            ? formatNextReset(sukimaBilling.currentPeriodEnd)
+            : null;
+          cancel.textContent = until
+            ? t('planCancelScheduled') + ' / ' + t('planCancelUntil', until)
+            : t('planCancelScheduled');
+          el.appendChild(cancel);
+        }
+
+        const err = document.createElement('span');
+        err.className = 'plan-error';
+        err.id = 'planPortalError';
+        err.style.display = 'none';
+        el.appendChild(err);
+        return;
+      }
+
+      // Free と確認できたときだけ導線を出す。価格や購入処理は持たない。
+      name.textContent = t('planFree');
+      const cta = document.createElement('a');
+      cta.className = 'plan-cta';
+      cta.id = 'planUpgradeCta';
+      cta.href = '/pricing';
+      cta.textContent = t('planUpgradeCta');
+      el.appendChild(cta);
+    }
+
+    /**
+     * entitlement が不明なまま認証済みのときだけ /api/auth/me を引き直す。
+     * sign-in 直後（/api/auth/session は entitlement を返さない）用の補完で、
+     * すでに判っているときは呼ばない。
+     */
+    async function refreshBillingContextIfUnknown() {
+      if (!sukimaAuthenticated || sukimaEntitlement !== null) return;
+      let res;
+      try {
+        res = await fetch('/api/auth/me', sukimaApiInit({ method: 'GET' }));
+      } catch (e) {
+        return; // 不明のまま。Free と断定しない。
+      }
+      if (res.status !== 200) return;
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (data && data.authenticated === true) {
+        sukimaEntitlement = readEntitlement(data);
+        sukimaBilling = readBillingState(data);
+        renderPlanInfo();
+        renderQuotaInfo();
+        applyBackgroundEntitlement();
+      }
+    }
+
+    /** 残数表示を描き直す。状態は quotaStatus と sukimaAuthenticated だけを見る。 */
+    function renderQuotaInfo() {
+      const el = document.getElementById('quotaInfo');
+      if (!el) return;
+
+      const hide = () => {
+        el.style.display = 'none';
+        el.textContent = '';
+        el.innerHTML = '';
+        el.classList.remove('is-exhausted');
+      };
+
+      // 未ログイン / 不明 / Pro は出さない。
+      // **Pro と確認できているときは quota 表示自体を出さない**。
+      // unlimited フラグが落ちていても entitlement を優先する。
+      if (!sukimaAuthenticated || !quotaStatus || quotaStatus.unlimited === true
+          || hasWebProEntitlement()) {
+        hide();
+        return;
+      }
+
+      const remaining = quotaStatus.remaining;
+      if (!Number.isInteger(remaining) || remaining < 0) {
+        hide();
+        return;
+      }
+
+      el.style.display = '';
+      if (remaining > 0) {
+        el.classList.remove('is-exhausted');
+        el.textContent = t('quotaRemaining', remaining);
+        return;
+      }
+
+      // 使い切った。通常より目立たせ、次回リセットもここでだけ出す。
+      el.classList.add('is-exhausted');
+      el.textContent = t('quotaExhausted');
+
+      const sub = document.createElement('span');
+      sub.className = 'quota-sub';
+      const reset = formatNextReset(quotaStatus.next_reset_at);
+      sub.textContent = reset
+        ? t('quotaProPitch') + ' / ' + t('quotaNextReset', reset)
+        : t('quotaProPitch');
+      el.appendChild(sub);
+
+      // **Free と確認できたときだけ** Pricing への導線を足す。
+      // ここから Checkout を自動で開始しない（必ず /pricing を経由する）。
+      if (isConfirmedFreeUser()) {
+        const cta = document.createElement('a');
+        cta.className = 'quota-cta';
+        cta.id = 'quotaUpgradeCta';
+        cta.href = '/pricing';
+        cta.textContent = t('planUpgradeCta');
+        sub.appendChild(cta);
+      }
+    }
+
+    /** ログイン確定後の同期。timezone -> status の順で、失敗しても止めない。 */
+    async function syncQuotaContext() {
+      try { await syncTimezone(); } catch (e) {}
+      try { await refreshQuotaStatus(); } catch (e) {}
+      // sign-in 直後は entitlement が不明なので、そのときだけ補う。
+      try { await refreshBillingContextIfUnknown(); } catch (e) {}
+      renderPlanInfo();
     }
 
     async function startSearch() {

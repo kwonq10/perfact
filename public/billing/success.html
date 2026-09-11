@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 決済の戻り先。検索結果に出す意味が無いので索引させない。 -->
+  <meta name="robots" content="noindex">
+  <title>お支払い手続きを受け付けました｜スキマ</title>
+  <meta name="theme-color" content="#4f8ef7">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!--
+    ============================================================
+    Checkout の戻り先（成功側）
+
+      URL: /billing/success
+      functions/api/billing/checkout.js の SUCCESS_PATH と一致させること。
+      ずれると Stripe が存在しない URL へ利用者を戻す。
+
+      **このページに来たことは「Pro になった」ことを意味しない。**
+        entitlement の正は **webhook -> DB**（apply_stripe_subscription_event）。
+        Checkout から戻った時点では webhook が届いていないことがあり、
+        決済が最終的に失敗することもある。
+        したがってここでは
+          「支払いを受け付けた」「確認中」「確認できたら使える」
+        までしか書かない。**確定表現を書かないこと。**
+
+      このページに置かないもの（意図的）:
+        - JavaScript（query parameter を読まない。session_id / plan / paid /
+          user_id / customer_id を表示や判定の根拠にしない）
+        - 外部リソース
+        - 契約状態の表示（API を叩かない。ポーリングもしない）
+        - Stripe の内部 ID / 金額 / メールアドレス
+
+      文言は日本語が主。英語は補足の 1 文だけを静的に置いてある
+      （Checkout の locale が en の利用者向け。i18n 基盤は作らない）。
+    ============================================================
+  -->
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #1a1a2e;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+      padding: 40px 28px;
+      text-align: center;
+    }
+
+    .icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      display: block;
+      margin: 0 auto 24px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      line-height: 1.8;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .status {
+      background: #eef4ff;
+      border: 1px solid #d6e4ff;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+
+    .status p:last-child { margin-bottom: 0; }
+
+    .note {
+      font-size: 13px;
+      color: #777;
+      margin-bottom: 24px;
+    }
+
+    .note-en {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.7;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: #4f8ef7;
+      color: white;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .btn:hover { background: #3a7de8; }
+    .btn:active { background: #3a7de8; }
+    .btn:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+
+    a { color: #4f8ef7; }
+
+    @media (max-width: 380px) {
+      .card { padding: 32px 20px; }
+      h1 { font-size: 18px; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <img src="/icon-192.png" alt="" class="icon" width="64" height="64">
+
+    <h1>お支払い手続きを受け付けました</h1>
+
+    <div class="status">
+      <p>ご購入いただきありがとうございます。ただいま、決済代行事業者からのお支払い情報を確認しています。</p>
+      <p>確認ができ次第、Web Pro の機能をお使いいただけるようになります。反映まで少しお時間がかかる場合があります。</p>
+    </div>
+
+    <p class="note">この画面は、お支払いの確認が済んだことを示すものではありません。ご利用状況は、スキマの画面でお確かめください。</p>
+
+    <p class="note-en" lang="en">Thank you. We are confirming your payment with the payment processor. Web Pro becomes available once that confirmation finishes, which can take a little while. This page does not by itself mean the payment has been confirmed.</p>
+
+    <a href="/" class="btn">スキマに戻る</a>
+
+    <p class="note" style="margin-top: 20px; margin-bottom: 0;">お支払いや解約の条件は<a href="/terms/subscription">サブスクリプション利用規約</a>に定めています。</p>
+  </main>
+</body>
+
+</html>

@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>料金プラン｜スキマ</title>
+  <meta name="description" content="スキマの料金プラン。Web Pro は月額300円（税込）から。現在、有料プランは日本国内向けに提供しています。">
+  <meta name="theme-color" content="#4f8ef7">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!--
+    ============================================================
+    料金プラン / 購入導線
+
+      URL: /pricing（Cloudflare Pages が public/pricing.html を配信）
+
+      **このページが守ること**
+
+      1. **client は価格を決めない。**
+         price ID / 金額 / 通貨 / 国 / plan / user_id / terms_version を
+         API へ 1 つも送らない。送るのは locale と age_confirmed だけ。
+         ここに書いてある金額は**表示専用**で、課金される金額の正は
+         server（resolvePurchasablePrice）にある。
+
+      2. **同意の順序を崩さない。**
+         18 歳確認 -> 規約同意 -> POST /api/terms/consent -> 200 ->
+         POST /api/billing/checkout -> 200 -> Stripe Checkout へ遷移。
+         consent が失敗したら checkout を呼ばない。
+
+      3. **生のエラーを出さない。**
+         Stripe の内部 ID・例外文言・secret・PII を画面に出さない。
+         API の error コードは決め打ちの日本語メッセージへ変換する。
+
+      4. **日本国内向けであることを明示する。**
+
+      entitlement の正は webhook -> DB。このページは購入の入口でしかなく、
+      「Pro になった」判定は一切しない。
+    ============================================================
+  -->
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #1a1a2e;
+      line-height: 1.7;
+      padding: 24px 16px 56px;
+    }
+
+    .wrap { max-width: 960px; margin: 0 auto; }
+
+    .head { text-align: center; margin-bottom: 8px; }
+    .head img { width: 56px; height: 56px; border-radius: 12px; }
+    h1 { font-size: 24px; font-weight: 600; margin: 12px 0 8px; }
+    .lead { font-size: 14px; color: #555; }
+
+    .jp-only {
+      max-width: 640px;
+      margin: 20px auto 28px;
+      background: #eef4ff;
+      border: 1px solid #d6e4ff;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #33456b;
+      text-align: center;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card.featured { border: 2px solid #4f8ef7; }
+
+    .plan-name { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 2px 10px;
+      margin-bottom: 10px;
+    }
+    .badge-launch { background: #fff2d6; color: #8a5a00; }
+    .badge-soon { background: #eceff4; color: #667085; }
+
+    .price { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
+    .price small { font-size: 13px; font-weight: 500; color: #555; }
+    .price-note { font-size: 12px; color: #777; margin-bottom: 14px; }
+
+    ul { list-style: none; margin-bottom: 18px; }
+    li { font-size: 13px; color: #444; padding-left: 18px; position: relative; margin-bottom: 6px; }
+    li::before { content: "・"; position: absolute; left: 2px; color: #4f8ef7; }
+
+    .card-foot { margin-top: auto; }
+
+    .soon-label {
+      display: block;
+      text-align: center;
+      font-size: 13px;
+      color: #667085;
+      background: #f4f6fa;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .buy {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+      padding: 24px 20px;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    h2 { font-size: 18px; font-weight: 600; margin-bottom: 14px; }
+
+    .terms-summary {
+      background: #f8fafc;
+      border: 1px solid #e3e9f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+    }
+    .terms-summary li { font-size: 13px; color: #333; }
+
+    .check { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+    .check input { margin-top: 4px; width: 18px; height: 18px; flex: none; }
+    .check label { font-size: 14px; color: #333; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: #4f8ef7;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    .btn:hover:not(:disabled) { background: #3a7de8; }
+    .btn:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+    .btn:disabled { background: #b9c6d8; cursor: not-allowed; }
+
+    .err {
+      background: #fdecec;
+      border: 1px solid #f5c2c2;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #8a1f1f;
+      margin-bottom: 14px;
+    }
+
+    .active {
+      background: #eaf7ef;
+      border: 1px solid #bfe3cd;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: #24663f;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+
+    .manage-row { text-align: center; margin-bottom: 14px; }
+    .btn-manage {
+      background: #fff;
+      color: #4f8ef7;
+      border: 1px solid #4f8ef7;
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-manage:hover:not(:disabled) { background: #f2f7ff; }
+    .btn-manage:disabled { color: #b9c6d8; border-color: #d5dee9; cursor: not-allowed; }
+    .btn-manage:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+
+    .legal { font-size: 13px; color: #666; margin-top: 16px; text-align: center; }
+    a { color: #4f8ef7; }
+
+    /* FAQ。**新しい契約条件をここで作らない。**
+       記載内容は Subscription Terms / 特商法表記 / billing-config と一致させる。 */
+    .faq {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+      padding: 24px 20px;
+      max-width: 640px;
+      margin: 24px auto 0;
+    }
+    .faq dt {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-top: 16px;
+    }
+    .faq dt:first-of-type { margin-top: 0; }
+    .faq dd { font-size: 13px; color: #555; margin-top: 6px; }
+    .faq-note { font-size: 12px; color: #777; margin-top: 20px; }
+
+    .back { display: block; text-align: center; margin-top: 28px; font-size: 14px; }
+
+    @media (max-width: 380px) {
+      h1 { font-size: 20px; }
+      .card, .buy { padding: 20px 16px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <div class="head">
+      <img src="/icon-192.png" alt="" width="56" height="56">
+      <h1>料金プラン</h1>
+      <p class="lead">スキマは無料でお使いいただけます。もっと使いたい方向けに有料プランをご用意しています。</p>
+    </div>
+
+    <p class="jp-only" id="jpOnlyNotice">現在、有料プランは日本国内向けに提供しています。お支払いは日本円のみです。</p>
+
+    <section class="cards" aria-label="プラン一覧">
+
+      <div class="card" data-plan="free">
+        <p class="plan-name">Free</p>
+        <p class="price">¥0</p>
+        <p class="price-note">ずっと無料</p>
+        <ul>
+          <li>空き時間検索が週3回まで</li>
+          <li>Web版と拡張機能の共通枠</li>
+          <li>基本機能はすべて利用可能</li>
+        </ul>
+        <div class="card-foot">
+          <span class="soon-label">登録不要でご利用中</span>
+        </div>
+      </div>
+
+      <div class="card featured" data-plan="web_pro">
+        <p class="plan-name">Web Pro</p>
+        <span class="badge badge-launch">ローンチ価格</span>
+        <p class="price">¥300<small>／月（税込）</small></p>
+        <p class="price-note">2026年12月31日までにご契約された方の価格です。2027年に入って最初の更新日から、通常価格の¥500／月（税込）になります。</p>
+        <ul>
+          <li>Web版の空き時間検索が無制限</li>
+          <li>背景画像の位置調整</li>
+          <li>ホワイトレンジ調整</li>
+        </ul>
+        <div class="card-foot">
+          <a href="#buy" class="soon-label" style="color:#4f8ef7;">下のフォームからお申し込み</a>
+        </div>
+      </div>
+
+      <div class="card" data-plan="extension_pro">
+        <p class="plan-name">Extension Pro</p>
+        <span class="badge badge-soon">Coming Soon</span>
+        <p class="price">—</p>
+        <p class="price-note">準備中です</p>
+        <ul>
+          <li>Chrome拡張機能の利用が無制限</li>
+        </ul>
+        <div class="card-foot">
+          <span class="soon-label">Coming Soon</span>
+        </div>
+      </div>
+
+      <div class="card" data-plan="all_pro">
+        <p class="plan-name">All Pro</p>
+        <span class="badge badge-soon">Coming Soon</span>
+        <p class="price">—</p>
+        <p class="price-note">準備中です</p>
+        <ul>
+          <li>Web版と拡張機能の両方が無制限</li>
+        </ul>
+        <div class="card-foot">
+          <span class="soon-label">Coming Soon</span>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="buy" id="buy" aria-label="Web Pro のお申し込み">
+      <h2>Web Pro のお申し込み</h2>
+
+      <div class="terms-summary">
+        <ul>
+          <li>料金は<strong>¥300／月（税込）</strong>です（ローンチ価格）。</li>
+          <li><strong>月額</strong>のサブスクリプションで、<strong>毎月自動更新</strong>されます。</li>
+          <li>解約は<strong>次回更新日の前まで</strong>にお手続きください。</li>
+          <li>解約後も、<strong>お支払い済みの期間の末日まで</strong>ご利用いただけます。</li>
+          <li>2027年に入って最初の更新日から、通常価格の¥500／月（税込）になります。</li>
+        </ul>
+      </div>
+
+      <p id="purchaseError" class="err" hidden role="alert"></p>
+
+      <!-- 契約中の表示。判定は /api/auth/me の entitlement のみ。 -->
+      <p id="activeNotice" class="active" hidden>Web Pro をご利用中です。</p>
+      <!-- 契約管理（Stripe Billing Portal）。契約中のときだけ出す。 -->
+      <p id="manageRow" class="manage-row" hidden>
+        <button type="button" id="managePlanBtn" class="btn-manage">お支払い・契約を管理</button>
+      </p>
+      <p id="portalError" class="err" hidden role="alert"></p>
+
+      <div id="purchaseControls">
+        <div class="check">
+          <input type="checkbox" id="ageConfirm">
+          <label for="ageConfirm">私は18歳以上です</label>
+        </div>
+
+        <div class="check">
+          <input type="checkbox" id="termsAgree">
+          <label for="termsAgree"><a href="/terms/subscription" target="_blank" rel="noopener">Sukima 有料プラン利用規約</a>に同意します</label>
+        </div>
+
+        <button type="button" id="buyWebPro" class="btn" disabled>Web Proを始める</button>
+      </div>
+
+      <p class="legal">
+        <a href="/terms/subscription">有料プラン利用規約</a>
+        ／
+        <a href="/legal/commercial-transactions">特定商取引法に基づく表記</a>
+      </p>
+    </section>
+
+    <section class="faq" aria-label="よくあるご質問">
+      <h2>よくあるご質問</h2>
+      <dl>
+        <dt>Web Pro はいくらですか？</dt>
+        <dd>2026年12月31日までにご契約を開始された方は ¥300／月（税込）です。2027年に入って最初の更新日から、通常価格の ¥500／月（税込）になります。</dd>
+
+        <dt>無料プランのままでも使えますか？</dt>
+        <dd>はい。無料プランでは空き時間検索を週3回までご利用いただけます。この回数は Web 版と拡張機能で共通の枠です。</dd>
+
+        <dt>いつでも解約できますか？</dt>
+        <dd>はい。次回更新日の前までにお手続きいただければ解約できます。解約後も、お支払い済みの契約期間の末日まではご利用いただけます。</dd>
+
+        <dt>無料トライアルはありますか？</dt>
+        <dd>ありません。お申し込み時点から有料の契約が始まります。</dd>
+
+        <dt>Extension Pro / All Pro は利用できますか？</dt>
+        <dd>現在は Coming Soon で、販売していません。提供時期が決まりましたらお知らせします。</dd>
+
+        <dt>海外から購入できますか？</dt>
+        <dd>現在、有料プランは日本国内向けにのみ提供しています。お支払いは日本円のみです。</dd>
+      </dl>
+      <p class="faq-note">お支払い・解約の詳しい条件は<a href="/terms/subscription">有料プラン利用規約</a>と<a href="/legal/commercial-transactions">特定商取引法に基づく表記</a>に定めています。内容が異なる場合は、これらの記載が優先します。</p>
+    </section>
+
+    <a href="/" class="back">スキマに戻る</a>
+
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ---------------------------------------------------------
+      // 送信先。client からは locale と age_confirmed しか送らない。
+      // price / country / currency / user_id / terms_version は送らない。
+      // ---------------------------------------------------------
+      var CONSENT_URL = '/api/terms/consent';
+      var CHECKOUT_URL = '/api/billing/checkout';
+      var LOCALE = 'ja';
+
+      var ageCb = document.getElementById('ageConfirm');
+      var termsCb = document.getElementById('termsAgree');
+      var btn = document.getElementById('buyWebPro');
+      var errBox = document.getElementById('purchaseError');
+
+      var LABEL_IDLE = 'Web Proを始める';
+      var LABEL_BUSY = '処理中…';
+
+      /** 二重送信の防止。click 以外の経路からも見えるようにする。 */
+      var submitting = false;
+
+      var GENERIC = 'エラーが発生しました。時間をおいてもう一度お試しください。';
+
+      // **生のエラーは画面に出さない。** error コードごとに決め打ちの日本語へ。
+      var MESSAGES = {
+        unauthenticated: 'お申し込みにはログインが必要です。スキマにログインしてから、もう一度お試しください。',
+        already_subscribed: 'すでに有料プランをご利用中です。',
+        terms_consent_required: '利用規約への同意が確認できませんでした。もう一度お試しください。',
+        age_confirmation_required: '18歳以上であることの確認が必要です。',
+        terms_not_available: 'ただいま有料プランのお申し込みを受け付けていません。時間をおいてお試しください。',
+        sales_unavailable: 'ただいま有料プランを販売していません。時間をおいてお試しください。',
+        payment_provider_unavailable: '決済サービスに接続できませんでした。時間をおいてもう一度お試しください。',
+        database_unavailable: 'ただいま混み合っています。時間をおいてもう一度お試しください。',
+        server_misconfigured: GENERIC,
+        internal_error: GENERIC,
+        forbidden_origin: GENERIC,
+        invalid_locale: GENERIC,
+        unknown_field: GENERIC,
+        invalid_body: GENERIC,
+        body_too_large: GENERIC,
+        method_not_allowed: GENERIC
+      };
+
+      /** 規約同意そのものが保存できなかったときだけの文言。 */
+      var CONSENT_FALLBACK = '利用規約への同意を保存できませんでした。時間をおいてもう一度お試しください。';
+
+      function messageFor(code, fallback) {
+        if (typeof code === 'string' && Object.prototype.hasOwnProperty.call(MESSAGES, code)) {
+          return MESSAGES[code];
+        }
+        return fallback || GENERIC;
+      }
+
+      function showError(text) {
+        errBox.textContent = text;
+        errBox.hidden = false;
+      }
+
+      function clearError() {
+        errBox.textContent = '';
+        errBox.hidden = true;
+      }
+
+      /** 両方チェックされていなければ押せない。送信中も押せない。 */
+      function syncButton() {
+        if (submitting) {
+          btn.disabled = true;
+          return;
+        }
+        btn.disabled = !(ageCb.checked === true && termsCb.checked === true);
+      }
+
+      function setBusy(on) {
+        submitting = on;
+        btn.textContent = on ? LABEL_BUSY : LABEL_IDLE;
+        syncButton();
+      }
+
+      /** Cookie 認証なので credentials を明示する。 */
+      function postJson(url, body) {
+        return fetch(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      }
+
+      /** 応答から error コードだけを取り出す。本文はそのまま表示しない。 */
+      function readErrorCode(res) {
+        return res.json().then(function (data) {
+          return data && typeof data.error === 'string' ? data.error : null;
+        }, function () {
+          return null;
+        });
+      }
+
+      function startCheckout() {
+        // 1. client 側の門番。**server 側の検証を置き換えるものではない。**
+        if (submitting) return Promise.resolve();
+        if (!(ageCb.checked === true && termsCb.checked === true)) {
+          syncButton();
+          return Promise.resolve();
+        }
+
+        clearError();
+        setBusy(true);
+
+        // 2. 規約同意を先に保存する。**terms_version は送らない**（server が正）。
+        return postJson(CONSENT_URL, { locale: LOCALE })
+          .then(function (res) {
+            if (!res.ok) {
+              return readErrorCode(res).then(function (code) {
+                throw { handled: true, text: messageFor(code, CONSENT_FALLBACK) };
+              });
+            }
+            // 3. 同意が 200 のときだけ checkout を呼ぶ。
+            return postJson(CHECKOUT_URL, { locale: LOCALE, age_confirmed: true });
+          })
+          .then(function (res) {
+            if (!res.ok) {
+              return readErrorCode(res).then(function (code) {
+                throw { handled: true, text: messageFor(code, GENERIC) };
+              });
+            }
+            return res.json();
+          })
+          .then(function (data) {
+            var url = data && typeof data.url === 'string' ? data.url : '';
+            if (url === '') {
+              throw { handled: true, text: GENERIC };
+            }
+            // 4. Stripe Checkout へ。ここから先は Stripe のページ。
+            window.location.href = url;
+          })
+          .catch(function (e) {
+            showError(e && e.handled ? e.text : GENERIC);
+            setBusy(false);
+          });
+      }
+
+      // ---------------------------------------------------------
+      // 契約中なら購入フォームを出さない。
+      //
+      //   判定は `/api/auth/me` の entitlement **だけ**。
+      //   取得できなくても購入フローはそのまま動かす（fail open）。
+      //   二重契約の最終的な門番は checkout API の 409 already_subscribed で、
+      //   ここは表示を整えるだけ。
+      // ---------------------------------------------------------
+      function showAlreadySubscribed() {
+        var notice = document.getElementById('activeNotice');
+        var controls = document.getElementById('purchaseControls');
+        var manage = document.getElementById('manageRow');
+        if (notice) notice.hidden = false;
+        if (controls) controls.hidden = true;
+        // 契約中の人にだけ契約管理の導線を出す。
+        if (manage) manage.hidden = false;
+        btn.disabled = true;
+      }
+
+      // ---------------------------------------------------------
+      // 契約管理（Stripe Billing Portal）
+      //
+      //   client は customer_id / return_url を送らない。
+      //   応答の url へ遷移するだけ。生の Stripe エラーは表示しない。
+      // ---------------------------------------------------------
+      var portalBusy = false;
+      var MANAGE_LABEL = 'お支払い・契約を管理';
+
+      var PORTAL_MESSAGES = {
+        unauthenticated: 'ログインが必要です。ログインしてからもう一度お試しください。',
+        no_billing_account: 'お支払い情報が見つかりませんでした。'
+      };
+      var PORTAL_GENERIC = '契約管理画面を開けませんでした。時間をおいてもう一度お試しください。';
+
+      function showPortalError(text) {
+        var box = document.getElementById('portalError');
+        if (!box) return;
+        box.textContent = text;
+        box.hidden = false;
+      }
+
+      function openBillingPortal() {
+        if (portalBusy) return Promise.resolve();
+        var manageBtn = document.getElementById('managePlanBtn');
+        var box = document.getElementById('portalError');
+
+        portalBusy = true;
+        if (box) { box.textContent = ''; box.hidden = true; }
+        if (manageBtn) { manageBtn.disabled = true; manageBtn.textContent = '処理中…'; }
+
+        var done = function () {
+          portalBusy = false;
+          if (manageBtn) { manageBtn.disabled = false; manageBtn.textContent = MANAGE_LABEL; }
+        };
+
+        return fetch('/api/billing/portal', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        }).then(function (res) {
+          if (res.status !== 200) {
+            return readErrorCode(res).then(function (code) {
+              showPortalError(
+                code && Object.prototype.hasOwnProperty.call(PORTAL_MESSAGES, code)
+                  ? PORTAL_MESSAGES[code]
+                  : PORTAL_GENERIC
+              );
+              done();
+            });
+          }
+          return res.json().then(function (data) {
+            var url = data && typeof data.url === 'string' ? data.url : '';
+            if (url === '') { showPortalError(PORTAL_GENERIC); done(); return; }
+            window.location.href = url;   // 遷移するので done() は呼ばない
+          }, function () {
+            showPortalError(PORTAL_GENERIC);
+            done();
+          });
+        }).catch(function () {
+          showPortalError(PORTAL_GENERIC);
+          done();
+        });
+      }
+
+      function refreshSubscriptionState() {
+        return fetch('/api/auth/me', {
+          method: 'GET',
+          credentials: 'same-origin'
+        }).then(function (res) {
+          if (res.status !== 200) return null;
+          return res.json().then(function (d) { return d; }, function () { return null; });
+        }).then(function (data) {
+          if (!data || data.authenticated !== true) return;
+          var e = data.entitlement;
+          // boolean が入っているときだけ信じる。client 側で組み立てない。
+          if (!e || typeof e.web !== 'boolean') return;
+          if (e.web === true) showAlreadySubscribed();
+        }).catch(function () {
+          // 判らないときは購入導線をそのまま出す（server が最終判定する）。
+        });
+      }
+
+      ageCb.addEventListener('change', syncButton);
+      termsCb.addEventListener('change', syncButton);
+      btn.addEventListener('click', startCheckout);
+
+      var managePlanBtn = document.getElementById('managePlanBtn');
+      if (managePlanBtn) managePlanBtn.addEventListener('click', openBillingPortal);
+
+      syncButton();
+      refreshSubscriptionState();
+    }());
+  </script>
+</body>
+
+</html>

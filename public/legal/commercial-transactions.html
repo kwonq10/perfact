@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>特定商取引法に基づく表記 - スキマ</title>
+  <meta name="description" content="スキマの有料プラン「Web Pro」に関する、特定商取引法に基づく表記です。販売価格・支払方法・提供時期・解約方法などを記載しています。">
+
+  <!--
+    ============================================================
+    特定商取引法に基づく表記
+
+      **事業者情報が確定したため、公開できる状態にした（2026-09-09）。**
+
+      事業者情報の 4 項目
+      （販売事業者 / 運営責任者 / 所在地 / 電話番号）は確定情報を記載している。
+      検索エンジンよけの robots メタタグは付けていない。
+
+      **適格請求書発行事業者の登録番号は無い**ため、欄自体を設けていない。
+      架空の番号を書かないこと。
+
+      記載内容の正は製品仕様（billing-config.js）と
+      public/terms/subscription.html（Subscription Terms）。
+      **数値・条件を片方だけ直さないこと。**
+      tests/frontend/commercial-transactions.test.mjs が両者の一致を検証している。
+
+      このページに置かないもの（意図的）:
+        - JavaScript
+        - 外部リソース
+        - 「未定」「準備中」などの利用者向けプレースホルダ表示
+          （確定していない事項は、確定するまで書かない）
+
+    ============================================================
+  -->
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      line-height: 1.8;
+    }
+
+    header {
+      background: #4f8ef7;
+      color: white;
+      padding: 20px 24px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header p {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 24px 64px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      font-size: 14px;
+      color: #555;
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #777;
+    }
+
+    /* 表記事項。既存ページに table / dl の前例が無いため、
+       法定表示の「項目名 : 内容」を素直に表せる dl を採用した。 */
+    dl {
+      font-size: 14px;
+      color: #555;
+    }
+
+    dl > div {
+      padding: 14px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    dl > div:last-child {
+      border-bottom: none;
+    }
+
+    dt {
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+
+    dd {
+      margin-left: 0;
+    }
+
+    dd ul {
+      margin-top: 6px;
+      margin-bottom: 0;
+    }
+
+    a {
+      color: #4f8ef7;
+      text-decoration: none;
+    }
+
+    .card a,
+    .card li {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .back-link a {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    footer {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+    }
+
+    footer nav a {
+      margin: 0 8px;
+    }
+
+    footer .brand {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #666;
+    }
+
+    @media (min-width: 640px) {
+      dl > div {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 16px;
+      }
+
+      dt {
+        margin-bottom: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>スキマ - 特定商取引法に基づく表記</h1>
+    <p>Sukima Web Pro</p>
+  </header>
+
+  <div class="container">
+
+    <div class="card">
+      <p>本表記は、スキマの有料プラン「Web Pro」の提供について記載しています。無料でのご利用には適用されません。</p>
+      <p class="note">契約条件の詳細は<a href="/terms/subscription">サブスクリプション利用規約</a>に、サービス全体の条件は<a href="/terms">一般利用規約</a>に定めています。</p>
+    </div>
+
+    <div class="card">
+      <h2>事業者に関する表記</h2>
+      <dl>
+
+        <div>
+          <dt>販売事業者</dt>
+          <dd>中谷 健一</dd>
+        </div>
+
+        <div>
+          <dt>屋号</dt>
+          <dd>Sukima</dd>
+        </div>
+
+        <div>
+          <dt>運営責任者</dt>
+          <dd>中谷 健一</dd>
+        </div>
+
+        <div>
+          <dt>所在地</dt>
+          <dd>石川県金沢市長土塀1-1-21</dd>
+        </div>
+
+        <div>
+          <dt>電話番号</dt>
+          <dd>090-3764-0143</dd>
+        </div>
+
+        <div>
+          <dt>メールアドレス</dt>
+          <dd><a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></dd>
+        </div>
+
+      </dl>
+    </div>
+
+    <div class="card">
+      <h2>販売条件に関する表記</h2>
+      <dl>
+
+        <div>
+          <dt>販売するサービス</dt>
+          <dd>スキマ 有料プラン「Web Pro」</dd>
+        </div>
+
+        <div>
+          <dt>販売価格</dt>
+          <dd>
+            <ul>
+              <li>開始価格：月額 300 円（税込）</li>
+              <li>通常価格：月額 500 円（税込）</li>
+            </ul>
+            開始価格は、2026 年 12 月 31 日までにご契約を開始された方に適用される期間限定の価格です。開始価格でご契約中の方は、2027 年に入って最初に訪れるお客様ごとの更新日から月額 500 円（税込）へ移行します。2027 年 1 月 1 日以降の新規のご契約、および一度解約されたのちの再度のご契約は、月額 500 円（税込）です。
+          </dd>
+        </div>
+
+        <div>
+          <dt>販売価格以外に必要となる費用</dt>
+          <dd>インターネット接続に必要な通信料金はお客様のご負担となります。当サービスの利用にあたり、上記の販売価格以外に当方が申し受ける費用はありません。</dd>
+        </div>
+
+        <div>
+          <dt>販売地域・請求通貨</dt>
+          <dd>現在ご契約いただけるのは日本国内のみで、請求通貨は日本円です。</dd>
+        </div>
+
+        <div>
+          <dt>支払方法</dt>
+          <dd>決済代行事業者である Stripe を通じたクレジットカード決済等、Stripe の決済画面でご利用いただける方法によります。ご利用いただける決済手段は Stripe 側の提供状況により変わることがあります。</dd>
+        </div>
+
+        <div>
+          <dt>支払時期</dt>
+          <dd>初回はお申し込み手続きの完了時にご請求します。以後は、解約されない限り、お客様ごとの更新日に自動的にご請求します。</dd>
+        </div>
+
+        <div>
+          <dt>サービスの提供時期</dt>
+          <dd>初回のお支払いが成功し、当方でお支払いを確認できた後にご利用いただけます。決済画面からスキマへ戻っただけでは Pro 機能は有効になりません。</dd>
+        </div>
+
+        <div>
+          <dt>契約期間</dt>
+          <dd>お客様ごとのご契約開始日を起点とする 1 か月間です。課金間隔は月額のみで、年額のご用意はありません。無料お試し期間はありません。</dd>
+        </div>
+
+        <div>
+          <dt>自動更新</dt>
+          <dd>解約のお手続きがない限り、契約期間の満了日に自動的に更新され、同額（上記の移行時期に該当する場合は移行後の金額）をご請求します。</dd>
+        </div>
+
+        <div>
+          <dt>解約方法</dt>
+          <dd>Stripe の請求ポータルからいつでもお申し込みいただけます。期間の終了前であれば、同じ画面から解約のお申し込みを取り消すこともできます。</dd>
+        </div>
+
+        <div>
+          <dt>解約の効力発生時期</dt>
+          <dd>解約は、現在の契約期間の末日をもって効力を生じます。お申し込みの時点で直ちに利用できなくなるものではなく、期間が終了するまでは Pro 機能をご利用いただけます。</dd>
+        </div>
+
+        <div>
+          <dt>返品・返金について</dt>
+          <dd>
+            サービスの性質上、返品はお受けしておりません。期間の途中での解約やご利用がなかったことを理由とする日割りでの返金も、原則として行いません。
+            ただし、次の場合には個別に対応いたします。
+            <ul>
+              <li>同一の請求が重複して決済された場合</li>
+              <li>誤った金額または誤った対象に請求が行われた場合</li>
+              <li>当方のシステム不具合により、Pro 機能を実質的にご利用いただけなかった場合</li>
+              <li>その他、法令上返金が必要と認められる場合</li>
+            </ul>
+            また、当方の都合により契約期間の途中で Web Pro をご利用いただけなくなった場合には、未経過期間に対応する金額の返金、または合理的な代替措置を行います。
+          </dd>
+        </div>
+
+        <div>
+          <dt>お支払いを確認できない場合の取扱い</dt>
+          <dd>初回のお支払いが完了しなかった場合、Pro 機能は付与されません。更新時にお支払いを確認できなかった場合は、最大 7 日間 Pro 機能を継続してご利用いただけるよう運用していますが、これは運用上の取扱いであり権利として保証されるものではありません。7 日を経過してもお支払いを確認できない場合は無料プランに戻ります。</dd>
+        </div>
+
+        <div>
+          <dt>動作環境・ご利用の条件</dt>
+          <dd>
+            <ul>
+              <li>ご利用には Google アカウントでのログインと、Google カレンダーとの連携が必要です</li>
+              <li>インターネットに接続できる環境と、最新のウェブブラウザが必要です</li>
+              <li>有料プランをご契約いただけるのは 18 歳以上の方に限ります</li>
+            </ul>
+          </dd>
+        </div>
+
+        <div>
+          <dt>その他の特別な条件</dt>
+          <dd>
+            <ul>
+              <li>同時にご契約いただける有料プランは 1 つです</li>
+              <li>「Extension Pro」「All Pro」は準備中であり、現時点では販売しておりません</li>
+            </ul>
+          </dd>
+        </div>
+
+      </dl>
+    </div>
+
+    <p class="back-link"><a href="/">← スキマ トップページに戻る</a></p>
+
+  </div>
+
+  <footer>
+    <span class="brand">スキマ</span>
+    <nav>
+      <a href="/terms">一般利用規約</a>
+      <a href="/terms/subscription">サブスクリプション利用規約</a>
+      <a href="/privacy">プライバシーポリシー</a>
+    </nav>
+  </footer>
+
+</body>
+
+</html>

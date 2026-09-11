@@ -526,13 +526,33 @@ test('日付移動・再描画・view 切替・カレンダー一覧取得は qu
   assert.equal(fetchImpl.quotaCalls('release').length, 0);
 });
 
-test('quota API は reserve / commit / release の 3 つ以外を呼ばない', async () => {
+test('quota API は reserve / commit / release / status 以外を呼ばない', async () => {
+  // 読み取り専用の /api/quota/status もある。
+  // quota を消費するのは従来どおり reserve / commit / release の 3 つだけ。
   const { page, fetchImpl } = setup();
   await searchOnce(page);
+  const allowed = [
+    '/api/quota/reserve', '/api/quota/commit', '/api/quota/release',
+    '/api/quota/status', '/api/user/timezone',
+  ];
   const paths = fetchImpl.calls
     .filter((c) => c.url.includes('/api/'))
     .map((c) => new URL(c.url, 'https://sukimacalendar.com').pathname);
   for (const p of paths) {
-    assert.ok(['/api/quota/reserve', '/api/quota/commit', '/api/quota/release'].includes(p), p);
+    assert.ok(allowed.includes(p), p);
   }
+});
+
+test('/api/quota/status は GET のみで、quota を消費しない', async () => {
+  const { page, fetchImpl } = setup();
+  await searchOnce(page);
+  const statusCalls = fetchImpl.calls
+    .filter((c) => c.url.includes('/api/quota/status'));
+  for (const c of statusCalls) {
+    assert.equal(c.method, 'GET', 'status を POST してはいけない');
+  }
+  // 消費する API の回数は status の有無に関係なく同じ。
+  assert.equal(fetchImpl.quotaCalls('reserve').length, 1);
+  assert.equal(fetchImpl.quotaCalls('commit').length, 1);
+  assert.equal(fetchImpl.quotaCalls('release').length, 0);
 });

@@ -281,12 +281,58 @@ test('RPC 1行正常 → valid（内部 context を返す）', async () => {
   assert.equal(r.status, SESSION_RESULT.VALID);
   assert.equal(isValidSession(r), true);
   assert.equal(isServerError(r), false);
+  // billing 5 列を含む。既存 5 key は削除も rename もしない。
+  // Stripe の内部 ID と last_stripe_event_at は context に入れない。
   assert.deepEqual(Object.keys(r.context).sort(),
-    ['absolute_expires_at', 'idle_expires_at', 'plan_id', 'status', 'user_id']);
+    ['absolute_expires_at', 'cancel_at_period_end', 'currency', 'current_period_end',
+     'idle_expires_at', 'past_due_since', 'plan_id', 'price_phase', 'status', 'user_id']);
   assert.equal(r.context.plan_id, 'free');
   assert.equal(r.context.status, 'active');
   assert.equal(r.context.idle_expires_at, '2026-10-01T00:00:00Z');
   assert.equal(r.context.absolute_expires_at, '2026-11-30T00:00:00Z');
+  // RPC が返さない場合の既定値（free 行の想定）
+  assert.equal(r.context.past_due_since, null);
+  assert.equal(r.context.current_period_end, null);
+  assert.equal(r.context.cancel_at_period_end, false);
+  assert.equal(r.context.currency, null);
+  assert.equal(r.context.price_phase, null);
+});
+
+test('context に Stripe の内部 ID を入れない', async () => {
+  const leaky = {
+    ...validRow,
+    stripe_customer_id: 'cus_LEAK',
+    stripe_subscription_id: 'sub_LEAK',
+    stripe_price_id: 'price_LEAK',
+    last_stripe_event_at: '2026-09-01T00:00:00Z',
+  };
+  const r = await getSessionContext(ENV, generateSessionToken(),
+    { rpc: stubRpc([leaky]), logger: quiet });
+
+  const text = JSON.stringify(r.context);
+  for (const f of ['stripe_customer_id', 'stripe_subscription_id', 'stripe_price_id',
+                   'last_stripe_event_at', 'cus_LEAK', 'sub_LEAK', 'price_LEAK']) {
+    assert.equal(text.includes(f), false, f);
+  }
+});
+
+test('RPC が返した billing 値がそのまま context に載る', async () => {
+  const paid = {
+    ...validRow,
+    plan_id: 'web_pro', status: 'past_due',
+    past_due_since: '2026-09-01T10:00:00Z',
+    current_period_end: '2026-10-01T10:00:00Z',
+    cancel_at_period_end: true,
+    currency: 'jpy', price_phase: 'launch',
+  };
+  const r = await getSessionContext(ENV, generateSessionToken(),
+    { rpc: stubRpc([paid]), logger: quiet });
+
+  assert.equal(r.context.past_due_since, '2026-09-01T10:00:00Z');
+  assert.equal(r.context.current_period_end, '2026-10-01T10:00:00Z');
+  assert.equal(r.context.cancel_at_period_end, true);
+  assert.equal(r.context.currency, 'jpy');
+  assert.equal(r.context.price_phase, 'launch');
 });
 
 test('RPC には p_token_hash だけを渡し、生 token は渡さない', async () => {

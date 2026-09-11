@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 決済の戻り先。検索結果に出す意味が無いので索引させない。 -->
+  <meta name="robots" content="noindex">
+  <title>購入手続きは完了していません｜スキマ</title>
+  <meta name="theme-color" content="#4f8ef7">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!--
+    ============================================================
+    Checkout の戻り先（中断側）
+
+      URL: /billing/cancel
+      functions/api/billing/checkout.js の CANCEL_PATH と一致させること。
+
+      利用者が決済を完了せずに戻ってきた画面。伝えるのは 3 つだけ:
+        - 購入手続きは完了していない
+        - Web Pro への変更は行われていない
+        - この画面を理由に料金は請求されない（無料プランのまま使える）
+
+      Pricing ページへは誘導しない。
+      戻り先はトップページのみ。
+
+      このページに置かないもの（意図的）:
+        - JavaScript（query parameter を読まない・表示しない）
+        - 外部リソース
+        - Stripe の内部 ID / 金額 / メールアドレス
+    ============================================================
+  -->
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #1a1a2e;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+      padding: 40px 28px;
+      text-align: center;
+    }
+
+    .icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      display: block;
+      margin: 0 auto 24px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      line-height: 1.8;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .status {
+      background: #f5f6f8;
+      border: 1px solid #e2e5ea;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+
+    .status p:last-child { margin-bottom: 0; }
+
+    .note {
+      font-size: 13px;
+      color: #777;
+      margin-bottom: 24px;
+    }
+
+    .note-en {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.7;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: #4f8ef7;
+      color: white;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .btn:hover { background: #3a7de8; }
+    .btn:active { background: #3a7de8; }
+    .btn:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+
+    a { color: #4f8ef7; }
+
+    @media (max-width: 380px) {
+      .card { padding: 32px 20px; }
+      h1 { font-size: 18px; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <img src="/icon-192.png" alt="" class="icon" width="64" height="64">
+
+    <h1>購入手続きは完了していません</h1>
+
+    <div class="status">
+      <p>決済画面から戻られたため、購入手続きは完了していません。Web Pro への変更は行われていません。</p>
+      <p>この画面に来たことを理由に料金を請求することはありません。スキマは引き続き無料プランでご利用いただけます。</p>
+    </div>
+
+    <p class="note">もう一度お申し込みになる場合は、スキマの画面からやり直してください。</p>
+
+    <p class="note-en" lang="en">Your purchase was not completed and nothing has changed on your account. You have not been charged for reaching this page, and you can keep using Sukima on the free plan.</p>
+
+    <a href="/" class="btn">スキマに戻る</a>
+  </main>
+</body>
+
+</html>

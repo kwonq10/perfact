@@ -10,8 +10,15 @@
 //   設計上の約束:
 //     - セッション検証は _lib/session.js に一任する。
 //       Cookie の解析も検証ロジックもここには書かない。
-//     - 返すのは authenticated / plan_id / status の3つだけ。
+//     - 返すのは authenticated / plan_id / status と billing 情報
+//       （price_phase / amount / tax_behavior を含む）
+//       （entitlement / current_period_end / cancel_at_period_end /
+//        currency / grace_until）。
 //       user_id / google_sub / email / token / token_hash / 有効期限は返さない。
+//       Stripe の内部 ID（customer / subscription / price）と
+//       last_stripe_event_at / past_due_since の生値も返さない。
+//     - plan_id / status は既存 client 互換のため top-level を維持する。
+//       billing は追加 field で、既存 field を削除・rename しない。
 //     - plan_id / status は毎回 DB の subscriptions から読まれる
 //       （get_session_context が JOIN する）ため、Stripe webhook による
 //       プラン変更が次のリクエストで即反映される。
@@ -26,7 +33,9 @@
 //     SUPABASE_SERVICE_ROLE_KEY  クライアントへは絶対に渡さない
 //
 //   リクエスト:  GET  Cookie: __Host-sukima_session=<opaque token>
-//   レスポンス:  200 { authenticated: true, plan_id, status } + Set-Cookie（延長）
+//   レスポンス:  200 { authenticated: true, plan_id, status, entitlement,
+//                      current_period_end, cancel_at_period_end, currency,
+//                      grace_until } + Set-Cookie（延長）
 //               401 { authenticated: false }                  + Set-Cookie（削除）
 //               405 { error: 'method_not_allowed' }
 //               500 { error: 'server_misconfigured' | 'internal_error' }
@@ -40,6 +49,100 @@ import {
   parseSessionCookie,
   requireSession,
 } from '../_lib/session.js';
+import {
+  GRACE_STATUS,
+  PAST_DUE_GRACE_MS,
+  hasExtensionEntitlement,
+  hasWebEntitlement,
+  toTimestampMs,
+} from '../_lib/entitlement.js';
+import { resolveDisplayAmount } from '../_lib/billing-config.js';
+
+/** 契約通貨として認めるもの。DB の CHECK と同じ集合（表示用の最終防衛線）。 */
+const ALLOWED_CURRENCIES = Object.freeze(['jpy', 'usd']);
+
+/**
+ * DB 由来の日時を ISO 8601（UTC）へそろえる。
+ * 解釈できない値は null。ここで日時を再計算はしない（形式をそろえるだけ）。
+ */
+function toIsoOrNull(value) {
+  const ms = toTimestampMs(value);
+  return ms === null ? null : new Date(ms).toISOString();
+}
+
+/**
+ * 表示用の猶予期限。
+ *
+ *   status === 'past_due' かつ past_due_since が読めるときだけ
+ *   past_due_since + 7日 を返す。それ以外は null。
+ *
+ * 7日の定数は entitlement.js から import する。ここで別の 7日を持たない
+ * （権限の正は entitlement core、ここは表示用の派生値にすぎない）。
+ *
+ * 猶予が既に切れていても past_due の間は返す。UI が
+ * 「猶予終了済み」を表示できるようにするため。
+ * grace_until が未来かどうかと entitlement の真偽は独立に扱う。
+ */
+export function graceUntilFrom(context) {
+  if (context?.status !== GRACE_STATUS) return null;
+  const since = toTimestampMs(context.past_due_since);
+  if (since === null) return null;
+  return new Date(since + PAST_DUE_GRACE_MS).toISOString();
+}
+
+/**
+ * /api/auth/me が返す billing 部分を組み立てる。
+ *
+ * 返さないもの: Stripe customer / subscription / price の ID、
+ * last_stripe_event_at、past_due_since の生値、user_id / email / google_sub、
+ * session の有効期限。
+ *
+ * **表示用に返すもの**: `price_phase` と `amount`。
+ *   契約概要（現在の月額）を client にハードコードさせないため、
+ *   金額は **server が billing-config から引いて**配る。
+ *   `amount` は表示専用で、**請求額の正は Stripe の Price**。
+ *   引けない組み合わせでは `amount: null` にし、**推測で金額を作らない**。
+ */
+/**
+ * launch 契約者の「次フェーズ（standard）の金額」。
+ * launch 以外、または引けない組み合わせでは null。
+ */
+function nextPhaseAmountFrom(context, currency, phase) {
+  if (phase !== 'launch' || currency === null) return null;
+  const next = resolveDisplayAmount(context?.plan_id, currency, 'standard');
+  return next === null ? null : next.amount;
+}
+
+export function buildBillingPayload(context, now) {
+  const currency = ALLOWED_CURRENCIES.includes(context?.currency) ? context.currency : null;
+  const phase = typeof context?.price_phase === 'string' ? context.price_phase : null;
+
+  // 金額は「いま契約している plan / currency / phase」から引く。
+  // Pro でない・情報が欠けている場合は null（画面は金額を出さない）。
+  const display = (currency !== null && phase !== null)
+    ? resolveDisplayAmount(context?.plan_id, currency, phase)
+    : null;
+
+  return {
+    entitlement: {
+      // now は 1 リクエスト内で 1 つに固定する。省略時は entitlement 側が
+      // サーバー現在時刻を使う（本番はこの経路）。
+      web: hasWebEntitlement(context, now),
+      extension: hasExtensionEntitlement(context, now),
+    },
+    current_period_end: toIsoOrNull(context?.current_period_end),
+    cancel_at_period_end: context?.cancel_at_period_end === true,
+    currency,
+    price_phase: phase,
+    amount: display === null ? null : display.amount,
+    tax_behavior: display === null ? null : display.tax_behavior,
+    // launch 契約者に「更新後はいくらになるか」を出すための値（表示専用）。
+    // **client に将来価格をハードコードさせない**ため server が配る。
+    // launch 以外・引けない場合は null。
+    next_phase_amount: nextPhaseAmountFrom(context, currency, phase),
+    grace_until: graceUntilFrom(context),
+  };
+}
 
 function json(status, body, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
@@ -127,10 +230,17 @@ export async function handleMe(request, env, deps = {}) {
     return json(500, { error: 'internal_error' });
   }
 
-  // user_id / google_sub / email / token / token_hash / 有効期限は返さない
+  // user_id / google_sub / email / token / token_hash / 有効期限は返さない。
+  // plan_id / status は既存 client 互換のため top-level のまま据え置き、
+  // billing 情報は追加 field として足す（breaking change にしない）。
   return json(
     200,
-    { authenticated: true, plan_id: context.plan_id, status: context.status },
+    {
+      authenticated: true,
+      plan_id: context.plan_id,
+      status: context.status,
+      ...buildBillingPayload(context, now),
+    },
     { 'Set-Cookie': cookie },
   );
 }

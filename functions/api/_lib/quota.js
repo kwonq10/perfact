@@ -23,6 +23,11 @@
 import { SupabaseError } from './supabase.js';
 import { checkOrigin } from './origin.js';
 import {
+  PRO_STATUSES,
+  WEB_PRO_PLAN_IDS,
+  hasWebEntitlement,
+} from './entitlement.js';
+import {
   SESSION_RESULT,
   buildClearSessionCookie,
   requireSession,
@@ -38,29 +43,41 @@ export const FREE_WEEKLY_LIMIT = 3;
 /**
  * Web で quota 無制限になる plan_id。
  * extension_pro は拡張機能専用の権利なので Web では quota 対象。
+ *
+ * 実体は _lib/entitlement.js の WEB_PRO_PLAN_IDS。
+ * 既存の import 互換のためこの名前を残している（値は同一）。
  */
-export const WEB_UNLIMITED_PLAN_IDS = Object.freeze(['web_pro', 'all_pro']);
+export const WEB_UNLIMITED_PLAN_IDS = WEB_PRO_PLAN_IDS;
 
 /**
  * Web で quota 無制限になる subscription status。
- * past_due は Pro 扱いしない（支払いが滞っている間は Free と同じ扱い）。
- * canceled / unpaid / incomplete / incomplete_expired も quota 対象。
+ *
+ * ここに挙がるのは「無条件で Pro」の status のみ。
+ * past_due は _lib/entitlement.js が past_due_since からの 7 日猶予で
+ * 個別に判定するため、この配列には**含めない**。
+ * canceled / unpaid / incomplete / incomplete_expired は quota 対象。
+ *
+ * 実体は _lib/entitlement.js の PRO_STATUSES。
+ * 既存の import 互換のためこの名前を残している（値は同一）。
  */
-export const WEB_UNLIMITED_STATUSES = Object.freeze(['active', 'trialing']);
+export const WEB_UNLIMITED_STATUSES = PRO_STATUSES;
 
 /**
  * Web の quota が免除されるか。
  *
- * plan_id と status の両方を満たしたときだけ true。
- * 片方でも欠ければ quota 対象（フェイルクローズ）。
+ * 判定本体は _lib/entitlement.js に集約した。ここは薄い wrapper で、
+ * **シグネチャ・戻り値の型は従来どおり**（context だけを取り boolean を返す）。
+ * 呼び出し側（/api/quota/{reserve,commit,release}）は変更不要。
+ *
+ * now を渡さないためサーバー現在時刻が使われる。
+ * past_due の猶予は context.past_due_since がある場合のみ効く
+ * （その値が無い間は従来どおり Free 扱い）。
  *
  * @param {object} context requireSession が返す session context
  * @returns {boolean}
  */
 export function hasWebUnlimited(context) {
-  if (!context || typeof context !== 'object') return false;
-  return WEB_UNLIMITED_PLAN_IDS.includes(context.plan_id)
-      && WEB_UNLIMITED_STATUSES.includes(context.status);
+  return hasWebEntitlement(context);
 }
 
 /**

@@ -287,6 +287,17 @@ export async function getSessionContext(env, token, deps = {}) {
       // Cookie の Max-Age 更新にはこちらを使う（DB が算出した実効期限）
       idle_expires_at: row.idle_expires_at ?? null,
       absolute_expires_at: row.absolute_expires_at ?? null,
+      // --- billing 状態（get_session_context が返す） ---
+      //   session 行にはコピーしない。毎回 subscriptions から読むことで
+      //   Stripe webhook の変更が次のリクエストで即反映される。
+      //   past_due_since は entitlement.js が 7 日猶予の起点として読む。
+      //   Stripe の内部 ID（customer / subscription / price）と
+      //   last_stripe_event_at は RPC が返さないため、ここにも入らない。
+      past_due_since: row.past_due_since ?? null,
+      current_period_end: row.current_period_end ?? null,
+      cancel_at_period_end: row.cancel_at_period_end ?? false,
+      currency: row.currency ?? null,
+      price_phase: row.price_phase ?? null,
     },
   };
 }

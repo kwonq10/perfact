@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subscription Terms - Sukima</title>
+  <meta name="description" content="Subscription Terms for Sukima's paid plan (Web Pro), covering fees, payment, renewal, cancellation and refunds. Separate from the general Terms of Service.">
+  <link rel="alternate" hreflang="ja" href="https://sukimacalendar.com/terms/subscription">
+  <link rel="alternate" hreflang="en" href="https://sukimacalendar.com/terms/subscription/en">
+
+  <!--
+    ============================================================
+    Subscription Terms (English)
+
+      **The body is final and published as version 2026-09-09.**
+
+      Page identity:
+        /terms              -> public/terms.html
+                               General Terms of Service (Japanese only).
+                               **Reviewed for Google OAuth. Do not modify.**
+        /terms/subscription -> public/terms/subscription.html   (Japanese, this document)
+        /terms/subscription/en -> this file                     (English)
+
+      Section structure is **1:1 with the Japanese page**. The Japanese page is
+      the original; this is its English counterpart. Do not add or drop sections
+      on one side only - the consistency test in
+      tests/frontend/terms-page.test.mjs pins the counts to be equal.
+
+      Version and last-updated date:
+        The single source of truth is SUBSCRIPTION_TERMS_CONFIG in
+        functions/api/_lib/billing-config.js (section 12).
+        It is now status='published' / version='2026-09-09', and **both pages
+        show that same version.** When the version changes, update the config,
+        this page and the Japanese page together.
+
+      Deliberately absent:
+        - consent checkbox / accept button (consent UI lives in Pricing / Checkout)
+        - JavaScript (no automatic language switching; the URL and the displayed
+          language stay 1:1 because terms_consents.locale records which language
+          the user actually agreed to)
+        - purchase links (Pricing / Checkout)
+    ============================================================
+  -->
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      line-height: 1.8;
+    }
+
+    header {
+      background: #4f8ef7;
+      color: white;
+      padding: 20px 24px;
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header p {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
+    header .lang-switch {
+      margin-top: 8px;
+      opacity: 1;
+    }
+
+    header .lang-switch a {
+      color: white;
+      text-decoration: underline;
+      font-size: 13px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 24px 64px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 32px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    section + section {
+      margin-top: 28px;
+    }
+
+    p {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 10px;
+    }
+
+    ul {
+      font-size: 14px;
+      color: #555;
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    ul li {
+      margin-bottom: 6px;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #777;
+    }
+
+    .updated {
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 32px;
+    }
+
+    a {
+      color: #4f8ef7;
+      text-decoration: none;
+    }
+
+    .card li,
+    .card a {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .back-link {
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .back-link a {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    footer {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px;
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+    }
+
+    footer nav a {
+      margin: 0 8px;
+    }
+
+    footer .brand {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #666;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>Sukima - Subscription Terms</h1>
+    <p>サブスクリプション利用規約</p>
+    <!-- Language switch. No JS: the URL and the displayed language stay 1:1 -->
+    <p class="lang-switch"><a href="/terms/subscription">日本語</a></p>
+  </header>
+
+  <div class="container">
+
+    <div class="card">
+      <p>These Subscription Terms set out the conditions that apply when you subscribe to Sukima's paid plan (Web Pro). The conditions that apply to the service as a whole, including free use, are set out in the <a href="/terms">General Terms of Service</a>.</p>
+      <p class="note">This is an English translation of the Japanese original at <a href="/terms/subscription">/terms/subscription</a>. Both describe the same terms.</p>
+      <p class="note">Sukima's paid plans are currently being prepared. These are the final Subscription Terms that will apply once paid plans become available.</p>
+    </div>
+
+    <div class="card">
+
+      <!--
+
+        The order and the meaning of these 13 sections must stay 1:1 with
+        public/terms/subscription.html (Japanese). Mapping:
+           1 適用範囲               -> Scope
+           2 サブスクリプションプラン -> Subscription Plans
+           3 料金・通貨・税          -> Fees, Currency and Taxes
+           4 支払い方法と決済事業者   -> Payment and Payment Processor
+           5 契約期間と自動更新       -> Subscription Period and Automatic Renewal
+           6 プランの変更            -> Plan Changes
+           7 支払いの失敗            -> Payment Failures
+           8 解約                   -> Cancellation
+           9 返金                   -> Refunds
+          10 提供内容の変更・終了     -> Changes to and Discontinuation of the Service
+          11 アカウントの削除         -> Account Deletion
+          12 本規約の変更            -> Changes to These Terms
+          13 お問い合わせ            -> Contact
+      -->
+
+      <section>
+        <h2>1. Scope</h2>
+      <p>These Subscription Terms set out the conditions that apply when you subscribe to Sukima's paid plan, "Web Pro".</p>
+      <p>These Subscription Terms apply together with the <a href="/terms">General Terms of Service</a> (currently available in Japanese only). Where the two differ on a matter relating to a paid plan, these Subscription Terms take precedence to that extent. Matters not covered here are governed by the General Terms of Service.</p>
+      <p>The subscription is entered into between the individual user signed in to Sukima and the developer.</p>
+      <p>You must be <strong>at least 18 years old</strong> to subscribe to a paid plan. This age requirement does not apply to using Sukima for free.</p>
+      </section>
+
+      <section>
+        <h2>2. Subscription Plans</h2>
+      <p>The only paid plan currently available is Web Pro (billed monthly).</p>
+      <p>With Web Pro you can:</p>
+      <ul>
+        <li>run free-time searches in the web app without a usage limit</li>
+        <li>adjust the position of your background image</li>
+        <li>customize the white display area of the card</li>
+      </ul>
+      <p>On the free plan you can run up to 3 searches per week, counted across the web app and the Chrome extension combined. Unused searches do not carry over to the following week. The count resets based on your own time zone.</p>
+      <p>"Extension Pro" and "All Pro" are being prepared. They are not on sale and cannot be subscribed to at this time. If we begin offering them, we will announce the applicable conditions separately.</p>
+      <p>You can hold one paid plan at a time.</p>
+      <p>If you return to the free plan, the background position and white-area display revert to the standard settings, but the values you used on Pro are kept rather than deleted. If you subscribe again, we restore your previous settings.</p>
+      </section>
+
+      <section>
+        <h2>3. Fees, Currency and Taxes</h2>
+      <p>Subscriptions can be billed in Japanese yen (JPY) or US dollars (USD).</p>
+      <p><strong>Subscriptions billed in Japanese yen</strong></p>
+      <ul>
+        <li>Launch price: JPY 300 per month (tax included)</li>
+        <li>Standard price: JPY 500 per month (tax included)</li>
+      </ul>
+      <p><strong>Subscriptions billed in US dollars</strong></p>
+      <ul>
+        <li>Launch price: USD 2.99 per month, plus applicable taxes</li>
+        <li>Standard price: USD 4.99 per month, plus applicable taxes</li>
+      </ul>
+      <p><strong>How the launch price applies</strong></p>
+      <ul>
+        <li>The launch price is a limited-time price for subscriptions started on or before December 31, 2026</li>
+        <li>If you are subscribed at the launch price, your subscription moves to the standard price on <strong>your own first renewal date in 2027</strong></li>
+        <li>Subscriptions started on or after January 1, 2027, and subscriptions started again after a cancellation, use the standard price</li>
+      </ul>
+      <p>The move from the launch price to the standard price is set out in advance in this section. It is not a price change under Section 12.</p>
+      <p><strong>Where subscriptions are available</strong></p>
+      <ul>
+        <li><strong>Subscriptions are currently available in Japan only, and are billed in Japanese yen</strong></li>
+        <li>Subscriptions from the United States, the United Kingdom, Canada and Australia, and subscriptions billed in US dollars, are <strong>not available at this time</strong>. We plan to offer them in the future and will announce the conditions when we do</li>
+      </ul>
+      <p><strong>Changing currency</strong></p>
+      <ul>
+        <li>You can choose the currency only before you subscribe</li>
+        <li>The currency cannot be changed while a subscription is active</li>
+        <li>To change it, cancel your subscription, wait until the current period ends, and subscribe again in the other currency</li>
+        <li>Because only Japanese yen is available at this time, choosing a currency will become possible once we begin offering subscriptions in US dollars</li>
+      </ul>
+      <p><strong>Taxes</strong></p>
+      <ul>
+        <li>Prices in Japanese yen include Japanese consumption tax</li>
+        <li>Prices in US dollars do not include tax. Applicable taxes are added based on your location</li>
+      </ul>
+      <p>Where a subscription is billed in a foreign currency, the exchange rate applied and any foreign transaction fee are determined by your card issuer.</p>
+      </section>
+
+      <section>
+        <h2>4. Payment and Payment Processor</h2>
+      <p>Payments are handled through Stripe, our payment processor, using a credit card or another method Stripe supports.</p>
+      <p>Card details are collected and held by Stripe. Sukima does not store your card number.</p>
+      <p>Once you have subscribed, you can use Stripe's billing portal to:</p>
+      <ul>
+        <li>change your payment method</li>
+        <li>request cancellation</li>
+        <li>undo a cancellation request</li>
+        <li>view your invoices and receipts</li>
+      </ul>
+      <p>Stripe's own terms and privacy policy apply to the payment process.</p>
+      </section>
+
+      <section>
+        <h2>5. Subscription Period and Automatic Renewal</h2>
+      <p>Billing is monthly only. We do not offer annual billing.</p>
+      <p>There is no free trial.</p>
+      <p>The subscription period is one month, starting on your own subscription start date. Unless you cancel, it renews automatically at the end of the period and the same amount is charged (or the amount after the move described in Section 3, if that applies to you).</p>
+      <p><strong>When Pro features become active</strong></p>
+      <ul>
+        <li>Pro features become active <strong>after we have confirmed that your first payment completed</strong></li>
+        <li>Returning to Sukima from the payment screen does not by itself activate them. There may be a short wait until confirmation from the payment processor arrives</li>
+        <li>If the first payment does not complete, Pro features are not granted</li>
+      </ul>
+      </section>
+
+      <section>
+        <h2>6. Plan Changes</h2>
+      <p>If you move to a higher plan, the new plan becomes active at the time of the change and the difference is prorated over the remaining period.</p>
+      <p>If you move to a lower plan, the new plan applies from your next renewal date, after the current period ends. Until then you keep your current plan.</p>
+      <p>Because Web Pro is currently the only paid plan available, plan changes will become usable after we begin offering other paid plans.</p>
+      <p>The currency cannot be changed while a subscription is active, as described in Section 3.</p>
+      </section>
+
+      <section>
+        <h2>7. Payment Failures</h2>
+      <p>If a payment cannot be confirmed, for example at renewal, the payment processor may retry the charge within a certain period.</p>
+      <p>During that time we operate the service so that Pro features <strong>may continue for up to seven days</strong>. If payment still cannot be confirmed after seven days, the account returns to the free plan.</p>
+      <p>This grace period is an operational practice intended to give you time to update your payment method. It is not guaranteed as a right, and we may change its length or how it is handled without prior notice.</p>
+      <p>During the grace period we show a notice asking you to update your payment method. The payment processor may also send you payment-related notifications.</p>
+      <p>As described in Section 5, if your first payment does not complete, Pro features are not granted and this grace period does not apply.</p>
+      </section>
+
+      <section>
+        <h2>8. Cancellation</h2>
+      <p>You can request cancellation at any time from the billing portal.</p>
+      <p><strong>Cancellation takes effect at the end of your current subscription period.</strong> Your access does not stop at the moment you make the request.</p>
+      <ul>
+        <li>After you request cancellation, you keep Pro features until the current period ends</li>
+        <li>When the period ends, your account switches to the free plan automatically</li>
+        <li>Before the period ends, you can undo the cancellation request from the billing portal</li>
+        <li>Once cancellation has taken effect, you are not charged again</li>
+      </ul>
+      <p>Even if you cancel partway through a period, we do not provide a prorated refund for that period (Section 9).</p>
+      </section>
+
+      <section>
+        <h2>9. Refunds</h2>
+      <p>We generally do not provide refunds or prorated settlements for cancelling partway through a period, or for not having used the service.</p>
+      <p>We do, however, handle the following cases individually. Please contact us using the details in Section 13.</p>
+      <ul>
+        <li>the same charge was processed more than once</li>
+        <li>an incorrect amount was charged, or a charge was applied to the wrong subscription</li>
+        <li>a problem on Sukima's side meant you could not meaningfully use Pro features</li>
+        <li>a refund is required by applicable law</li>
+      </ul>
+      <p>Nothing in this section limits any rights you have under applicable consumer protection law.</p>
+      </section>
+
+      <section>
+        <h2>10. Changes to and Discontinuation of the Service</h2>
+      <p>The developer may add to or change the features of Web Pro.</p>
+      <p>If we discontinue Web Pro itself, we will announce it in advance on this page or within the service.</p>
+      <p><strong>If Web Pro becomes unavailable to you partway through a paid period because of a decision on the developer's side, we will refund the amount corresponding to the unused part of that period, or provide a reasonable equivalent.</strong> Where applicable law requires different handling, that law prevails.</p>
+      <p>Ordinary cancellation by you (Section 8) is unchanged: we do not provide a prorated refund in that case.</p>
+      <p>Circumstances outside the developer's control, such as changes to the Google Calendar API, may make some or all features unavailable. The section of the General Terms of Service covering changes to and suspension of the service also applies here.</p>
+      </section>
+
+      <section>
+        <h2>11. Account Deletion</h2>
+      <p>You can delete your account at any time.</p>
+      <p><strong>If you delete your account while a paid subscription is active</strong>, we handle it in this order:</p>
+      <ul>
+        <li>first, we <strong>cancel your subscription immediately</strong></li>
+        <li>then, once we have confirmed that the cancellation completed, we delete your account and its related data</li>
+      </ul>
+      <p>This cancellation is <strong>immediate</strong>, unlike the end-of-period cancellation in Section 8. We do not provide a prorated refund for the remaining period, except where a refund is required by applicable law. If you want to keep Pro features until the end of your period, use the cancellation described in Section 8 instead of deleting your account.</p>
+      <p>Deleting your account deletes your usage data, such as your search counts.</p>
+      <p>After deletion you can register again with the same Google account. You start again on the free plan.</p>
+      <p>Records of your agreement to these terms (the version you agreed to, the language it was displayed in, and the date and time) are kept after your account is deleted, for audit purposes. These records do not contain your email address, your Google account identifiers, or payment information.</p>
+      <p>Transaction records held by the payment processor are retained according to the payment processor's own rules.</p>
+      </section>
+
+      <section>
+        <h2>12. Changes to These Terms</h2>
+      <p>The developer may change these Subscription Terms. Any change is posted on this page.</p>
+      <p>If we make a change that is to your disadvantage, including a price change, we will notify you in advance and, as a rule, apply it from your next renewal date.</p>
+      <p>If you do not agree to the change, you can cancel before it takes effect.</p>
+      <p>The move from the launch price to the standard price (Section 3) is set out when you subscribe and is not a price change under this section.</p>
+      </section>
+
+      <section>
+        <h2>13. Contact</h2>
+      <p>For questions about these Subscription Terms, billing or cancellation, please contact us:</p>
+      <p>Email: <a href="mailto:tetsugaku4@gmail.com">tetsugaku4@gmail.com</a></p>
+      <p>The governing law and jurisdiction are as set out in the <a href="/terms">General Terms of Service</a>.</p>
+      </section>
+
+    </div>
+
+    <!--
+      Version / last-updated display area.
+
+      **The version shown here must be the same value as
+      SUBSCRIPTION_TERMS_CONFIG.version in functions/api/_lib/billing-config.js.**
+      The Japanese page has the same region and must be updated together.
+
+      tests/frontend/terms-page.test.mjs fails if the two pages and the config
+      ever disagree.
+    -->
+    <p class="updated">Version: 2026-09-09 / Last updated: September 9, 2026</p>
+
+    <p class="back-link"><a href="/">&larr; Back to the Sukima home page</a></p>
+
+  </div>
+
+  <footer>
+    <span class="brand">Sukima</span>
+    <nav>
+      <!--
+        Neither the general Terms of Service nor the web Privacy Policy has an
+        English version (public/terms.html and
+        public/privacy.html are both lang="ja", and public/extension/privacy/en.html
+        is the Chrome extension's own policy, not this one). The links are labelled
+        so the language is clear before the reader follows them.
+      -->
+      <a href="/terms">General Terms (Japanese)</a>
+      <a href="/privacy">Privacy Policy (Japanese)</a>
+    </nav>
+  </footer>
+
+</body>
+
+</html>

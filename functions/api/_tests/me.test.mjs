@@ -152,15 +152,28 @@ test('401 レスポンスに plan_id / status を含めない', async () => {
 // 正常系（200 + sliding Cookie）
 // =========================================================
 
-test('有効 session → 200 { authenticated, plan_id, status } のみ', async () => {
+// 200 のレスポンスには billing field も含まれる。
+// plan_id / status は top-level のまま据え置き、追加分だけが増えている。
+// 詳細な billing の検証は me-billing.test.mjs が受け持つ。
+test('有効 session → 200 に既存 field + billing field が並ぶ', async () => {
   const t = generateSessionToken();
   const res = await handleMe(req('GET', `${SESSION_COOKIE_NAME}=${t}`), ENV,
     { rpc: stubRpc([validRow]), logger: quiet, now: NOW });
 
   assert.equal(res.status, 200);
   const payload = await body(res);
-  assert.deepEqual(Object.keys(payload).sort(), ['authenticated', 'plan_id', 'status']);
-  assert.deepEqual(payload, { authenticated: true, plan_id: 'free', status: 'active' });
+  assert.deepEqual(Object.keys(payload).sort(), [
+    'amount', 'authenticated', 'cancel_at_period_end', 'currency', 'current_period_end',
+    'entitlement', 'grace_until', 'next_phase_amount', 'plan_id', 'price_phase',
+    'status', 'tax_behavior',
+  ]);
+  assert.deepEqual(payload, {
+    authenticated: true, plan_id: 'free', status: 'active',
+    entitlement: { web: false, extension: false },
+    current_period_end: null, cancel_at_period_end: false,
+    currency: null, price_phase: null, amount: null, tax_behavior: null,
+    next_phase_amount: null, grace_until: null,
+  });
 });
 
 test('200 に Cache-Control: no-store と Vary: Cookie が付く', async () => {
@@ -178,7 +191,10 @@ test('plan_id / status は毎回 DB の値をそのまま返す（Stripe 変更�
                             ['web_pro', 'past_due'], ['extension_pro', 'canceled']]) {
     const res = await handleMe(req('GET', `${SESSION_COOKIE_NAME}=${t}`), ENV,
       { rpc: stubRpc([{ ...validRow, plan_id: plan, status: st }]), logger: quiet, now: NOW });
-    assert.deepEqual(await body(res), { authenticated: true, plan_id: plan, status: st });
+    const payload = await body(res);
+    assert.equal(payload.plan_id, plan);
+    assert.equal(payload.status, st);
+    assert.equal(payload.authenticated, true);
   }
 });
 
