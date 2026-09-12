@@ -60,6 +60,11 @@
 // =========================================================
 
 import { priceDefinitionFromPriceId } from '../_lib/billing-config.js';
+import {
+  BillingCleanupError,
+  TERMINAL_SUBSCRIPTION_STATUSES,
+  stopOrphanSubscriptionBilling,
+} from '../_lib/billing-cleanup.js';
 import { COUNTRY_STATUS, classifyCustomerCountry } from '../_lib/billing-country.js';
 import { remediateNotSellableCountry } from '../_lib/billing-remediation.js';
 import { ensureLaunchToStandardSchedule } from '../_lib/billing-schedule.js';
@@ -82,6 +87,14 @@ export const HANDLED_EVENT_TYPES = Object.freeze([
 
 /** DB RPC 名（migration 20260907052839 で作成）。 */
 const RPC_APPLY = 'apply_stripe_subscription_event';
+
+/**
+ * users 行の有無だけを返す読み取り専用 RPC（migration 20260912000000 で作成）。
+ *
+ * `RPC_APPLY` が「subscriptions 行が無い」で例外を投げたとき、その原因を
+ * **アカウント削除済み**と**データ異常**へ切り分けるためだけに使う。
+ */
+export const RPC_USER_EXISTS = 'user_exists';
 
 /** UUID v4 に限定せず、内部 user_id の形だけ確認する。 */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -323,7 +336,156 @@ export function buildSnapshot(subscription, env) {
 
 
 // =========================================================
-// 3. ハンドラ本体
+// 3. 孤児 subscription の回収
+//
+//    `apply_stripe_subscription_event` が「subscriptions 行が無い」で
+//    例外を投げたときにだけ通る経路。原因は 2 つある。
+//
+//      (a) **アカウントが削除された**（users も subscriptions も無い）
+//          Checkout 完了の直後、webhook が stripe_customer_id を書く前に
+//          /api/account/delete が走ると起きる。削除 API は DB に
+//          Customer が無いので Stripe を呼ばずに終わり、**課金され続ける
+//          孤児 subscription** が Stripe 側に残る。
+//          -> ここで即時解約して回収する。
+//
+//      (b) **データ異常**（users はあるのに subscriptions 行だけ欠落）
+//          -> 従来どおり 500 で止める。webhook だけで有料権限の行を
+//             生やす方が危険なので、復旧はしない。
+//
+//    **孤児と判定する条件（4 つすべて）**
+//      1. Stripe Price が Sukima の登録済み Price         ... buildSnapshot が保証
+//      2. metadata.user_id が有効な UUID                  ... buildSnapshot が保証
+//      3. subscription status が DB 許容値                ... buildSnapshot が保証
+//      4. `user_exists(user_id)` が false
+//
+//    1〜3 は **ここへ来る前に済んでいる**（buildSnapshot を通らないと
+//    RPC 呼び出しまで到達しない）。他社・他サービスの subscription は
+//    Price も metadata も一致しないため、この 4 条件を同時に満たさない。
+//
+//    Checkout は Cookie session を必須にしているので、**Checkout を通った
+//    user_id は必ず一度は存在していた**。よって 4 の false は「削除された」
+//    を意味し、「まだ作られていない利用者」との取り違えは起きない。
+//
+//    **解約するのは、この event の subscription 1 本だけ。**
+//    Customer 配下を列挙して解約しない（`billing-cleanup.js` の
+//    `stopOrphanSubscriptionBilling` を参照）。
+//
+//    **返金しない。** 日割り返金も、支払い済み invoice の変更もしない。
+//    invoice の扱いは削除 API と同じ規則（`_lib/billing-cleanup.js` が唯一の実装）。
+// =========================================================
+
+/**
+ * `RPC_APPLY` の例外を切り分け、孤児なら Stripe 側を止める。
+ *
+ * @param {object} o
+ * @param {object} o.env
+ * @param {Function} o.rpc            Supabase RPC
+ * @param {object} o.subscription     Stripe から取り直した subscription
+ * @param {string} o.userId           snapshot の user_id（**ログへ出さない**）
+ * @param {string} o.customerId       snapshot の customer_id（**ログへ出さない**）
+ * @param {Function} [o.fetchImpl]
+ * @param {object} o.logger
+ * @returns {Promise<Response>}
+ */
+export async function handleMissingSubscriptionRow(o) {
+  const { env, rpc, subscription, userId, customerId, fetchImpl, logger } = o;
+
+  // --- 原因の切り分け ---
+  let rows;
+  try {
+    rows = await rpc(RPC_USER_EXISTS, { p_user_id: userId }, { env });
+  } catch (e) {
+    // 切り分けられない間は **何も変更しない**（Stripe を 1 回も呼ばない）。
+    // 応答は `RPC_APPLY` の失敗と同じ流儀にそろえる。2xx にしないので、
+    // 一時障害なら Stripe の再送でやり直せる。migration 未適用のように
+    // 再送でも直らない失敗は 500 のまま残り、運用で気づける。
+    if (e instanceof SupabaseError) {
+      if (e.code === 'not_configured') {
+        logger.error('[billing-webhook] Supabase の設定が不足しています。');
+        return json(500, { error: 'server_misconfigured' });
+      }
+      if (e.code === 'unavailable') {
+        logger.error('[billing-webhook] Supabase が利用できません。');
+        return json(502, { error: 'database_unavailable' });
+      }
+    }
+    logger.error('[billing-webhook] 利用者の存在を確認できませんでした。');
+    return json(500, { error: 'internal_error' });
+  }
+
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row || typeof row !== 'object' || typeof row.exists !== 'boolean') {
+    logger.error('[billing-webhook] user_exists の戻り値が想定と異なります。');
+    return json(500, { error: 'internal_error' });
+  }
+
+  if (row.exists === true) {
+    // (b) users はあるのに subscriptions 行だけ無い = データ異常。**Stripe を触らない。**
+    logger.error('[billing-webhook] subscriptions 行が見つかりません（利用者は存在）。');
+    return json(500, { error: 'internal_error' });
+  }
+
+  // --- (a) 孤児が確定 ---
+  const status = subscription?.status;
+
+  if (TERMINAL_SUBSCRIPTION_STATUSES.includes(status)) {
+    // 既に終わっている契約。**Stripe を 1 回も呼ばない。**
+    // 削除後に届く canceled / incomplete_expired の event がここへ来る。
+    logger.warn('[billing-webhook] 削除済み利用者の終了済み契約を受理しました。');
+    return json(200, {
+      received: true,
+      processed: false,
+      orphan: true,
+      orphan_canceled: false,
+    });
+  }
+
+  // active / past_due / trialing / unpaid / incomplete -> 即時解約して回収する。
+  let stopped;
+  try {
+    stopped = await stopOrphanSubscriptionBilling(
+      { env, stripe: stripeRequest, fetchImpl },
+      subscription,
+      customerId,
+    );
+  } catch (e) {
+    if (e instanceof BillingCleanupError) {
+      // **確認が取れていない。** 2xx にせず Stripe の再送でやり直す。
+      logger.error('[billing-webhook] 孤児契約の後始末を確認できませんでした:', e.code);
+      return e.retryable
+        ? json(502, { error: 'billing_cleanup_incomplete' })
+        : json(500, { error: 'billing_state_unsupported' });
+    }
+    if (e instanceof StripeApiError) {
+      if (e.code === 'not_configured') {
+        logger.error('[billing-webhook] Stripe の設定が不足しています。');
+        return json(500, { error: 'server_misconfigured' });
+      }
+      logger.error('[billing-webhook] 孤児契約の解約で Stripe エラー(' + e.code + ')');
+      return e.retryable
+        ? json(502, { error: 'stripe_unavailable' })
+        : json(500, { error: 'internal_error' });
+    }
+    logger.error('[billing-webhook] 孤児契約の後始末で想定外のエラーが発生しました。');
+    return json(500, { error: 'internal_error' });
+  }
+
+  // **件数だけを残す。** subscription / customer / invoice の ID は出さない。
+  logger.warn('[billing-webhook] 削除済み利用者の孤児契約を解約しました:',
+    'canceled=' + stopped.canceled,
+    'invoices_stopped=' + stopped.invoicesStopped);
+
+  return json(200, {
+    received: true,
+    processed: false,
+    orphan: true,
+    orphan_canceled: true,
+  });
+}
+
+
+// =========================================================
+// 4. ハンドラ本体
 // =========================================================
 
 /** 対象外 event の応答。Stripe に再送させないため必ず 2xx。 */
@@ -544,10 +706,21 @@ export async function handleWebhook(request, env, deps = {}) {
         logger.error('[billing-webhook] Supabase が利用できません。');
         return json(502, { error: 'database_unavailable' });
       }
-      // RPC が例外を投げた = トランザクションごと rollback 済み。
-      // subscriptions 行の欠落（削除済みアカウント）もここへ来る。
+      // RPC が例外を投げた = トランザクションごと rollback 済み
+      // （stripe_events の記録も巻き戻っているので、再送でやり直せる）。
+      // **subscriptions 行の欠落はここへ来る。**
+      // 削除済みアカウントの孤児 subscription か、本当のデータ異常かを
+      // 切り分けて扱う（上の 3 節）。
       logger.error('[billing-webhook] RPC が失敗しました。');
-      return json(500, { error: 'internal_error' });
+      return await handleMissingSubscriptionRow({
+        env,
+        rpc,
+        subscription,
+        userId: s.userId,
+        customerId: s.customerId,
+        fetchImpl,
+        logger,
+      });
     }
     logger.error('[billing-webhook] DB 呼び出しで想定外のエラーが発生しました。');
     return json(500, { error: 'internal_error' });

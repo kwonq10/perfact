@@ -69,6 +69,22 @@
       border: 1px solid #ddd; border-radius: 8px; font-size: 13px;
       cursor: pointer; margin-top: 12px;
     }
+    /* アカウント削除。目立たせず、開いた後は取り消せない操作だと分かる配色にする。 */
+    .btn-sub-danger { color: #c0564b; border-color: #f0d4d0; }
+    .account-delete-panel {
+      margin-top: 12px; padding: 12px 14px; border: 1px solid #f0d4d0;
+      border-radius: 10px; background: #fff8f7; text-align: left;
+    }
+    .account-delete-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #b42318; }
+    .account-delete-notes { margin: 0; padding-left: 18px; font-size: 12px; color: #555; line-height: 1.7; }
+    .account-delete-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .account-delete-actions .btn-sub { margin-top: 0; flex: 1; }
+    .btn-danger {
+      flex: 1; padding: 10px; background: #d92d20; color: #fff; border: none;
+      border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-danger:disabled, .account-delete-actions .btn-sub:disabled { opacity: 0.5; cursor: not-allowed; }
+    .account-delete-status { margin: 8px 0 0; font-size: 12px; color: #b42318; min-height: 1em; }
     .status { text-align: center; margin-top: 16px; font-size: 14px; color: #666; min-height: 20px; }
     .login-info { text-align: center; font-size: 13px; color: #4f8ef7; margin-top: 12px; font-weight: 600; }
 
@@ -765,6 +781,21 @@
         <p class="plan-info" id="planInfo" style="display:none;"></p>
         <p class="login-info" id="loginInfo"></p>
         <button class="btn-sub" id="logoutBtn" onclick="logout()">別のアカウントでログインする</button>
+        <!-- アカウント削除。2 段階で確認する（キーワード入力は求めない）。文言は i18n から入れる。 -->
+        <button type="button" class="btn-sub btn-sub-danger" id="deleteAccountBtn" onclick="openAccountDeletion()">アカウントを削除</button>
+        <div class="account-delete-panel" id="accountDeletePanel" style="display:none;" role="region" aria-labelledby="accountDeleteTitle">
+          <p class="account-delete-title" id="accountDeleteTitle"></p>
+          <ul class="account-delete-notes" id="accountDeleteNotes"></ul>
+          <div class="account-delete-actions" id="accountDeleteStep1">
+            <button type="button" class="btn-sub" id="accountDeleteCancelBtn" onclick="closeAccountDeletion()"></button>
+            <button type="button" class="btn-danger" id="accountDeleteNextBtn" onclick="advanceAccountDeletion()"></button>
+          </div>
+          <div class="account-delete-actions" id="accountDeleteStep2" style="display:none;">
+            <button type="button" class="btn-sub" id="accountDeleteBackBtn" onclick="backAccountDeletion()"></button>
+            <button type="button" class="btn-danger" id="accountDeleteConfirmBtn" onclick="confirmAccountDeletion()"></button>
+          </div>
+          <p class="account-delete-status" id="accountDeleteStatus" role="status"></p>
+        </div>
         <p class="status" id="statusForm"></p>
       </div>
 
@@ -897,6 +928,10 @@
     // /api/auth/me が 5xx を返した状態。「未ログイン」と同一視しない。
     let sukimaSessionCheckFailed = false;
     let sukimaAuthBusy = false;
+    // アカウント削除の確認段階。0 = 閉じている / 1 = 注意事項 / 2 = 最終確認
+    let accountDeletionStep = 0;
+    // 削除リクエストの送信中。二重送信を防ぐ。
+    let accountDeletionBusy = false;
     let gsiIdInitialized = false;
     // GIS スクリプトが読めない／id 名前空間が現れないまま時間切れになった状態。
     // 空の #gsiButton を出したままにしないための UI フラグ。
@@ -1166,6 +1201,27 @@
         quotaError: '検索を開始できませんでした。時間をおいてお試しください。',
         calendarFetchFailed: 'カレンダーを取得できませんでした。時間をおいてお試しください。',
         logoutFailed: 'ログアウトを完了できませんでした。時間をおいて再度お試しください。',
+        deleteAccountBtn: 'アカウントを削除',
+        deleteAccountTitle: 'アカウントを削除しますか？',
+        deleteAccountNoteData: 'スキマのアカウント情報（ログイン情報・検索回数・プラン情報）を削除します。',
+        deleteAccountNoteDevices: 'すべての端末でログアウトされます。',
+        deleteAccountNoteLocal: 'この端末に保存した背景画像や表示設定も削除します。',
+        deleteAccountNoteConsent: '規約への同意の記録は保持されます。',
+        deleteAccountPaidImmediate: 'Web Proの契約はただちに終了し、残りの期間は利用できなくなります。',
+        deleteAccountPaidNoRefund: '日割りでの返金はありません。',
+        deleteAccountPaidPortal: (label) => '期間の終わりまで使いたい場合は、削除せずに「' + label + '」から解約してください。',
+        deleteAccountPaidRecords: 'Stripeでの請求・支払いの記録（領収書など）は残ります。',
+        deleteAccountCancel: 'キャンセル',
+        deleteAccountNext: '次へ',
+        deleteAccountFinalTitle: '最終確認',
+        deleteAccountFinalNote: 'この操作は取り消せません。本当にアカウントを削除しますか？',
+        deleteAccountBack: '戻る',
+        deleteAccountConfirm: 'アカウントを削除する',
+        deleteAccountWorking: '削除しています…',
+        deleteAccountFailed: 'アカウントを削除できませんでした。時間をおいてもう一度お試しください。',
+        deleteAccountUnauthenticated: 'ログインが必要です。ログインしてからもう一度お試しください。',
+        deleteAccountDone: 'アカウントを削除しました。Googleアカウントとの連携も解除しました。',
+        deleteAccountDoneManual: 'アカウントを削除しました。Googleアカウント側の連携は https://myaccount.google.com/permissions から解除できます。',
         days: ['日', '月', '火', '水', '木', '金', '土'],
         months: null,
         startTagline: '予定の空き時間を、すぐ見つける。',
@@ -1287,6 +1343,27 @@
         quotaError: 'Could not start the search. Please try again later.',
         calendarFetchFailed: 'Could not load your calendar. Please try again later.',
         logoutFailed: 'Could not complete sign-out. Please try again later.',
+        deleteAccountBtn: 'Delete account',
+        deleteAccountTitle: 'Delete your account?',
+        deleteAccountNoteData: 'Your Sukima account data (sign-in, search counts and plan) will be deleted.',
+        deleteAccountNoteDevices: 'You will be signed out on all devices.',
+        deleteAccountNoteLocal: 'Background images and display settings saved on this device will also be removed.',
+        deleteAccountNoteConsent: 'Records of your agreement to the terms are retained.',
+        deleteAccountPaidImmediate: 'Your Web Pro subscription ends immediately and the rest of the current period can no longer be used.',
+        deleteAccountPaidNoRefund: 'No prorated refund is issued.',
+        deleteAccountPaidPortal: (label) => 'To keep using Web Pro until the end of the period, cancel from "' + label + '" instead of deleting your account.',
+        deleteAccountPaidRecords: 'Billing and payment records at Stripe (such as receipts) are retained.',
+        deleteAccountCancel: 'Cancel',
+        deleteAccountNext: 'Continue',
+        deleteAccountFinalTitle: 'Final confirmation',
+        deleteAccountFinalNote: 'This cannot be undone. Are you sure you want to delete your account?',
+        deleteAccountBack: 'Back',
+        deleteAccountConfirm: 'Delete my account',
+        deleteAccountWorking: 'Deleting…',
+        deleteAccountFailed: "We couldn't delete your account. Please try again later.",
+        deleteAccountUnauthenticated: 'Please sign in and try again.',
+        deleteAccountDone: 'Your account has been deleted. Access to your Google Account has also been removed.',
+        deleteAccountDoneManual: 'Your account has been deleted. You can remove Sukima\'s access to your Google Account at https://myaccount.google.com/permissions',
         days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
         startTagline: 'Find your free time, instantly.',
@@ -1358,6 +1435,7 @@
       }
       document.getElementById('searchBtn').textContent = t('searchBtn');
       document.getElementById('logoutBtn').textContent = t('logoutBtn');
+      renderAccountDeletion();
       // 残数表示は quotaStatus から組み立て直す（数値は再計算しない）。
       renderQuotaInfo();
       // プラン表示も言語に追従させる（判定は entitlement のまま）。
@@ -1724,6 +1802,19 @@
     }
 
     function removeBackgroundImage() {
+      resetBackgroundImageState();
+      deleteBackgroundImage().catch((err) => {
+        console.warn('Failed to delete saved background image', err);
+        setBgImageError('bgImageDeleteFailed');
+      });
+    }
+
+    /**
+     * 背景画像の表示と保存済みの位置・範囲を初期状態へ戻す。
+     * 画像本体（IndexedDB）には触れない。呼び出し側が消し方を決める
+     * （通常の解除は 1 件削除、アカウント削除は DB ごと削除）。
+     */
+    function resetBackgroundImageState() {
       bgRestoreGeneration++;
       if (bgImageObjectUrl) {
         URL.revokeObjectURL(bgImageObjectUrl);
@@ -1770,10 +1861,6 @@
       setBgWhiteRangeControlEnabled(false);
       applyBgWhiteRange();
       clearBgWhiteRangeFromStorage();
-      deleteBackgroundImage().catch((err) => {
-        console.warn('Failed to delete saved background image', err);
-        setBgImageError('bgImageDeleteFailed');
-      });
     }
 
     function handleBgImageChange(e) {
@@ -2301,6 +2388,7 @@
       const calBtn = document.getElementById('loginBtn');
       const loginInfo = document.getElementById('loginInfo');
       const logoutBtn = document.getElementById('logoutBtn');
+      const deleteAccountBtn = document.getElementById('deleteAccountBtn');
       if (!loginSection || !formSection) return;
 
       const state = getAuthState();
@@ -2312,9 +2400,16 @@
         formSection.style.display = 'block';
         if (loginInfo) loginInfo.textContent = t('loggedIn');
         if (logoutBtn) logoutBtn.style.display = '';
+        if (deleteAccountBtn) deleteAccountBtn.style.display = '';
         return;
       }
 
+      // ログインしていない状態では削除の確認を開いたままにしない。
+      if (deleteAccountBtn) deleteAccountBtn.style.display = 'none';
+      if (!accountDeletionBusy && accountDeletionStep !== 0) {
+        accountDeletionStep = 0;
+        renderAccountDeletion();
+      }
       loginSection.style.display = 'block';
       formSection.style.display = 'none';
       if (loginInfo) loginInfo.textContent = '';
@@ -2394,6 +2489,272 @@
         sukimaAuthBusy = false;
         if (logoutBtn) logoutBtn.disabled = false;
       }
+    }
+
+    // ---------------------------------------------------------------------
+    // アカウント削除（2 段階の確認）
+    //
+    //   1. 注意事項（有料契約なら即時終了・日割り返金なし・Portal での解約案内）
+    //   2. 最終確認 -> POST /api/account/delete
+    //
+    //   **削除の正はサーバー。** Stripe の解約も DB の削除もサーバーが行い、
+    //   この画面は「確認」と「この端末の後始末」だけを担う。
+    //   サーバーが 200 を返すまでは、この端末のデータを一切消さない。
+    //   Google の連携解除は best-effort で、失敗しても削除の成否には影響させない。
+    // ---------------------------------------------------------------------
+
+    /** Google の revoke を待つ上限。応答が無くても画面を止めない。 */
+    const GOOGLE_REVOKE_TIMEOUT_MS = 5000;
+    /** IndexedDB の削除を待つ上限（別タブが接続を握っていると待たされる）。 */
+    const LOCAL_DB_DELETE_TIMEOUT_MS = 3000;
+
+    /**
+     * 有料契約向けの注意を出すか。**表示だけ**に使う（処理はサーバーが決める）。
+     * 契約状態が分からないときは、注意を出す側に倒す。
+     */
+    function shouldShowPaidDeletionNotes() {
+      if (sukimaEntitlement !== null && sukimaEntitlement.web === true) return true;
+      if (typeof sukimaPlanId === 'string' && sukimaPlanId !== 'free') return true;
+      return sukimaEntitlement === null;
+    }
+
+    function accountDeletionNoteTexts() {
+      if (accountDeletionStep === 2) return [t('deleteAccountFinalNote')];
+      const notes = [];
+      if (shouldShowPaidDeletionNotes()) {
+        notes.push(t('deleteAccountPaidImmediate'));
+        notes.push(t('deleteAccountPaidNoRefund'));
+        notes.push(t('deleteAccountPaidPortal', t('planManageCta')));
+        notes.push(t('deleteAccountPaidRecords'));
+      }
+      notes.push(t('deleteAccountNoteData'));
+      notes.push(t('deleteAccountNoteDevices'));
+      notes.push(t('deleteAccountNoteLocal'));
+      notes.push(t('deleteAccountNoteConsent'));
+      return notes;
+    }
+
+    function renderAccountDeletion() {
+      const openBtn = document.getElementById('deleteAccountBtn');
+      if (openBtn) openBtn.textContent = t('deleteAccountBtn');
+      const panel = document.getElementById('accountDeletePanel');
+      if (!panel) return;
+      if (accountDeletionStep === 0) {
+        panel.style.display = 'none';
+        return;
+      }
+      panel.style.display = '';
+
+      const title = document.getElementById('accountDeleteTitle');
+      if (title) {
+        title.textContent = accountDeletionStep === 2
+          ? t('deleteAccountFinalTitle')
+          : t('deleteAccountTitle');
+      }
+      const list = document.getElementById('accountDeleteNotes');
+      if (list) {
+        list.innerHTML = '';
+        for (const text of accountDeletionNoteTexts()) {
+          const li = document.createElement('li');
+          li.textContent = text;
+          list.appendChild(li);
+        }
+      }
+
+      const step1 = document.getElementById('accountDeleteStep1');
+      const step2 = document.getElementById('accountDeleteStep2');
+      if (step1) step1.style.display = accountDeletionStep === 1 ? '' : 'none';
+      if (step2) step2.style.display = accountDeletionStep === 2 ? '' : 'none';
+      const labels = [
+        ['accountDeleteCancelBtn', 'deleteAccountCancel'],
+        ['accountDeleteNextBtn', 'deleteAccountNext'],
+        ['accountDeleteBackBtn', 'deleteAccountBack'],
+        ['accountDeleteConfirmBtn', 'deleteAccountConfirm'],
+      ];
+      for (const [id, key] of labels) {
+        const b = document.getElementById(id);
+        if (b) b.textContent = t(key);
+      }
+      setAccountDeletionControlsDisabled(accountDeletionBusy);
+    }
+
+    function setAccountDeletionControlsDisabled(disabled) {
+      for (const id of ['deleteAccountBtn', 'accountDeleteCancelBtn', 'accountDeleteNextBtn',
+                        'accountDeleteBackBtn', 'accountDeleteConfirmBtn', 'logoutBtn']) {
+        const b = document.getElementById(id);
+        if (b) b.disabled = disabled;
+      }
+    }
+
+    function setAccountDeletionStatus(text) {
+      const el = document.getElementById('accountDeleteStatus');
+      if (el) el.textContent = text;
+    }
+
+    function openAccountDeletion() {
+      if (accountDeletionBusy || !sukimaAuthenticated) return;
+      accountDeletionStep = 1;
+      setAccountDeletionStatus('');
+      renderAccountDeletion();
+    }
+
+    function closeAccountDeletion() {
+      if (accountDeletionBusy) return;
+      accountDeletionStep = 0;
+      setAccountDeletionStatus('');
+      renderAccountDeletion();
+    }
+
+    function advanceAccountDeletion() {
+      if (accountDeletionBusy || accountDeletionStep !== 1) return;
+      accountDeletionStep = 2;
+      setAccountDeletionStatus('');
+      renderAccountDeletion();
+    }
+
+    function backAccountDeletion() {
+      if (accountDeletionBusy || accountDeletionStep !== 2) return;
+      accountDeletionStep = 1;
+      setAccountDeletionStatus('');
+      renderAccountDeletion();
+    }
+
+    /** revoke に使える Calendar access token（メモリ優先、次に保存値）。 */
+    function readGoogleTokenForRevoke() {
+      if (accessToken) return accessToken;
+      try {
+        const saved = localStorage.getItem(TOKEN_KEY);
+        return saved ? saved : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    /**
+     * Google 側のアプリ連携を解除する（best-effort）。
+     * token が無い / GIS が無い / 失敗 / 時間切れ はすべて false。**例外は投げない。**
+     */
+    function revokeGoogleAccess() {
+      const token = readGoogleTokenForRevoke();
+      if (!token) return Promise.resolve(false);
+      if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2
+          || typeof google.accounts.oauth2.revoke !== 'function') {
+        return Promise.resolve(false);
+      }
+      return new Promise((resolve) => {
+        let settled = false;
+        let timer = null;
+        const done = (ok) => {
+          if (settled) return;
+          settled = true;
+          if (timer !== null) clearTimeout(timer);
+          resolve(ok);
+        };
+        timer = setTimeout(() => done(false), GOOGLE_REVOKE_TIMEOUT_MS);
+        try {
+          google.accounts.oauth2.revoke(token, (r) => done(!!(r && r.successful === true)));
+        } catch (e) {
+          done(false);
+        }
+      });
+    }
+
+    /** 背景画像の IndexedDB を DB ごと消す（best-effort。例外は投げない）。 */
+    function deleteLocalSettingsDatabase() {
+      return new Promise((resolve) => {
+        if (typeof indexedDB === 'undefined' || !indexedDB
+            || typeof indexedDB.deleteDatabase !== 'function') {
+          resolve(false);
+          return;
+        }
+        let settled = false;
+        let timer = null;
+        const done = (ok) => {
+          if (settled) return;
+          settled = true;
+          if (timer !== null) clearTimeout(timer);
+          resolve(ok);
+        };
+        timer = setTimeout(() => done(false), LOCAL_DB_DELETE_TIMEOUT_MS);
+        try {
+          const req = indexedDB.deleteDatabase(BG_DB_NAME);
+          req.onsuccess = () => done(true);
+          req.onerror = () => done(false);
+          // 別タブが接続を握っていると blocked になる。閉じれば削除は完了する。
+          req.onblocked = () => {};
+        } catch (e) {
+          done(false);
+        }
+      });
+    }
+
+    /**
+     * この端末に残る Sukima のデータを消す。
+     * localStorage / sessionStorage（言語・背景位置・Calendar token・検索結果など）と
+     * 背景画像の IndexedDB。他の端末は sessions の削除で失効する。
+     */
+    async function clearLocalAppData() {
+      resetBackgroundImageState();
+      try { localStorage.clear(); } catch (e) {}
+      try { sessionStorage.clear(); } catch (e) {}
+      await deleteLocalSettingsDatabase();
+    }
+
+    async function confirmAccountDeletion() {
+      if (accountDeletionBusy || accountDeletionStep !== 2 || sukimaAuthBusy) return;
+      accountDeletionBusy = true;
+      sukimaAuthBusy = true;
+      setAccountDeletionControlsDisabled(true);
+      setAccountDeletionStatus(t('deleteAccountWorking'));
+
+      let res = null;
+      try {
+        res = await fetch('/api/account/delete', sukimaApiInit({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirm: true }),
+        }));
+      } catch (e) {
+        res = null;
+      }
+
+      if (!res || res.status !== 200) {
+        // **サーバーの削除が確認できないので、この端末のデータは消さない。**
+        // 生のエラー本文は読まない / 出さない。
+        setAccountDeletionStatus(res && res.status === 401
+          ? t('deleteAccountUnauthenticated')
+          : t('deleteAccountFailed'));
+        accountDeletionBusy = false;
+        sukimaAuthBusy = false;
+        setAccountDeletionControlsDisabled(false);
+        return;
+      }
+
+      // ここから先はサーバーの削除が済んでいる。以降の失敗で「削除失敗」とは出さない。
+      let revoked = false;
+      try { revoked = await revokeGoogleAccess(); } catch (e) { revoked = false; }
+      try {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+          google.accounts.id.disableAutoSelect();
+        }
+      } catch (e) {}
+      try { await clearLocalAppData(); } catch (e) {}
+
+      clearSukimaSessionState();
+      sukimaSessionCheckFailed = false;
+      clearCalendarAuthorization();
+      quotaStatus = null;
+      renderQuotaInfo();
+      accountDeletionStep = 0;
+      accountDeletionBusy = false;
+      sukimaAuthBusy = false;
+      setAccountDeletionStatus('');
+      setAccountDeletionControlsDisabled(false);
+      renderAccountDeletion();
+      updateAuthUi();
+      renderGoogleIdentityButton();
+      setStatusForm('');
+      setStatus(revoked ? t('deleteAccountDone') : t('deleteAccountDoneManual'));
     }
 
     function showSearch() {
