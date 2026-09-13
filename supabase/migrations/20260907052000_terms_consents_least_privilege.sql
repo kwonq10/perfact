@@ -1,0 +1,94 @@
+-- =========================================================
+-- 20260907052000_terms_consents_least_privilege.sql
+-- Sukima — terms_consents の service_role 権限を SELECT + INSERT だけに絞る
+--
+--   このファイルには秘密情報を含まない。
+--
+--   ⚠ 既に production 適用済みの 20260907051255_terms_consents.sql は
+--     **絶対に編集しない**。本ファイルは後追いの補正として追加する。
+--
+-- ---------------------------------------------------------
+-- なぜ必要か
+-- ---------------------------------------------------------
+--   20260907051255 は追記専用（append-only）を権限で担保する意図で
+--
+--       GRANT SELECT, INSERT ON TABLE public.terms_consents TO service_role;
+--
+--   だけを書いた。しかし Supabase のプロジェクトには
+--
+--       ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+--         GRANT REFERENCES, TRIGGER, TRUNCATE, MAINTAIN ON TABLES TO service_role;
+--
+--   が設定されているため、**テーブル作成時点で service_role へ
+--   REFERENCES / TRIGGER / TRUNCATE / MAINTAIN が自動付与される**。
+--   その結果 production の実測 ACL は次のようになっていた:
+--
+--       service_role = SELECT, INSERT, REFERENCES, TRIGGER, TRUNCATE, MAINTAIN
+--
+--   UPDATE と DELETE は無いが、**TRUNCATE が一文で監査ログを全消去できる**ため、
+--   「消せないことを権限として担保する」という設計意図が成立していない。
+--
+--   20260907051255 の REVOKE は anon / authenticated だけを対象にしており、
+--   service_role の自動付与分は剥がしていなかった。ここで剥がす。
+--
+-- ---------------------------------------------------------
+-- 適用後の期待状態
+-- ---------------------------------------------------------
+--   service_role : SELECT + INSERT のみ
+--     - UPDATE     なし
+--     - DELETE     なし
+--     - TRUNCATE   なし  ← 本ファイルの主目的
+--     - REFERENCES なし
+--     - TRIGGER    なし
+--     - MAINTAIN   なし
+--   anon / authenticated / PUBLIC : 権限ゼロ（20260907051255 の REVOKE 済み。本ファイルは触らない）
+--
+-- ---------------------------------------------------------
+-- 方針
+-- ---------------------------------------------------------
+--   - **ACL の変更だけを行う。**
+--     行を 1 件も読まない・書かない。DDL も発行しない。
+--   - TRUNCATE は**権限を剥奪するだけ**で、**実行はしない**。
+--   - terms_consents のテーブル定義・制約・index・RLS は変更しない。
+--   - record_terms_consent() の定義も権限も変更しない。
+--     （SECURITY INVOKER なので、呼び出し元 service_role の
+--       テーブル権限がそのまま効く。INSERT と SELECT は残すため動作は変わらない）
+--   - 他テーブル（users / subscriptions / weekly_usage / stripe_events /
+--     sessions / quota_reservations）には一切触れない。
+--   - **再実行可能**。REVOKE / GRANT はいずれも冪等。
+--
+--   ⚠ 将来 public スキーマへテーブルを追加する migration は、
+--     同じ理由で service_role の自動付与権限を必ず見直すこと。
+-- =========================================================
+
+
+-- =========================================================
+-- 1. 既定付与も含めて一度すべて剥がす
+--    ALTER DEFAULT PRIVILEGES 由来の
+--    REFERENCES / TRIGGER / TRUNCATE / MAINTAIN をここで落とす。
+-- =========================================================
+REVOKE ALL ON TABLE public.terms_consents FROM service_role;
+
+
+-- =========================================================
+-- 2. 追記専用に必要な 2 つだけを与え直す
+--    SELECT : 「この利用者は現行版へ同意済みか」の照会に必要
+--    INSERT : 同意の記録に必要
+-- =========================================================
+GRANT SELECT, INSERT ON TABLE public.terms_consents TO service_role;
+
+
+-- =========================================================
+-- 適用後の検証クエリ（読み取り専用。この migration には含めず手元で実行する）
+--
+--   SELECT has_table_privilege('service_role','public.terms_consents','SELECT')    AS sel,
+--          has_table_privilege('service_role','public.terms_consents','INSERT')    AS ins,
+--          has_table_privilege('service_role','public.terms_consents','UPDATE')    AS upd,
+--          has_table_privilege('service_role','public.terms_consents','DELETE')    AS del,
+--          has_table_privilege('service_role','public.terms_consents','TRUNCATE')  AS trunc,
+--          has_table_privilege('service_role','public.terms_consents','REFERENCES') AS refs,
+--          has_table_privilege('service_role','public.terms_consents','TRIGGER')   AS trig,
+--          has_table_privilege('service_role','public.terms_consents','MAINTAIN')  AS maint;
+--
+--   期待: sel = t / ins = t / それ以外すべて f
+-- =========================================================
