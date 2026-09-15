@@ -643,6 +643,38 @@ test('extractPriceId / buildSnapshot の失敗コード', () => {
   assert.equal(buildSnapshot(subscription(), ENV).ok, true);
 });
 
+test('割引で請求額が下がっても plan / phase は price_id どおり', () => {
+  // Stripe の Promotion Code を使うと amount_total / amount_paid が下がるが、
+  // **price_id は変わらない**。webhook は金額を一切見ない。
+  const discounted = subscription({
+    // Stripe が subscription へ返す割引情報（ダミー形状）
+    discounts: ['di_dummy_for_tests_only'],
+    latest_invoice: { amount_total: 0, amount_paid: 0, amount_due: 0 },
+    items: { data: [{ id: 'si_1', price: { id: PRICE_ID }, amount_total: 0 }] },
+  });
+  const plain = buildSnapshot(subscription(), ENV);
+  const withCoupon = buildSnapshot(discounted, ENV);
+
+  assert.equal(withCoupon.ok, true);
+  assert.equal(withCoupon.snapshot.priceId, PRICE_ID);
+  assert.equal(withCoupon.snapshot.phase, plain.snapshot.phase);
+  assert.equal(withCoupon.snapshot.planId, plain.snapshot.planId);
+  assert.equal(withCoupon.snapshot.currency, plain.snapshot.currency);
+  // 割引の有無で snapshot 全体が変わらない
+  assert.deepEqual(withCoupon.snapshot, plain.snapshot);
+});
+
+test('standard price でも割引の有無で phase 判定は変わらない', () => {
+  const std = { items: { data: [{ id: 'si_1', price: { id: ENV.STRIPE_PRICE_WEB_PRO_JPY_STANDARD } }] } };
+  const plain = buildSnapshot(subscription(std), ENV);
+  const withCoupon = buildSnapshot(
+    subscription({ ...std, discounts: ['di_dummy_for_tests_only'] }),
+    ENV,
+  );
+  assert.equal(plain.snapshot.phase, 'standard');
+  assert.deepEqual(withCoupon.snapshot, plain.snapshot);
+});
+
 
 // =========================================================
 // 6. RPC の結果と HTTP 応答

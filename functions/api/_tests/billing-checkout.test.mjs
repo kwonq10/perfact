@@ -533,17 +533,88 @@ test('Checkout Session を POST で 1 回だけ作る', async () => {
   assert.equal(sent.env, ENV);
 });
 
-test('subscription mode / 数量 1 / 割引コード無効', async () => {
+test('subscription mode / 数量 1 / プロモーションコード入力有効', async () => {
   const d = deps();
   await call(d);
   const p = d.stripe.calls[0].params;
   assert.equal(p.mode, 'subscription');
   assert.equal(p.line_items.length, 1);
   assert.equal(p.line_items[0].quantity, 1);
-  assert.equal(p.allow_promotion_codes, false);
+  // Stripe 側の Promotion Code を使う（duration=once 運用）
+  assert.equal(p.allow_promotion_codes, true);
   assert.equal(p.billing_address_collection, 'required');
   // 税の登録判断が未決なので automatic_tax は有効にしない
   assert.equal('automatic_tax' in p, false);
+});
+
+test('クーポンを有効にしても line_items は launch price のまま', async () => {
+  const d = deps();
+  await call(d);
+  const p = d.stripe.calls[0].params;
+  // 割引は price_id を変えない。ここが崩れると plan / phase 判定が崩れる。
+  assert.equal(p.line_items[0].price, ENV.STRIPE_PRICE_WEB_PRO_JPY_LAUNCH);
+  assert.equal(p.metadata.price_phase, 'launch');
+  assert.equal(p.subscription_data.metadata.price_phase, 'launch');
+});
+
+test('launch 終了後でもクーポン有効のまま standard price を使う', async () => {
+  const d = deps({ now: () => NOW_STANDARD });
+  await call(d);
+  const p = d.stripe.calls[0].params;
+  assert.equal(p.allow_promotion_codes, true);
+  assert.equal(p.line_items[0].price, ENV.STRIPE_PRICE_WEB_PRO_JPY_STANDARD);
+  assert.equal(p.metadata.price_phase, 'standard');
+});
+
+test('クーポンコード自体を params へハードコードしない', async () => {
+  const d = deps();
+  await call(d);
+  const p = d.stripe.calls[0].params;
+  // クーポンの正は Stripe 側。server から coupon / 割引を指定しない。
+  assert.equal('discounts' in p, false);
+  assert.equal('coupon' in p, false);
+  assert.equal('promotion_code' in p, false);
+  assert.equal('discounts' in p.subscription_data, false);
+  assert.equal('coupon' in p.subscription_data, false);
+});
+
+test('locale / customer の有無で Checkout params が壊れない', () => {
+  for (const locale of ['ja', 'en']) {
+    for (const customerId of [null, 'cus_dummy_for_tests_only']) {
+      const label = `${locale}/${String(customerId)}`;
+      const params = buildCheckoutParams({
+        userId: USER_ID,
+        priceId: 'price_dummy',
+        planId: 'web_pro',
+        phase: 'launch',
+        termsVersion: '2026-09-09',
+        locale,
+        origin: ORIGIN,
+        customerId,
+        confirmedAt: '2026-09-09T00:00:00.000Z',
+      });
+      // どの組み合わせでも入力欄は出す
+      assert.equal(params.allow_promotion_codes, true, label);
+      assert.equal(params.mode, 'subscription', label);
+      assert.equal(params.locale, locale, label);
+      assert.equal(params.line_items[0].price, 'price_dummy', label);
+      assert.equal(params.line_items[0].quantity, 1, label);
+      assert.equal(params.billing_address_collection, 'required', label);
+      assert.equal(params.metadata.user_id, USER_ID, label);
+      assert.deepEqual(params.subscription_data.metadata, params.metadata, label);
+      // customer ありのときだけ customer_update が付く（Stripe の制約）
+      if (customerId === null) {
+        assert.equal('customer' in params, false, label);
+        assert.equal('customer_update' in params, false, label);
+      } else {
+        assert.equal(params.customer, customerId, label);
+        assert.deepEqual(params.customer_update, { address: 'auto' }, label);
+      }
+      // Stripe のフォーム形式へもそのまま流せる
+      const encoded = encodeStripeParams(params);
+      assert.equal(encoded.get('allow_promotion_codes'), 'true', label);
+    }
+  }
 });
 
 test('metadata と subscription_data.metadata に user_id が必ず入る', async () => {

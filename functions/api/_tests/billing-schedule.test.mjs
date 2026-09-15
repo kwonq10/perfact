@@ -379,6 +379,40 @@ test('未知の Price / 複数 item / 期間不明は対象外（推測で予約
   assert.equal(evaluateScheduleEligibility(null, ENV).reason, 'invalid_subscription');
 });
 
+test('クーポンの有無で launch -> standard の対象判定は変わらない', () => {
+  // Promotion Code を使っても price_id は launch のままなので、
+  // 移行予約の対象判定は変わらない。
+  const plain = evaluateScheduleEligibility(launchSubscription(), ENV);
+  const withCoupon = evaluateScheduleEligibility(
+    launchSubscription({
+      discounts: ['di_dummy_for_tests_only'],
+      discount: { id: 'di_dummy_for_tests_only', coupon: { id: 'co_dummy', duration: 'once' } },
+    }),
+    ENV,
+  );
+  assert.equal(plain.eligible, true);
+  assert.deepEqual(withCoupon, plain);
+});
+
+test('予約する phases は割引を引き継がない（duration=once 運用の根拠）', () => {
+  const params = buildDesiredScheduleParams({
+    launchPriceId: LAUNCH,
+    standardPriceId: STANDARD,
+    phaseStart: PERIOD_START,
+    periodEnd: PERIOD_END,
+  });
+  // **継続割引（repeating / forever）はここで失われる。**
+  // そのため Sukima は duration=once のクーポン運用に限定している。
+  assert.equal('discounts' in params, false);
+  for (const phase of params.phases) {
+    assert.equal('discounts' in phase, false);
+    assert.equal('coupon' in phase, false);
+  }
+  // 価格自体は launch -> standard のまま
+  assert.equal(params.phases[0].items[0].price, LAUNCH);
+  assert.equal(params.phases[1].items[0].price, STANDARD);
+});
+
 test('standard の Price が未設定なら失敗（設定漏れ。Stripe を呼ばない）', async () => {
   const env = { ...ENV, STRIPE_PRICE_WEB_PRO_JPY_STANDARD: '' };
   const fake = fakeStripe();

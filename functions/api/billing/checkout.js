@@ -310,8 +310,17 @@ export function buildCheckoutParams(o) {
     line_items: [{ price: priceId, quantity: 1 }],
     // 請求先の国を取得しておく（webhook 側で請求先国を検証するため）。
     billing_address_collection: 'required',
-    // 割引コードは扱わない。扱うなら価格表示と launch 判定を作り直す必要がある。
-    allow_promotion_codes: false,
+    // Stripe の Promotion Code 入力欄を出す。
+    // **クーポンの正は Stripe 側**で、独自のクーポン DB もコードへのハードコードも持たない。
+    //
+    // **Sukima では duration=once のクーポン運用に限定する（継続割引は扱わない）。**
+    // launch -> standard の Subscription Schedule は phases を明示指定しており discounts を持たないため
+    // （billing-schedule.js の buildDesiredScheduleParams）、
+    // repeating / forever の継続割引は schedule 作成時に失われる。
+    //
+    // plan / phase の判定は price_id だけを見るので、
+    // 割引で請求額が下がっても ¥300 -> ¥500 の移行判定は変わらない。
+    allow_promotion_codes: true,
     success_url: origin + SUCCESS_PATH + '?session_id={CHECKOUT_SESSION_ID}',
     cancel_url: origin + CANCEL_PATH,
     metadata: { ...metadata },
