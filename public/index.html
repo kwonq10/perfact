@@ -3679,10 +3679,14 @@
               localStorage.removeItem(TOKEN_EXPIRY_KEY);
               document.getElementById('loginInfo').textContent = '';
               document.getElementById('logoutBtn').style.display = 'none';
-              if (!tokenClient) initTokenClient();
               showSearch();
+              // ここで認可ポップアップを自動で開かない。events API を await した
+              // 後なので user activation が失われており、ブラウザにブロックされる
+              // （サインイン経路で同じ問題を踏んでいる）。
+              // updateAuthUi() で状態 B へ戻し、「Googleカレンダーと連携」を
+              // 利用者が押したときだけ requestCalendarAuthorization() を走らせる。
+              updateAuthUi();
               setStatusForm(t('sessionExpired'));
-              tokenClient.requestAccessToken();
               // 401 を受けた時点で打ち切る。残りのカレンダーを見ても
               // token が無効なままなので結果は変わらない。
               return { success: false, authExpired: calendarAuthExpired };
