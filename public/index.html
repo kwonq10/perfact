@@ -1163,6 +1163,7 @@
         copied: 'コピーしました',
         copiedDay: 'この日をコピーしました',
         copiedAll: '全件コピーしました',
+        copyFailed: 'コピーできませんでした。ブラウザのクリップボード権限をご確認ください。',
         loginFailed: 'ログインに失敗しました',
         connectCalendarBtn: 'Googleカレンダーと連携',
         signingIn: 'ログインしています...',
@@ -1303,6 +1304,7 @@
         copied: 'Copied',
         copiedDay: 'Copied day',
         copiedAll: 'Copied all',
+        copyFailed: 'Could not copy. Please check your browser clipboard permission.',
         loginFailed: 'Login failed',
         connectCalendarBtn: 'Connect Google Calendar',
         signingIn: 'Signing in...',
@@ -4365,18 +4367,33 @@
       window.open(url, '_blank');
     }
 
+    // クリップボードへの書き込みは、権限拒否・非セキュアコンテキスト・
+    // clipboard API 非対応の WebView などで失敗する。失敗を握りつぶすと
+    // 「押しても何も起きない」状態になるため、成否どちらも必ず通知する。
+    function writeToClipboard(text, successKey) {
+      const clipboard = navigator.clipboard;
+      if (!clipboard || typeof clipboard.writeText !== 'function') {
+        showToast(t('copyFailed'));
+        return;
+      }
+      // writeText が同期的に throw する実装もあるため Promise 経由で包む。
+      Promise.resolve()
+        .then(() => clipboard.writeText(text))
+        .then(() => showToast(t(successKey)), () => showToast(t('copyFailed')));
+    }
+
     function copySlot(i) {
       const day = currentDailyResults[currentDayIndex];
       if (!day || !day.slots[i]) return;
       const text = slotToText(day.slots[i]);
-      navigator.clipboard.writeText(text).then(() => showToast(t('copied')));
+      writeToClipboard(text, 'copied');
     }
 
     function copyCurrentDay() {
       const day = currentDailyResults[currentDayIndex];
       if (!day || day.slots.length === 0) return;
       const text = day.slots.map(slotToText).join('\n');
-      navigator.clipboard.writeText(text).then(() => showToast(t('copiedDay')));
+      writeToClipboard(text, 'copiedDay');
     }
 
     function copyAll() {
@@ -4385,7 +4402,7 @@
         : groupSlotsByDay(currentSlots).flatMap(day => day.slots);
       if (slots.length === 0) return;
       const text = slots.map(slotToText).join('\n');
-      navigator.clipboard.writeText(text).then(() => showToast(t('copiedAll')));
+      writeToClipboard(text, 'copiedAll');
     }
 
 
