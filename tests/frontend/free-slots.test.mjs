@@ -348,14 +348,16 @@ test('fetchAndCalc: cancelled の予定は空きを削らない', async () => {
   assert.deepEqual(shape(p.run('currentSlots')), ['10/6 09:00-22:00']);
 });
 
-test('fetchAndCalc: 一部のカレンダーが失敗しても成功分の予定で計算する', async () => {
+// 403 は「そのカレンダーの予定を見る権限が無い」= 元々読めないので無視してよい。
+// 429 / 5xx / 通信エラーによる取りこぼしの扱いは calendar-partial-failure.test.mjs を見る。
+test('fetchAndCalc: 権限不足(403)のカレンダーがあっても成功分の予定で計算する', async () => {
   let n = 0;
   const fetchImpl = makeFetch([
     [(u) => u.includes('/users/me/calendarList'),
       () => jsonResponse(200, { items: [{ id: 'cal-a' }, { id: 'cal-b' }] })],
     [(u) => u.includes('/events?'), () => {
       n += 1;
-      return n === 1 ? jsonResponse(500, { error: 'boom' })
+      return n === 1 ? jsonResponse(403, { error: 'forbidden' })
         : jsonResponse(200, { items: [busy(13, 14)] });
     }],
   ]);
@@ -367,7 +369,7 @@ test('fetchAndCalc: 一部のカレンダーが失敗しても成功分の予定
   p.el('duration').value = '60';
 
   const r = await p.call('fetchAndCalc');
-  assert.equal(r.success, true, '1 件でも 2xx なら成功');
+  assert.equal(r.success, true, '403 は無視して 2xx の分で成功にする');
   assert.deepEqual(shape(p.run('currentSlots')), ['10/6 09:00-13:00', '10/6 14:00-22:00']);
 });
 

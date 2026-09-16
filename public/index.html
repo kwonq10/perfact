@@ -1201,6 +1201,7 @@
         quotaRetry: '検索を開始できませんでした。もう一度お試しください。',
         quotaError: '検索を開始できませんでした。時間をおいてお試しください。',
         calendarFetchFailed: 'カレンダーを取得できませんでした。時間をおいてお試しください。',
+        calendarPartialFailed: '一部のカレンダーを取得できませんでした。時間をおいて再度お試しください。',
         logoutFailed: 'ログアウトを完了できませんでした。時間をおいて再度お試しください。',
         deleteAccountBtn: 'アカウントを削除',
         deleteAccountTitle: 'アカウントを削除しますか？',
@@ -1344,6 +1345,7 @@
         quotaRetry: 'Could not start the search. Please try again.',
         quotaError: 'Could not start the search. Please try again later.',
         calendarFetchFailed: 'Could not load your calendar. Please try again later.',
+        calendarPartialFailed: 'Could not load some of your calendars. Please try again later.',
         logoutFailed: 'Could not complete sign-out. Please try again later.',
         deleteAccountBtn: 'Delete account',
         deleteAccountTitle: 'Delete your account?',
@@ -3631,9 +3633,11 @@
       // Calendar events API の結果だけで検索の成否を決める。
       //   calendarOk        events API で 2xx を 1 件でも受け取ったか
       //   calendarAuthExpired  events API で 401 を受け取ったか（最優先）
+      //   calendarIncomplete   429 / 5xx / 通信エラーで取りこぼしたカレンダーがあるか
       // calendarList の成否は含めない（失敗しても primary で続行できるため）。
       let calendarOk = false;
       let calendarAuthExpired = false;
+      let calendarIncomplete = false;
 
       showResult('<div style="text-align:center;padding:60px 20px;color:#888;font-size:15px;">' + t('calculating') + '</div>');
       setStatusForm(t('loadingCal'));
@@ -3702,7 +3706,15 @@
                 }));
               allEvents = allEvents.concat(items);
             }
-          } catch(e) {}
+            // 403 は「そのカレンダーの予定を見る権限が無い」。元々読めないので無視してよい。
+            // 429 / 5xx は「読めるはずのものが取れなかった」。予定の取りこぼしになる。
+            else if (calRes.status !== 403) {
+              calendarIncomplete = true;
+            }
+          } catch(e) {
+            // 通信エラーも取りこぼし。黙って空き時間に変えない。
+            calendarIncomplete = true;
+          }
         }
         // events API が全滅した場合、以前は allEvents が空のまま
         // 「終日空き」という正常な結果として完走していた。ここで止める。
@@ -3711,6 +3723,15 @@
           setStatusForm(failMsg);
           document.getElementById('resultContent').innerHTML =
             '<div style="text-align:center;padding:60px 20px;color:#c00;font-size:15px;">' + failMsg + '</div>';
+          return { success: false, authExpired: false };
+        }
+        // 一部だけ取れなかった場合。欠けた予定を無視して計算すると、
+        // 実際は埋まっている時間を「空き」として出してしまう。結果は作らない。
+        if (calendarIncomplete) {
+          const partialMsg = t('calendarPartialFailed');
+          setStatusForm(partialMsg);
+          document.getElementById('resultContent').innerHTML =
+            '<div style="text-align:center;padding:60px 20px;color:#c00;font-size:15px;">' + partialMsg + '</div>';
           return { success: false, authExpired: false };
         }
 
