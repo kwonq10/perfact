@@ -1119,6 +1119,7 @@
         appTitle: 'スキマ',
         subtitle: 'スキマは、あなたのGoogleカレンダーから指定した期間の空き時間を自動で検索し、簡単に抽出・共有できるツールです。面倒な日程調整の時間を大幅に削減します。',
         privacyPolicy: 'プライバシー ポリシー',
+        pricingLink: '料金プラン',
         loginBtn: 'Googleでログイン',
         labelStart: '検索開始日',
         labelEnd: '検索終了日',
@@ -1267,6 +1268,7 @@
         appTitle: 'Sukima',
         subtitle: 'Sukima searches your Google Calendar for available time slots and makes it easy to extract and share them. Spend less time on scheduling.',
         privacyPolicy: 'Privacy Policy',
+        pricingLink: 'Pricing',
         loginBtn: 'Login with Google',
         labelStart: 'Start Date',
         labelEnd: 'End Date',
@@ -1434,6 +1436,12 @@
       q('#searchView .subtitle').textContent = t('subtitle');
       const privLink = q('#searchView a[href="/privacy.html"]');
       if (privLink) privLink.textContent = t('privacyPolicy');
+      // 料金プランへの導線は 2 か所（開始画面と検索画面）。
+      // href は markup のまま。**ラベルだけ** を言語に追従させる。
+      for (const id of ['startPricingLink', 'searchPricingLink']) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = t('pricingLink');
+      }
       // #loginBtn は Calendar 認可専用のボタンになったのでラベルもそれに合わせる
       document.getElementById('loginBtn').textContent = t('connectCalendarBtn');
       renderGoogleIdentityButton();

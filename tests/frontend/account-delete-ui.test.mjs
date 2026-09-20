@@ -778,3 +778,83 @@ test('状態 B の案内でも削除処理と送信内容は変わらない', as
   assert.equal(revokeCalls.length, 0, 'token が無ければ revoke は呼ばない（Step 102 から不変）');
   assert.match(page.el('status').textContent, /myaccount\.google\.com\/permissions/);
 });
+
+// ---------------------------------------------------------
+// 11. 料金プランリンクの多言語対応
+//
+//   解約案内が「料金プラン」ページを指すため、リンクのラベルが
+//   言語に追従しないと、英語利用者は案内先を見つけられない。
+//   href は markup のまま。ラベルだけを applyLang が差し替える。
+// ---------------------------------------------------------
+
+test('料金プランリンクは ja で「料金プラン」、en で "Pricing"', () => {
+  const { page } = setup();
+  for (const id of ['startPricingLink', 'searchPricingLink']) {
+    page.context.setLang('ja');
+    assert.equal(page.el(id).textContent, '料金プラン', id);
+    page.context.setLang('en');
+    assert.equal(page.el(id).textContent, 'Pricing', id);
+  }
+});
+
+test('ja -> en -> ja の切り替えに追従する', () => {
+  const { page } = setup();
+  const labels = [];
+  for (const lang of ['ja', 'en', 'ja', 'en']) {
+    page.context.setLang(lang);
+    labels.push(page.el('searchPricingLink').textContent);
+  }
+  assert.deepEqual(labels, ['料金プラン', 'Pricing', '料金プラン', 'Pricing']);
+});
+
+test('pricingLink は ja / en の両方に定義されている', () => {
+  const { page } = setup();
+  assert.equal(page.run('I18N.ja.pricingLink'), '料金プラン');
+  assert.equal(page.run('I18N.en.pricingLink'), 'Pricing');
+});
+
+test('href="/pricing" は markup のまま変えない。リンクは複製しない', () => {
+  for (const id of ['startPricingLink', 'searchPricingLink']) {
+    assert.equal(indexHtml.split('id="' + id + '"').length, 2, id + ' は 1 つだけ');
+    const at = indexHtml.indexOf('id="' + id + '"');
+    const tag = indexHtml.slice(indexHtml.lastIndexOf('<a', at), indexHtml.indexOf('>', at) + 1);
+    assert.match(tag, /href="\/pricing"/, id + ' の href は /pricing');
+  }
+  // 解約案内が指す導線が #formSection の中に移動していないこと（状態 B で消える）。
+  const form = extractDivById(indexHtml, 'formSection');
+  assert.ok(!form.includes('id="searchPricingLink"'));
+});
+
+test('言語を切り替えても状態 A / B の表示条件は変わらない', () => {
+  for (const lang of ['ja', 'en']) {
+    for (const state of ['A', 'B']) {
+      const { page } = setup({ token: state === 'A' ? TEST_TOKEN : null });
+      page.context.setLang(lang);
+      setState(page, state);
+      assert.equal(page.el('accountSection').style.display, '', lang + '/' + state);
+      assert.equal(page.el('deleteAccountBtn').style.display, '', lang + '/' + state);
+      assert.equal(page.el('logoutBtn').style.display, '', lang + '/' + state);
+      assert.equal(page.el('formSection').style.display, state === 'A' ? 'block' : 'none', lang + '/' + state);
+    }
+    for (const state of ['C', 'D']) {
+      const { page } = setup();
+      page.context.setLang(lang);
+      setState(page, state);
+      assert.equal(page.el('accountSection').style.display, 'none', lang + '/' + state);
+      assert.equal(page.el('deleteAccountBtn').style.display, 'none', lang + '/' + state);
+    }
+  }
+});
+
+test('en の Web Pro / 状態 B: 解約案内と料金プランのラベルが噛み合う', () => {
+  const { page } = setup({ token: null, plan: 'web_pro', entitlement: { web: true, extension: false } });
+  // setup() の lang オプションは currentLang を代入するだけで applyLang() を呼ばない。
+  // 画面のラベルまで検証するので、製品と同じ setLang() で切り替える。
+  page.context.setLang('en');
+  setState(page, 'B');
+  page.call('openAccountDeletion');
+  const notes = page.el('accountDeleteNotes').children.map((c) => String(c.textContent));
+  const line = notes.find((n) => /cancel/.test(n));
+  assert.match(line, /pricing page/i, '案内は pricing ページを指す');
+  assert.equal(page.el('searchPricingLink').textContent, 'Pricing', '画面上のリンクも英語になっている');
+});
