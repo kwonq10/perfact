@@ -550,3 +550,231 @@ test('状態 B: サーバーが失敗したらセッションもこの端末の�
   assert.equal(page.run('accountDeletionStep'), 2, '再試行できる状態に戻す');
   assert.equal(page.el('accountSection').style.display, '', '導線は残す');
 });
+
+// ---------------------------------------------------------
+// 7. 文言: Google ログイン（本人確認）と Calendar 連携の区別
+// ---------------------------------------------------------
+
+test('状態 A と状態 B で loginInfo の文言を出し分ける', () => {
+  const { page } = setup();
+  setState(page, 'A');
+  assert.equal(page.el('loginInfo').textContent, 'Googleアカウント連携済み');
+  setState(page, 'B');
+  assert.equal(page.el('loginInfo').textContent, 'Googleアカウントでログイン中',
+    'Calendar 未連携で「連携済み」と書くと、連携ボタンと矛盾して読める');
+  setState(page, 'C');
+  assert.equal(page.el('loginInfo').textContent, '');
+  setState(page, 'D');
+  assert.equal(page.el('loginInfo').textContent, '');
+});
+
+test('en も同様に出し分ける', () => {
+  const { page } = setup({ lang: 'en' });
+  setState(page, 'A');
+  assert.equal(page.el('loginInfo').textContent, 'Google Account connected');
+  setState(page, 'B');
+  assert.equal(page.el('loginInfo').textContent, 'Signed in with Google');
+});
+
+test('signedInOnly は ja / en の両方にあり、loggedIn とは別の文言', () => {
+  const { page } = setup();
+  const ja = page.run('I18N.ja.signedInOnly');
+  const en = page.run('I18N.en.signedInOnly');
+  assert.equal(typeof ja, 'string');
+  assert.equal(typeof en, 'string');
+  assert.ok(ja.length > 0 && en.length > 0);
+  assert.notEqual(ja, page.run('I18N.ja.loggedIn'));
+  assert.notEqual(en, page.run('I18N.en.loggedIn'));
+  assert.doesNotMatch(ja, /連携済み/, '状態 B の文言に「連携済み」を使わない');
+});
+
+// ---------------------------------------------------------
+// 8. Web Pro（有料契約）の状態 B
+//
+//   契約中の利用者が Calendar 未連携でも、解約と削除の違いを
+//   理解したうえで削除へ進めること。**実 API は呼ばない（fetch はスタブ）。**
+// ---------------------------------------------------------
+
+/** Web Pro かつ状態 B のページを作る。 */
+function setupProStateB(opts = {}) {
+  const r = setup(Object.assign({ token: null, plan: 'web_pro', entitlement: { web: true, extension: false } }, opts));
+  setState(r.page, 'B');
+  return r;
+}
+
+test('Web Pro / 状態 B: 削除とログアウトが出て、検索フォームは出ない', () => {
+  const { page } = setupProStateB();
+  assert.equal(page.el('deleteAccountBtn').style.display, '');
+  assert.equal(page.el('logoutBtn').style.display, '');
+  assert.equal(page.el('accountSection').style.display, '');
+  assert.equal(page.el('formSection').style.display, 'none');
+  assert.equal(page.el('loginBtn').style.display, '', 'Calendar 連携ボタンは出す');
+});
+
+test('Web Pro / 状態 B: 有料契約向けの注意が出る（共通 4 件 + 有料 4 件）', () => {
+  const { page } = setupProStateB();
+  page.call('openAccountDeletion');
+  const notes = page.el('accountDeleteNotes').children.map((c) => String(c.textContent));
+  assert.equal(notes.length, 8, JSON.stringify(notes));
+  const all = notes.join('\n');
+  assert.match(all, /ただちに終了/, '即時終了を伝える');
+  assert.match(all, /日割りでの返金はありません/);
+  assert.match(all, /Stripeでの請求・支払いの記録/);
+  assert.match(all, /規約への同意の記録は保持されます/);
+});
+
+test('Web Pro / 状態 B: 解約と削除の違いが読み取れる', () => {
+  const { page } = setupProStateB();
+  page.call('openAccountDeletion');
+  const notes = page.el('accountDeleteNotes').children.map((c) => String(c.textContent));
+  const portal = notes.find((n) => n.includes('解約'));
+  assert.ok(portal, '「削除せず解約する」選択肢を提示している: ' + JSON.stringify(notes));
+  assert.match(portal, /アカウントを削除せず/, '削除しない選択肢だと分かる');
+  assert.match(portal, /期間の終わりまで/, '解約なら期間末まで使えると分かる');
+  assert.match(notes.join('|'), /ただちに終了/, '削除は即時終了だと分かる');
+  assert.match(notes.join('|'), /日割りでの返金はありません/, '削除しても返金されないと分かる');
+});
+
+test('Free / 状態 B: 有料契約向けの注意は出さない（共通 4 件のみ）', () => {
+  const { page } = setup({ token: null, plan: 'free', entitlement: { web: false, extension: false } });
+  setState(page, 'B');
+  page.call('openAccountDeletion');
+  assert.equal(page.el('accountDeleteNotes').children.length, 4);
+});
+
+test('Web Pro / 状態 B: 送信内容は Free と同じ（認証条件を変えない）', async () => {
+  const { page, fetchImpl } = setupProStateB();
+  goToFinal(page);
+  await page.call('confirmAccountDeletion');
+  const calls = deleteCalls(fetchImpl);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].init.body, '{"confirm":true}', 'ID や契約情報を送らない');
+  assert.equal(calls[0].init.credentials, 'same-origin');
+  assert.equal(calls[0].init.headers['Content-Type'], 'application/json');
+});
+
+// ---------------------------------------------------------
+// 9. 契約管理への案内と、実際の画面の整合性
+//
+//   注意文が指す「お支払い・契約を管理」ボタンは #planInfo に描かれ、
+//   #planInfo は #formSection の中にある。つまり **状態 B の画面上には無い**。
+//   代わりに「料金プラン」リンクは両セクションの外にあり、状態 B でも
+//   見えるため、/pricing 経由で契約管理へ到達できる。
+//   この導線が失われると案内が行き止まりになるので、構造で固定する。
+// ---------------------------------------------------------
+
+test('契約管理ボタンの置き場（#planInfo）は #formSection の中にある', () => {
+  const form = extractDivById(indexHtml, 'formSection');
+  const account = extractDivById(indexHtml, 'accountSection');
+  assert.ok(form.includes('id="planInfo"'), '#planInfo は #formSection 内');
+  assert.ok(!account.includes('id="planInfo"'));
+});
+
+test('「料金プラン」リンクは #formSection / #accountSection の外にあり、状態 B でも残る', () => {
+  const form = extractDivById(indexHtml, 'formSection');
+  const account = extractDivById(indexHtml, 'accountSection');
+  const login = extractDivById(indexHtml, 'loginSection');
+  assert.ok(!form.includes('id="searchPricingLink"'),
+    '#formSection の中に入れると、状態 B で契約管理への導線が消える');
+  assert.ok(!account.includes('id="searchPricingLink"'));
+  assert.ok(!login.includes('id="searchPricingLink"'));
+  assert.ok(indexHtml.includes('id="searchPricingLink"'));
+  assert.match(indexHtml.slice(indexHtml.indexOf('id="searchPricingLink"') - 200,
+                               indexHtml.indexOf('id="searchPricingLink"') + 200), /href="\/pricing"/);
+});
+
+test('有料の注意文は契約管理のラベルをそのまま引用している（文言のずれを防ぐ）', () => {
+  // 状態 A / B のどちらでも、実際のボタン名をそのまま引用する。
+  for (const state of ['A', 'B']) {
+    const { page } = setup({ token: state === 'A' ? TEST_TOKEN : null, plan: 'web_pro', entitlement: { web: true, extension: false } });
+    setState(page, state);
+    page.call('openAccountDeletion');
+    const notes = page.el('accountDeleteNotes').children.map((c) => String(c.textContent));
+    const portal = notes.find((n) => n.includes('解約'));
+    assert.ok(portal, state + ': 解約案内がある');
+    assert.ok(portal.includes(page.run('I18N.ja.planManageCta')),
+      state + ': 注意文のラベルと planManageCta が一致する: ' + JSON.stringify(portal));
+  }
+});
+
+// ---------------------------------------------------------
+// 10. 解約案内は「その画面から到達できる導線」を指す
+//
+//   契約管理ボタン（#planInfo）は #formSection の中にあり、状態 B の
+//   画面には無い。状態 B では「料金プラン」ページ経由で案内する。
+//   状態 A の文言は従来どおり維持する。
+// ---------------------------------------------------------
+
+/** 有料向けの解約案内（「解約」を含む注意）を取り出す。 */
+function cancelNote(page) {
+  page.call('openAccountDeletion');
+  const notes = page.el('accountDeleteNotes').children.map((c) => String(c.textContent));
+  return { notes, line: notes.find((n) => /解約|cancel/.test(n)) };
+}
+
+test('Web Pro / 状態 A: 従来の案内を維持する', () => {
+  const { page } = setup({ plan: 'web_pro', entitlement: { web: true, extension: false } });
+  setState(page, 'A');
+  const { notes, line } = cancelNote(page);
+  assert.equal(notes.length, 8);
+  assert.equal(line, '期間の終わりまで使いたい場合は、削除せずに「お支払い・契約を管理」から解約してください。');
+  assert.doesNotMatch(line, /料金プラン/, '状態 A では画面上にボタンがあるのでページ経由にしない');
+});
+
+test('Web Pro / 状態 B: 料金プランページ経由で案内する', () => {
+  const { page } = setupProStateB();
+  const { notes, line } = cancelNote(page);
+  assert.equal(notes.length, 8, '注意の件数は状態 A と同じ');
+  assert.equal(line, '期間の終わりまで利用したい場合は、アカウントを削除せず、「料金プラン」ページの「お支払い・契約を管理」から解約してください。');
+  assert.match(line, /料金プラン/, '状態 B の画面から到達できる導線を指す');
+  assert.match(line, /お支払い・契約を管理/, '実際のボタン名も併記する');
+});
+
+test('en: 状態 A / B で解約案内を出し分ける', () => {
+  const a = setup({ plan: 'web_pro', entitlement: { web: true, extension: false }, lang: 'en' });
+  setState(a.page, 'A');
+  assert.equal(cancelNote(a.page).line,
+    'To keep using Web Pro until the end of the period, cancel from "Manage billing" instead of deleting your account.');
+
+  const b = setup({ token: null, plan: 'web_pro', entitlement: { web: true, extension: false }, lang: 'en' });
+  setState(b.page, 'B');
+  const line = cancelNote(b.page).line;
+  assert.equal(line,
+    'To keep using Web Pro until the end of the period, do not delete your account: cancel from "Manage billing" on the pricing page.');
+  assert.match(line, /pricing page/);
+});
+
+test('deleteAccountPaidPortalViaPricing は ja / en 両方にあり、状態 A の文言とは別', () => {
+  const { page } = setup();
+  for (const lang of ['ja', 'en']) {
+    const via = page.run('I18N.' + lang + '.deleteAccountPaidPortalViaPricing');
+    const orig = page.run('I18N.' + lang + '.deleteAccountPaidPortal');
+    assert.equal(typeof via, 'function', lang);
+    assert.equal(typeof orig, 'function', lang);
+    assert.notEqual(via('X'), orig('X'), lang + ': 状態 A と同じ文言にしない');
+    assert.ok(via('X').includes('X'), lang + ': ボタン名を差し込む');
+  }
+});
+
+test('Free / 状態 A・B とも解約案内を出さない', () => {
+  for (const state of ['A', 'B']) {
+    const { page } = setup({ token: state === 'A' ? TEST_TOKEN : null, plan: 'free', entitlement: { web: false, extension: false } });
+    setState(page, state);
+    const { notes, line } = cancelNote(page);
+    assert.equal(notes.length, 4, state);
+    assert.equal(line, undefined, state + ': 有料向けの解約案内は出さない');
+  }
+});
+
+test('状態 B の案内でも削除処理と送信内容は変わらない', async () => {
+  const { page, fetchImpl, revokeCalls } = setupProStateB();
+  goToFinal(page);
+  await page.call('confirmAccountDeletion');
+  const calls = deleteCalls(fetchImpl);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].init.body, '{"confirm":true}');
+  assert.equal(calls[0].init.credentials, 'same-origin');
+  assert.equal(revokeCalls.length, 0, 'token が無ければ revoke は呼ばない（Step 102 から不変）');
+  assert.match(page.el('status').textContent, /myaccount\.google\.com\/permissions/);
+});

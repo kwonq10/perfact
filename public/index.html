@@ -1148,6 +1148,9 @@
         updateLater: 'あとで',
         versionArrow: '→',
         loggedIn: 'Googleアカウント連携済み',
+        // 状態 B（本人確認のみ。Calendar 未連携・連携切れ）専用。
+        // 「連携済み」と書くとカレンダー連携と混同されるため分ける。
+        signedInOnly: 'Googleアカウントでログイン中',
         loadingGoogle: 'Googleの読み込み中です...',
         loggedOut: 'ログアウトしました',
         calListError: 'カレンダー一覧の取得に失敗しました',
@@ -1220,6 +1223,9 @@
         deleteAccountPaidImmediate: 'Web Proの契約はただちに終了し、残りの期間は利用できなくなります。',
         deleteAccountPaidNoRefund: '日割りでの返金はありません。',
         deleteAccountPaidPortal: (label) => '期間の終わりまで使いたい場合は、削除せずに「' + label + '」から解約してください。',
+        // 状態 B 専用。契約管理ボタン（#planInfo）は #formSection の中にあり、
+        // 状態 B では画面に出ない。状態 B でも見える「料金プラン」経由で案内する。
+        deleteAccountPaidPortalViaPricing: (label) => '期間の終わりまで利用したい場合は、アカウントを削除せず、「料金プラン」ページの「' + label + '」から解約してください。',
         deleteAccountPaidRecords: 'Stripeでの請求・支払いの記録（領収書など）は残ります。',
         deleteAccountCancel: 'キャンセル',
         deleteAccountNext: '次へ',
@@ -1290,6 +1296,7 @@
         updateLater: 'Later',
         versionArrow: '→',
         loggedIn: 'Google Account connected',
+        signedInOnly: 'Signed in with Google',
         loadingGoogle: 'Loading Google...',
         loggedOut: 'Logged out',
         calListError: 'Failed to load calendar list',
@@ -1364,6 +1371,7 @@
         deleteAccountPaidImmediate: 'Your Web Pro subscription ends immediately and the rest of the current period can no longer be used.',
         deleteAccountPaidNoRefund: 'No prorated refund is issued.',
         deleteAccountPaidPortal: (label) => 'To keep using Web Pro until the end of the period, cancel from "' + label + '" instead of deleting your account.',
+        deleteAccountPaidPortalViaPricing: (label) => 'To keep using Web Pro until the end of the period, do not delete your account: cancel from "' + label + '" on the pricing page.',
         deleteAccountPaidRecords: 'Billing and payment records at Stripe (such as receipts) are retained.',
         deleteAccountCancel: 'Cancel',
         deleteAccountNext: 'Continue',
@@ -2418,7 +2426,9 @@
       // 生きている間は導線を残す。**Calendar の認可条件とは別物。**
       const signedIn = (state === 'A' || state === 'B');
       if (accountSection) accountSection.style.display = signedIn ? '' : 'none';
-      if (loginInfo) loginInfo.textContent = signedIn ? t('loggedIn') : '';
+      // 文言は Google ログイン（本人確認）と Calendar 連携を区別する。
+      //   A: 連携済み -> t('loggedIn') / B: 本人確認のみ -> t('signedInOnly')
+      if (loginInfo) loginInfo.textContent = signedIn ? (state === 'A' ? t('loggedIn') : t('signedInOnly')) : '';
       if (logoutBtn) logoutBtn.style.display = signedIn ? '' : 'none';
       if (deleteAccountBtn) deleteAccountBtn.style.display = signedIn ? '' : 'none';
       // 削除の確認を閉じるのは **本人確認が失われたときだけ**。
@@ -2547,7 +2557,11 @@
       if (shouldShowPaidDeletionNotes()) {
         notes.push(t('deleteAccountPaidImmediate'));
         notes.push(t('deleteAccountPaidNoRefund'));
-        notes.push(t('deleteAccountPaidPortal', t('planManageCta')));
+        // 契約管理ボタンは #planInfo（#formSection 内）にしか無いため、
+        // 状態 B では画面上に存在しない。到達可能な経路を案内する。
+        notes.push(getAuthState() === 'A'
+          ? t('deleteAccountPaidPortal', t('planManageCta'))
+          : t('deleteAccountPaidPortalViaPricing', t('planManageCta')));
         notes.push(t('deleteAccountPaidRecords'));
       }
       notes.push(t('deleteAccountNoteData'));
