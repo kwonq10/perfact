@@ -34,6 +34,42 @@ export function extractInlineScript(html) {
   return lines.slice(start + 1, end).join('\n');
 }
 
+/**
+ * `id` を持つ <div> の outerHTML を切り出す。
+ *
+ *   <div> / </div> の対応を数えて見つけるので、
+ *   **文字列の出現順だけで包含関係を誤判定しない**。
+ *   このハーネスの DOM スタブは親子関係を持たないため、
+ *   「親ごと隠れる」種類の不具合は markup で検査する。
+ */
+export function extractDivById(html, id) {
+  const needle = 'id="' + id + '"';
+  const at = html.indexOf(needle);
+  if (at === -1) throw new Error(id + ' が見つかりません。');
+  const start = html.lastIndexOf('<div', at);
+  if (start === -1) throw new Error(id + ' の <div> 開始位置が見つかりません。');
+  const tagEnd = html.indexOf('>', at);
+  if (tagEnd === -1 || html.slice(start, tagEnd).includes('</div>')) {
+    throw new Error(id + ' は <div> の属性ではありません。');
+  }
+  let depth = 0;
+  let i = start;
+  while (i < html.length) {
+    const open = html.indexOf('<div', i);
+    const close = html.indexOf('</div>', i);
+    if (close === -1) throw new Error(id + ' の </div> が足りません。');
+    if (open !== -1 && open < close) {
+      depth += 1;
+      i = open + 4;
+    } else {
+      depth -= 1;
+      i = close + 6;
+      if (depth === 0) return html.slice(start, i);
+    }
+  }
+  throw new Error(id + ' の対応する </div> が見つかりません。');
+}
+
 /** 最小限の要素スタブ。 */
 function makeElement(id) {
   const el = {

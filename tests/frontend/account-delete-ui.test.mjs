@@ -13,15 +13,19 @@
 //     - 200 の後に localStorage / sessionStorage / IndexedDB を消すこと
 //     - Google の連携解除は best-effort で、失敗しても削除完了として扱うこと
 //     - 送る body は { confirm: true } だけ（ID を送らない）
+//     - **状態 B（Calendar 未連携・連携切れ）でも削除・ログアウトの導線を出すこと**
+//     - その導線を #formSection の外（#accountSection）に置き続けること
+//       （ハーネスの DOM スタブは親子関係を持たないので、markup で検査する）
 // =========================================================
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import { jsonResponse, loadPage, makeFetch } from './page-harness.mjs';
+import { extractDivById, jsonResponse, loadPage, makeFetch } from './page-harness.mjs';
 
 const DELETE_URL = '/api/account/delete';
+const TEST_TOKEN = 'ya29.dummy-token-for-tests';
 const INDEX_URL = new URL('../../public/index.html', import.meta.url);
 const indexHtml = fs.readFileSync(INDEX_URL, 'utf8');
 
@@ -34,7 +38,7 @@ function setup(opts = {}) {
     deleteRes = () => jsonResponse(200, { deleted: true }),
     plan = 'web_pro',
     entitlement = { web: true, extension: false },
-    token = 'ya29.dummy-token-for-tests',
+    token = TEST_TOKEN,
     savedToken = null,
     revoke = 'success',
     idb = true,
@@ -124,16 +128,48 @@ function goToFinal(page) {
 // 1. 構造
 // ---------------------------------------------------------
 
-test('削除ボタンと確認パネルがログイン後のフォームにあり、キーワード入力欄を持たない', () => {
-  const form = indexHtml.slice(indexHtml.indexOf('id="formSection"'));
-  const btnAt = form.indexOf('id="deleteAccountBtn"');
-  assert.ok(btnAt > form.indexOf('id="logoutBtn"'), 'logoutBtn の後にある');
-  const panelStart = indexHtml.indexOf('id="accountDeletePanel"');
-  const panelEnd = indexHtml.indexOf('id="accountDeleteStatus"', panelStart);
-  assert.ok(panelStart > 0 && panelEnd > panelStart);
-  const panel = indexHtml.slice(panelStart, panelEnd);
+// ハーネスの DOM スタブは親子関係を持たないため、
+// 「親ごと隠れて操作できない」不具合は style だけでは検出できない。
+// ここだけは markup を <div> の対応を数えて検査する。
+
+test('アカウント操作は #accountSection にまとまり、検索フォームの外側にある', () => {
+  const form = extractDivById(indexHtml, 'formSection');
+  const account = extractDivById(indexHtml, 'accountSection');
+  const login = extractDivById(indexHtml, 'loginSection');
+
+  assert.ok(!form.includes('id="accountSection"'), '#formSection の内側に入れない');
+  assert.ok(!login.includes('id="accountSection"'), '#loginSection の内側に入れない');
+  assert.ok(!account.includes('id="formSection"'), '#formSection を包まない');
+
+  for (const id of ['loginInfo', 'logoutBtn', 'deleteAccountBtn', 'accountDeletePanel']) {
+    assert.ok(account.includes('id="' + id + '"'), id + ' は #accountSection の中にある');
+    assert.ok(!form.includes('id="' + id + '"'),
+      id + ' が #formSection の中にあると、状態 B で親ごと隠れて操作できない');
+  }
+
+  // 検索フォーム側の要素は移動させない。
+  for (const id of ['searchBtn', 'statusForm', 'planInfo', 'quotaInfo']) {
+    assert.ok(form.includes('id="' + id + '"'), id + ' は #formSection に残す');
+    assert.ok(!account.includes('id="' + id + '"'), id + ' を #accountSection へ持ち込まない');
+  }
+
+  assert.ok(account.indexOf('id="deleteAccountBtn"') > account.indexOf('id="logoutBtn"'),
+    'logoutBtn の後にある');
+  assert.ok(account.indexOf('id="accountDeletePanel"') > account.indexOf('id="deleteAccountBtn"'),
+    '確認パネルは削除ボタンの後にある');
+});
+
+test('#accountSection は既定で非表示（出し入れは updateAuthUi が持つ）', () => {
+  const at = indexHtml.indexOf('id="accountSection"');
+  const openTag = indexHtml.slice(indexHtml.lastIndexOf('<div', at), indexHtml.indexOf('>', at) + 1);
+  assert.match(openTag, /style="display:none;"/);
+});
+
+test('確認パネルはキーワード入力を求めず、id は重複しない', () => {
+  const panel = extractDivById(indexHtml, 'accountDeletePanel');
   assert.doesNotMatch(panel, /<input/i, 'キーワード入力を求めない');
-  for (const id of ['deleteAccountBtn', 'accountDeletePanel', 'accountDeleteNextBtn',
+  for (const id of ['accountSection', 'formSection', 'loginSection', 'loginInfo', 'logoutBtn',
+                    'deleteAccountBtn', 'accountDeletePanel', 'accountDeleteNextBtn',
                     'accountDeleteConfirmBtn', 'accountDeleteBackBtn', 'accountDeleteCancelBtn']) {
     assert.equal(indexHtml.split('id="' + id + '"').length, 2, id + ' は 1 つだけ');
   }
@@ -147,17 +183,88 @@ test('削除の文言は ja / en の両方にある', () => {
   assert.deepEqual([...ja].sort(), [...en].sort());
 });
 
-test('ログイン中だけ削除ボタンを出し、ログアウト状態では確認パネルを閉じる', () => {
+/**
+ * 4 状態を作って updateAuthUi を走らせる。
+ *   A: session + Calendar token / B: session のみ
+ *   C: Calendar token のみ      / D: どちらも無し
+ */
+function setState(page, state) {
+  const signedIn = (state === 'A' || state === 'B');
+  const token = (state === 'A' || state === 'C') ? TEST_TOKEN : null;
+  page.run('sukimaAuthenticated = ' + String(signedIn) + ';');
+  page.run('accessToken = ' + JSON.stringify(token) + ';');
+  page.call('updateAuthUi');
+  assert.equal(page.call('getAuthState'), state, '状態 ' + state + ' を作れていない');
+  return page;
+}
+
+test('状態 A: 検索フォームとアカウント操作がどちらも出る', () => {
   const { page } = setup();
-  page.call('updateAuthUi');
+  setState(page, 'A');
+  assert.equal(page.el('formSection').style.display, 'block');
+  assert.equal(page.el('loginSection').style.display, 'none');
+  assert.equal(page.el('accountSection').style.display, '');
   assert.equal(page.el('deleteAccountBtn').style.display, '');
+  assert.equal(page.el('logoutBtn').style.display, '');
+  assert.notEqual(page.el('loginInfo').textContent, '');
+});
+
+test('状態 B: 削除とログアウトは出るが、検索フォームは出さない', () => {
+  const { page } = setup({ token: null });
+  setState(page, 'B');
+  assert.equal(page.el('accountSection').style.display, '', 'アカウント操作は出す');
+  assert.equal(page.el('deleteAccountBtn').style.display, '');
+  assert.equal(page.el('logoutBtn').style.display, '');
+  assert.equal(page.el('formSection').style.display, 'none', '検索フォームは出さない');
+  assert.equal(page.el('loginSection').style.display, 'block');
+  assert.equal(page.el('loginBtn').style.display, '', 'Calendar 連携ボタンは従来どおり出す');
+  assert.equal(page.el('gsiButton').style.display, 'none', '本人確認済みなので GIS は出さない');
+  assert.notEqual(page.el('loginInfo').textContent, '');
+});
+
+test('状態 C / D: 本人確認が無ければ削除もログアウトも出さない', () => {
+  for (const state of ['C', 'D']) {
+    const { page } = setup();
+    setState(page, state);
+    assert.equal(page.el('accountSection').style.display, 'none', state);
+    assert.equal(page.el('deleteAccountBtn').style.display, 'none', state);
+    assert.equal(page.el('logoutBtn').style.display, 'none', state);
+    assert.equal(page.el('formSection').style.display, 'none', state);
+    assert.equal(page.el('loginInfo').textContent, '', state);
+  }
+});
+
+test('未認証（C / D）では確認パネルを開けない', () => {
+  for (const state of ['C', 'D']) {
+    const { page } = setup();
+    setState(page, state);
+    page.call('openAccountDeletion');
+    assert.equal(page.run('accountDeletionStep'), 0, state);
+    // 未描画のスタブは display が undefined。'' になったら開いている。
+    assert.notEqual(page.el('accountDeletePanel').style.display, '', state + ': パネルを開かない');
+  }
+});
+
+test('A -> B（Calendar token だけ失効）では確認を巻き戻さない', () => {
+  const { page } = setup();
+  setState(page, 'A');
   page.call('openAccountDeletion');
+  assert.equal(page.run('accountDeletionStep'), 1);
+  setState(page, 'B');
+  assert.equal(page.run('accountDeletionStep'), 1, 'Calendar が切れただけでは閉じない');
   assert.equal(page.el('accountDeletePanel').style.display, '');
-  page.run('sukimaAuthenticated = false; accessToken = null;');
-  page.call('updateAuthUi');
-  assert.equal(page.el('deleteAccountBtn').style.display, 'none');
-  assert.equal(page.el('accountDeletePanel').style.display, 'none');
+  assert.equal(page.el('deleteAccountBtn').style.display, '');
+});
+
+test('本人確認が失われたら確認パネルを閉じる', () => {
+  const { page } = setup();
+  setState(page, 'A');
+  page.call('openAccountDeletion');
+  setState(page, 'D');
   assert.equal(page.run('accountDeletionStep'), 0);
+  assert.equal(page.el('accountDeletePanel').style.display, 'none');
+  assert.equal(page.el('deleteAccountBtn').style.display, 'none');
+  assert.equal(page.el('accountSection').style.display, 'none');
 });
 
 // ---------------------------------------------------------
@@ -366,4 +473,80 @@ test('失敗の後に再試行して成功できる', async () => {
   await page.call('confirmAccountDeletion');
   assert.equal(deleteCalls(fetchImpl).length, 2);
   assert.equal(ls.length, 0);
+});
+
+// ---------------------------------------------------------
+// 6. 状態 B（Calendar 未連携・連携切れ）からの削除
+//
+//   削除に使うのは Sukima の正規セッションだけ。
+//   Google カレンダーの認可状態は削除の可否に影響しない。
+// ---------------------------------------------------------
+
+test('状態 B: 2 段階の確認を経て削除でき、送信は 1 回だけ', async () => {
+  const { page, fetchImpl } = setup({ token: null });
+  setState(page, 'B');
+  goToFinal(page);
+  await Promise.all([
+    page.call('confirmAccountDeletion'),
+    page.call('confirmAccountDeletion'),
+  ]);
+  const calls = deleteCalls(fetchImpl);
+  assert.equal(calls.length, 1, '二重送信しない');
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].init.body, '{"confirm":true}');
+  assert.equal(calls[0].init.credentials, 'same-origin');
+});
+
+test('状態 B: 最終確認を経ずに confirm しても送信しない', async () => {
+  const { page, fetchImpl } = setup({ token: null });
+  setState(page, 'B');
+  page.call('openAccountDeletion');
+  await page.call('confirmAccountDeletion');
+  assert.equal(deleteCalls(fetchImpl).length, 0);
+  assert.equal(page.run('accountDeletionStep'), 1);
+});
+
+test('状態 B: token が無いので revoke を呼ばず、手動での解除方法を案内する', async () => {
+  const { page, revokeCalls, ls } = setup({ token: null });
+  setState(page, 'B');
+  goToFinal(page);
+  await page.call('confirmAccountDeletion');
+  assert.equal(revokeCalls.length, 0, 'Google へは出さない');
+  assert.match(page.el('status').textContent, /アカウントを削除しました/);
+  assert.match(page.el('status').textContent, /myaccount\.google\.com\/permissions/);
+  assert.equal(ls.length, 0, 'この端末のデータは消す');
+  assert.equal(page.run('sukimaAuthenticated'), false);
+});
+
+test('状態 B: 削除完了後は #accountSection が閉じる', async () => {
+  const { page } = setup({ token: null });
+  setState(page, 'B');
+  goToFinal(page);
+  await page.call('confirmAccountDeletion');
+  assert.equal(page.el('accountSection').style.display, 'none');
+  assert.equal(page.el('deleteAccountBtn').style.display, 'none');
+  assert.equal(page.el('logoutBtn').style.display, 'none');
+  assert.equal(page.el('accountDeletePanel').style.display, 'none');
+  assert.equal(page.run('accountDeletionStep'), 0);
+});
+
+test('状態 B: サーバーが失敗したらセッションもこの端末のデータも消さない', async () => {
+  const { page, revokeCalls, idbCalls, ls, ss } = setup({
+    token: null,
+    deleteRes: () => jsonResponse(502, { error: 'database_unavailable' }),
+  });
+  setState(page, 'B');
+  goToFinal(page);
+  await page.call('confirmAccountDeletion');
+  assert.equal(revokeCalls.length, 0);
+  assert.equal(idbCalls.length, 0);
+  // 背景位置は updateAuthUi -> applyBackgroundEntitlement が書き戻す（今回の変更と無関係の既存挙動）。
+  // 削除フローが消すべきキーが残っていることで判定する。
+  assert.equal(ls.getItem('sukima_update_skipped'), '1.2.3');
+  assert.ok(ls.length > 0, 'localStorage を消さない');
+  assert.equal(ss.getItem('last_result'), '{"x":1}');
+  assert.equal(ss.getItem('sukima_tz_synced'), 'Asia/Tokyo');
+  assert.equal(page.run('sukimaAuthenticated'), true, 'セッションを勝手に落とさない');
+  assert.equal(page.run('accountDeletionStep'), 2, '再試行できる状態に戻す');
+  assert.equal(page.el('accountSection').style.display, '', '導線は残す');
 });

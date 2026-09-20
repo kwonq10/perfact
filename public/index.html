@@ -779,6 +779,15 @@
         <p class="quota-info" id="quotaInfo" style="display:none;"></p>
         <!-- 現在のプラン。判定は /api/auth/me の entitlement のみ。 -->
         <p class="plan-info" id="planInfo" style="display:none;"></p>
+        <p class="status" id="statusForm"></p>
+      </div>
+
+      <!-- アカウント操作（ログアウト・アカウント削除）。
+           **条件は本人確認（Sukima のサーバーセッション）だけ。**
+           Google カレンダーの連携有無（状態 A / B）では出し分けない。
+           #formSection の外に置くのは、状態 B では formSection ごと
+           隠れてしまい、導線が消えるため。 -->
+      <div id="accountSection" style="display:none;">
         <p class="login-info" id="loginInfo"></p>
         <button class="btn-sub" id="logoutBtn" onclick="logout()">別のアカウントでログインする</button>
         <!-- アカウント削除。2 段階で確認する（キーワード入力は求めない）。文言は i18n から入れる。 -->
@@ -796,7 +805,6 @@
           </div>
           <p class="account-delete-status" id="accountDeleteStatus" role="status"></p>
         </div>
-        <p class="status" id="statusForm"></p>
       </div>
 
       <footer class="app-footer" style="margin-top: 32px; border-radius: 0 0 16px 16px;">
@@ -2373,10 +2381,14 @@
     // ---------------------------------------------------------------------
     // 4状態（A/B/C/D）の UI 反映
     //
-    //   A: session あり + Calendar token あり -> 検索フォーム
-    //   B: session あり + Calendar token なし -> Calendar 連携ボタンのみ
+    //   A: session あり + Calendar token あり -> 検索フォーム + アカウント操作
+    //   B: session あり + Calendar token なし -> Calendar 連携ボタン + アカウント操作
     //   C: session なし + Calendar token あり -> 本人確認のみ（Calendar は再取得しない）
     //   D: どちらも無し                       -> 本人確認 -> Calendar 連携
+    //
+    //   アカウント操作（#accountSection）は A / B の両方で出す。
+    //   削除・ログアウトの条件は Sukima のセッションだけで、
+    //   Google カレンダーの連携状態とは無関係。
     // ---------------------------------------------------------------------
 
     /** 現在の状態を 'A' | 'B' | 'C' | 'D' で返す。 */
@@ -2388,6 +2400,7 @@
     function updateAuthUi() {
       const loginSection = document.getElementById('loginSection');
       const formSection = document.getElementById('formSection');
+      const accountSection = document.getElementById('accountSection');
       const gsiHost = document.getElementById('gsiButton');
       const calBtn = document.getElementById('loginBtn');
       const loginInfo = document.getElementById('loginInfo');
@@ -2399,24 +2412,30 @@
       renderPlanInfo();
       // 契約状態が変わったら背景の表示と操作可否も合わせ直す。
       applyBackgroundEntitlement();
-      if (state === 'A') {
-        loginSection.style.display = 'none';
-        formSection.style.display = 'block';
-        if (loginInfo) loginInfo.textContent = t('loggedIn');
-        if (logoutBtn) logoutBtn.style.display = '';
-        if (deleteAccountBtn) deleteAccountBtn.style.display = '';
-        return;
-      }
 
-      // ログインしていない状態では削除の確認を開いたままにしない。
-      if (deleteAccountBtn) deleteAccountBtn.style.display = 'none';
-      if (!accountDeletionBusy && accountDeletionStep !== 0) {
+      // アカウント操作（ログアウト・削除）の可否は **本人確認だけ** で決める。
+      // 状態 B（Calendar 未連携・連携切れ）でも Sukima のセッションが
+      // 生きている間は導線を残す。**Calendar の認可条件とは別物。**
+      const signedIn = (state === 'A' || state === 'B');
+      if (accountSection) accountSection.style.display = signedIn ? '' : 'none';
+      if (loginInfo) loginInfo.textContent = signedIn ? t('loggedIn') : '';
+      if (logoutBtn) logoutBtn.style.display = signedIn ? '' : 'none';
+      if (deleteAccountBtn) deleteAccountBtn.style.display = signedIn ? '' : 'none';
+      // 削除の確認を閉じるのは **本人確認が失われたときだけ**。
+      // Calendar token が切れただけ（A -> B）では閉じない。
+      if (!sukimaAuthenticated && !accountDeletionBusy && accountDeletionStep !== 0) {
         accountDeletionStep = 0;
         renderAccountDeletion();
       }
+
+      if (state === 'A') {
+        loginSection.style.display = 'none';
+        formSection.style.display = 'block';
+        return;
+      }
+
       loginSection.style.display = 'block';
       formSection.style.display = 'none';
-      if (loginInfo) loginInfo.textContent = '';
       // B は Calendar 連携だけ、C / D は本人確認だけを見せる。
       // GIS が使えないときは空の枠を残さない。ただし Calendar 連携ボタンを
       // 本人確認の代替として出すことはしない（access token は本人確認ではない）。
@@ -3681,8 +3700,9 @@
               accessToken = null;
               localStorage.removeItem(TOKEN_KEY);
               localStorage.removeItem(TOKEN_EXPIRY_KEY);
-              document.getElementById('loginInfo').textContent = '';
-              document.getElementById('logoutBtn').style.display = 'none';
+              // loginInfo / logoutBtn は直接触らない。表示の持ち主は
+              // updateAuthUi（下記）だけ。状態 B でもログアウト・削除の
+              // 導線は残すため、ここで消すと矛盾する。
               showSearch();
               // ここで認可ポップアップを自動で開かない。events API を await した
               // 後なので user activation が失われており、ブラウザにブロックされる

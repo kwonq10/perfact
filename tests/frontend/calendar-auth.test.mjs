@@ -10,6 +10,9 @@
 //   token を捨てるだけで画面を戻さないと、利用者から見て
 //  「再連携する手段が無い」状態になる。
 //
+//   状態 B へ落ちても、Sukima のセッションが生きている間は
+//   ログアウトとアカウント削除の導線を残す（#accountSection）。
+//
 //   また、events API を await した後に認可ポップアップを開くと
 //   user activation が切れていてブラウザにブロックされる。
 //   401 経路では自動で開かず、利用者のクリックを待つ。
@@ -133,6 +136,31 @@ test('Calendar 401 のあとは状態 B（本人確認済み・Calendar 未認�
   await page.call('fetchAndCalc');
 
   assert.equal(page.call('getAuthState'), 'B');
+});
+
+test('状態 B へ落ちても、ログアウトとアカウント削除の導線は残る', async () => {
+  const { page } = setup({ events: unauthorized });
+  await page.call('fetchAndCalc');
+
+  // Calendar の認可が切れただけ。Sukima のセッションは生きている。
+  assert.equal(page.run('sukimaAuthenticated'), true);
+  assert.equal(display(page, 'accountSection'), '', 'アカウント操作は出したまま');
+  assert.equal(display(page, 'logoutBtn'), '', 'ログアウトできないと行き止まりになる');
+  assert.equal(display(page, 'deleteAccountBtn'), '', 'Calendar 未連携でも削除できる');
+  assert.equal(display(page, 'formSection'), 'none', '検索フォームは出さない');
+  assert.notEqual(display(page, 'loginBtn'), 'none', '再連携の導線も残す');
+});
+
+test('Calendar 401 では削除の確認を巻き戻さない', async () => {
+  const { page } = setup({ events: unauthorized });
+  page.call('openAccountDeletion');
+  assert.equal(page.run('accountDeletionStep'), 1);
+
+  await page.call('fetchAndCalc');
+
+  assert.equal(page.call('getAuthState'), 'B');
+  assert.equal(page.run('accountDeletionStep'), 1, 'Calendar token の失効で閉じない');
+  assert.equal(display(page, 'deleteAccountBtn'), '');
 });
 
 test('Calendar 401 では認可ポップアップを自動で開かない', async () => {
