@@ -76,7 +76,6 @@ function makeElement(id) {
     id,
     value: '',
     textContent: '',
-    innerHTML: '',
     disabled: false,
     checked: false,
     files: [],
@@ -107,6 +106,17 @@ function makeElement(id) {
   };
   el.appendChild = (child) => { el.children.push(child); return child; };
   el.insertBefore = (child) => { el.children.push(child); return child; };
+  // innerHTML への代入は、本物の DOM と同じく **子要素を置き換える**。
+  // スタブは HTML を解釈しないので children を空にするだけ。
+  // （これが無いと、再描画する UI で子要素が重複して見える）
+  let innerHtml = '';
+  Object.defineProperty(el, 'innerHTML', {
+    get() { return innerHtml; },
+    set(v) { innerHtml = v === null || v === undefined ? '' : String(v); el.children.length = 0; },
+    enumerable: true,
+    configurable: true,
+  });
+
   const set = new Set();
   el.classList = {
     add(...c) { c.forEach((x) => set.add(x)); },

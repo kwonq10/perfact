@@ -1463,6 +1463,9 @@
       }
       document.getElementById('searchBtn').textContent = t('searchBtn');
       document.getElementById('logoutBtn').textContent = t('logoutBtn');
+      // ログイン状態の表示も言語に追従させる。
+      // **updateAuthUi は呼ばない**（副作用があるため）。
+      renderLoginInfo();
       renderAccountDeletion();
       // 残数表示は quotaStatus から組み立て直す（数値は再計算しない）。
       renderQuotaInfo();
@@ -2413,13 +2416,26 @@
       return accessToken ? 'C' : 'D';
     }
 
+    /**
+     * ログイン状態の表示（#loginInfo）**だけ**を描き直す。
+     *   A: Calendar 連携済み / B: 本人確認のみ / C・D: 空
+     * **表示以外の状態は一切変えない**ので、言語切り替え（applyLang）からも
+     * 安全に呼べる。updateAuthUi は副作用（セクションの表示切替え・
+     * 背景設定の再適用・削除確認のリセット）を持つため、そちらは呼ばない。
+     */
+    function renderLoginInfo() {
+      const el = document.getElementById('loginInfo');
+      if (!el) return;
+      const state = getAuthState();
+      el.textContent = state === 'A' ? t('loggedIn') : (state === 'B' ? t('signedInOnly') : '');
+    }
+
     function updateAuthUi() {
       const loginSection = document.getElementById('loginSection');
       const formSection = document.getElementById('formSection');
       const accountSection = document.getElementById('accountSection');
       const gsiHost = document.getElementById('gsiButton');
       const calBtn = document.getElementById('loginBtn');
-      const loginInfo = document.getElementById('loginInfo');
       const logoutBtn = document.getElementById('logoutBtn');
       const deleteAccountBtn = document.getElementById('deleteAccountBtn');
       if (!loginSection || !formSection) return;
@@ -2435,8 +2451,8 @@
       const signedIn = (state === 'A' || state === 'B');
       if (accountSection) accountSection.style.display = signedIn ? '' : 'none';
       // 文言は Google ログイン（本人確認）と Calendar 連携を区別する。
-      //   A: 連携済み -> t('loggedIn') / B: 本人確認のみ -> t('signedInOnly')
-      if (loginInfo) loginInfo.textContent = signedIn ? (state === 'A' ? t('loggedIn') : t('signedInOnly')) : '';
+      // 描画の持ち主は renderLoginInfo に一本化する（言語切り替えと共用）。
+      renderLoginInfo();
       if (logoutBtn) logoutBtn.style.display = signedIn ? '' : 'none';
       if (deleteAccountBtn) deleteAccountBtn.style.display = signedIn ? '' : 'none';
       // 削除の確認を閉じるのは **本人確認が失われたときだけ**。

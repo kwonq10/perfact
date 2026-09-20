@@ -858,3 +858,129 @@ test('en の Web Pro / 状態 B: 解約案内と料金プランのラベルが�
   assert.match(line, /pricing page/i, '案内は pricing ページを指す');
   assert.equal(page.el('searchPricingLink').textContent, 'Pricing', '画面上のリンクも英語になっている');
 });
+
+// ---------------------------------------------------------
+// 12. 言語切り替えへの追従（Step 109 の FAIL に対する回帰）
+//
+//   #loginInfo は updateAuthUi でしか書かれず、applyLang が触らなかったため、
+//   ログイン中に言語を切り替えると前の言語のまま残っていた。
+//   描画を renderLoginInfo() に一本化し、applyLang からも呼ぶ。
+//   **updateAuthUi は副作用（表示切替・背景設定の再適用・確認のリセット）を
+//   持つので、applyLang からは呼ばない。**
+// ---------------------------------------------------------
+
+/** 言語を 4 回切り替えて #loginInfo を集める。 */
+function loginInfoBySwitching(page) {
+  const out = [];
+  for (const lang of ['ja', 'en', 'ja', 'en']) {
+    page.context.setLang(lang);
+    out.push(page.el('loginInfo').textContent);
+  }
+  return out;
+}
+
+test('状態 A: ja -> en -> ja -> en で loginInfo が追従する', () => {
+  const { page } = setup();
+  setState(page, 'A');
+  assert.deepEqual(loginInfoBySwitching(page),
+    ['Googleアカウント連携済み', 'Google Account connected', 'Googleアカウント連携済み', 'Google Account connected']);
+});
+
+test('状態 B: ja -> en -> ja -> en で loginInfo が追従する', () => {
+  const { page } = setup({ token: null });
+  setState(page, 'B');
+  assert.deepEqual(loginInfoBySwitching(page),
+    ['Googleアカウントでログイン中', 'Signed in with Google', 'Googleアカウントでログイン中', 'Signed in with Google']);
+});
+
+test('状態 C / D: 言語を切り替えても loginInfo は空のまま', () => {
+  for (const state of ['C', 'D']) {
+    const { page } = setup();
+    setState(page, state);
+    assert.deepEqual(loginInfoBySwitching(page), ['', '', '', ''], state);
+  }
+});
+
+test('言語切り替えで認証状態と表示条件が変わらない', () => {
+  for (const state of ['A', 'B', 'C', 'D']) {
+    const { page } = setup({ token: state === 'A' || state === 'C' ? TEST_TOKEN : null });
+    setState(page, state);
+    const before = {
+      state: page.call('getAuthState'),
+      auth: page.run('sukimaAuthenticated'),
+      token: page.run('accessToken'),
+      del: page.el('deleteAccountBtn').style.display,
+      out: page.el('logoutBtn').style.display,
+      form: page.el('formSection').style.display,
+      acct: page.el('accountSection').style.display,
+      step: page.run('accountDeletionStep'),
+    };
+    for (const lang of ['ja', 'en', 'ja']) page.context.setLang(lang);
+    const after = {
+      state: page.call('getAuthState'),
+      auth: page.run('sukimaAuthenticated'),
+      token: page.run('accessToken'),
+      del: page.el('deleteAccountBtn').style.display,
+      out: page.el('logoutBtn').style.display,
+      form: page.el('formSection').style.display,
+      acct: page.el('accountSection').style.display,
+      step: page.run('accountDeletionStep'),
+    };
+    assert.deepEqual(after, before, state + ': 言語切り替えが状態や表示条件を変えてはいけない');
+  }
+});
+
+test('言語を切り替えても料金プランリンクの翻訳は維持される', () => {
+  const { page } = setup({ token: null });
+  setState(page, 'B');
+  for (const lang of ['ja', 'en', 'ja', 'en']) {
+    page.context.setLang(lang);
+    const want = lang === 'ja' ? '料金プラン' : 'Pricing';
+    assert.equal(page.el('searchPricingLink').textContent, want, lang);
+    assert.equal(page.el('startPricingLink').textContent, want, lang);
+  }
+});
+
+test('Web Pro / 状態 B: 削除確認を開いたまま言語を切り替えても正しい言語になる', () => {
+  const { page } = setupProStateB();
+  page.call('openAccountDeletion');
+  const notesOf = () => page.el('accountDeleteNotes').children.map((c) => String(c.textContent));
+
+  page.context.setLang('ja');
+  assert.equal(page.run('accountDeletionStep'), 1, '言語切り替えで確認を閉じない');
+  let n = notesOf();
+  assert.equal(n.length, 8);
+  assert.ok(n.some((x) => x.includes('「料金プラン」ページの「お支払い・契約を管理」')), JSON.stringify(n));
+  assert.equal(page.el('accountDeleteTitle').textContent, 'アカウントを削除しますか？');
+
+  page.context.setLang('en');
+  assert.equal(page.run('accountDeletionStep'), 1);
+  n = notesOf();
+  assert.equal(n.length, 8);
+  assert.ok(n.some((x) => /on the pricing page/.test(x)), JSON.stringify(n));
+  assert.equal(page.el('accountDeleteTitle').textContent, 'Delete your account?');
+  assert.equal(page.el('loginInfo').textContent, 'Signed in with Google');
+
+  page.context.setLang('ja');
+  assert.equal(page.run('accountDeletionStep'), 1);
+  assert.ok(notesOf().some((x) => x.includes('「料金プラン」ページ')));
+});
+
+test('renderLoginInfo は表示以外の状態を変えない', () => {
+  const { page, ls } = setup({ token: null });
+  setState(page, 'B');
+  page.call('openAccountDeletion');
+  const before = {
+    step: page.run('accountDeletionStep'),
+    auth: page.run('sukimaAuthenticated'),
+    bgX: ls.getItem('sukima_bg_position_x'),
+    form: page.el('formSection').style.display,
+  };
+  page.call('renderLoginInfo');
+  assert.deepEqual({
+    step: page.run('accountDeletionStep'),
+    auth: page.run('sukimaAuthenticated'),
+    bgX: ls.getItem('sukima_bg_position_x'),
+    form: page.el('formSection').style.display,
+  }, before, 'renderLoginInfo に副作用があってはいけない');
+});
