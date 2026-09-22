@@ -52,7 +52,8 @@
 //     413 { error: 'body_too_large' }
 //     500 { error: 'internal_error' | 'server_misconfigured' }
 //     502 { error: 'database_unavailable' | 'payment_provider_unavailable' }
-//     503 { error: 'terms_not_available' | 'sales_unavailable' }
+//     503 { error: 'terms_not_available' | 'sales_unavailable' | 'sales_suspended' }
+//         sales_suspended = BILLING_SALES_SUSPENDED による受付停止（_lib/sales-switch.js）
 //
 //   ⚠ この API は migration 20260909051500（get_checkout_context）が
 //     適用済みの環境でしか動かない。未適用なら RPC が無く 502 になる
@@ -70,6 +71,7 @@ import {
   resolvePurchasablePrice,
 } from '../_lib/billing-config.js';
 import { getAllowedOrigins } from '../_lib/origin.js';
+import { salesSuspendedRejection } from '../_lib/sales-switch.js';
 import { StripeApiError, stripeRequest } from '../_lib/stripe.js';
 import { callRpc } from '../_lib/supabase.js';
 import { json, mapRpcError, preflight, readSingleRow } from '../_lib/quota.js';
@@ -442,6 +444,13 @@ export async function handleBillingCheckout(request, env, deps = {}) {
     currentVersion = getCurrentSubscriptionTermsVersion,
     now = Date.now,
   } = deps;
+
+  // 0: 新規購入の受付停止中なら、session / RPC / Stripe より前に断る。
+  //    Checkout Session を作らず、DB にも触れない。POST 以外は preflight の 405。
+  if (request.method === 'POST') {
+    const suspended = salesSuspendedRejection(env, TAG, logger);
+    if (suspended) return json(suspended.status, suspended.body);
+  }
 
   // 1〜4: method / Origin / body / session
   const pre = await preflight(request, env, deps, { tag: TAG, validate });

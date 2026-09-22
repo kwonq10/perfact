@@ -508,6 +508,22 @@ test('sales_unavailable は販売していない旨になる', async () => {
   assert.match(msg, /販売していません/);
 });
 
+test('sales_suspended（規約同意で停止）は受付停止中の案内になり、checkout を呼ばない', async () => {
+  const page = load([
+    [(u) => u.includes('/api/terms/consent'), () => res(503, { error: 'sales_suspended' })],
+    [(u) => u.includes('/api/billing/checkout'), () => res(200, { url: 'https://checkout.stripe.com/x' })],
+  ]);
+  await purchase(page);
+  assert.match(page.el('purchaseError').textContent, /新規お申し込みを一時停止しています/);
+  assert.match(page.el('purchaseError').textContent, /ご利用中の契約には影響ありません/);
+  assert.equal(page.calls.filter((c) => c.url.includes('/api/billing/checkout')).length, 0);
+});
+
+test('sales_suspended（checkout で停止）も受付停止中の案内になる', async () => {
+  const msg = await errorTextFor(503, 'sales_suspended', 'checkout');
+  assert.match(msg, /新規お申し込みを一時停止しています/);
+});
+
 test('terms_consent_required は同意の再試行を促す', async () => {
   const msg = await errorTextFor(409, 'terms_consent_required', 'checkout');
   assert.match(msg, /利用規約/);

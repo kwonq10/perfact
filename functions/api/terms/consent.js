@@ -45,6 +45,7 @@
 //     500 { error: 'internal_error' | 'server_misconfigured' }
 //     502 { error: 'database_unavailable' }
 //     503 { error: 'terms_not_available' }   規約が未公開（draft）
+//     503 { error: 'sales_suspended' }       新規購入の受付停止中（_lib/sales-switch.js）
 //
 //   ⚠ この API は migration 20260907051255 が適用済みの環境でしか動かない。
 //     未適用なら RPC が無く 502 になる。
@@ -57,6 +58,7 @@ import {
 } from '../_lib/billing-config.js';
 import { callRpc } from '../_lib/supabase.js';
 import { json, mapRpcError, preflight, readSingleRow } from '../_lib/quota.js';
+import { salesSuspendedRejection } from '../_lib/sales-switch.js';
 
 /** migration 20260907051255 で作成した RPC。 */
 export const RPC_NAME = 'record_terms_consent';
@@ -109,6 +111,13 @@ export async function handleTermsConsent(request, env, deps = {}) {
     logger = console,
     currentVersion = getCurrentSubscriptionTermsVersion,
   } = deps;
+
+  // 0: 新規購入の受付停止中なら、session / RPC より前に断る（DB に 1 行も書かない）。
+  //    POST 以外は preflight の 405 をそのまま返す。
+  if (request.method === 'POST') {
+    const suspended = salesSuspendedRejection(env, TAG, logger);
+    if (suspended) return json(suspended.status, suspended.body);
+  }
 
   // 1〜4: method / Origin / body / session
   const pre = await preflight(request, env, deps, { tag: TAG, validate });
