@@ -946,6 +946,13 @@
     let gsiIdentityUnavailable = false;
     // google.accounts.id を待つ上限。無限 polling を避ける。
     const GSI_READY_TIMEOUT_MS = 10000;
+    // Google ボタンが押されてから credential callback が来るまでの「待ち」状態。
+    // popup 方式では閉じられたことを受け取れないため、**案内文の切り替えにだけ**使い、
+    // 認証状態の判定には使わない（時間切れでも失敗と断定しない）。
+    let gsiSignInPending = false;
+    let gsiPendingHintTimer = null;
+    // 待ちの案内を「まだ完了していません」へ切り替えるまでの時間。
+    const GSI_PENDING_HINT_MS = 30000;
     let currentSlots = [];
     let currentDailyResults = [];
     let currentDayIndex = 0;
@@ -1179,6 +1186,9 @@
         loginFailed: 'ログインに失敗しました',
         connectCalendarBtn: 'Googleカレンダーと連携',
         signingIn: 'ログインしています...',
+        googleSignInPending: 'Googleのログイン画面で操作を完了してください。',
+        googleSignInNotCompleted: 'ログインが完了していません。Googleの画面を閉じた場合は、もう一度お試しください。',
+        signInInProgress: 'ログイン処理中です。しばらくお待ちください。',
         signInFailed: 'ログインできませんでした。もう一度お試しください。',
         authServiceError: '現在ログインできません。しばらくしてからお試しください。',
         sessionCheckFailed: 'ログイン状態を確認できませんでした。通信環境をご確認ください。',
@@ -1326,6 +1336,9 @@
         loginFailed: 'Login failed',
         connectCalendarBtn: 'Connect Google Calendar',
         signingIn: 'Signing in...',
+        googleSignInPending: 'Please finish signing in on the Google screen.',
+        googleSignInNotCompleted: 'Sign-in has not finished. If you closed the Google window, please try again.',
+        signInInProgress: 'Signing in is in progress. Please wait.',
         signInFailed: 'Could not sign in. Please try again.',
         authServiceError: 'Sign-in is unavailable right now. Please try again later.',
         sessionCheckFailed: 'Could not verify your sign-in status. Please check your connection.',
@@ -2272,6 +2285,8 @@
      * response.credential が Google ID Token。受け取るのはここだけ。
      */
     function handleGoogleIdentityCredential(response) {
+      // Google 側の操作は終わった。押下時の待ちの案内はここで解除する。
+      clearGoogleSignInPending();
       const credential = response && response.credential;
       if (typeof credential !== 'string' || credential.length === 0) {
         setStatus(t('signInFailed'));
@@ -2282,7 +2297,11 @@
     }
 
     async function signInWithGoogleIdToken(idToken) {
-      if (sukimaAuthBusy) return;
+      if (sukimaAuthBusy) {
+        // 二重に session を作らない。ただし無言で捨てず、処理中であることは伝える。
+        setStatus(t('signInInProgress'));
+        return;
+      }
       sukimaAuthBusy = true;
       setStatus(t('signingIn'));
       try {
@@ -2327,10 +2346,43 @@
           size: 'large',
           shape: 'pill',
           text: 'signin_with',
-          locale: currentLang === 'en' ? 'en' : 'ja'
+          locale: currentLang === 'en' ? 'en' : 'ja',
+          click_listener: handleGoogleIdentityButtonClick
         });
       } catch (e) {
         // 描画に失敗してもアプリ全体は止めない（ボタンが出ないだけ）
+      }
+    }
+
+    /**
+     * Google ボタンが押されたときの案内（renderButton の click_listener）。
+     *
+     *   popup 方式には「閉じられた」「開けなかった」を知らせる callback が無い。
+     *   そのため押した時点で案内を出し、credential callback が来たら解除する。
+     *   ここでは表示だけを変え、認証状態・session・Calendar token には触れない。
+     *   時間が経っても失敗とは断定せず、案内文を「まだ完了していません」へ変えるだけ。
+     */
+    function handleGoogleIdentityButtonClick() {
+      if (sukimaAuthBusy) {
+        setStatus(t('signInInProgress'));
+        return;
+      }
+      clearGoogleSignInPending();
+      gsiSignInPending = true;
+      setStatus(t('googleSignInPending'));
+      gsiPendingHintTimer = setTimeout(() => {
+        gsiPendingHintTimer = null;
+        if (!gsiSignInPending || sukimaAuthBusy || sukimaAuthenticated) return;
+        setStatus(t('googleSignInNotCompleted'));
+      }, GSI_PENDING_HINT_MS);
+    }
+
+    /** 押下後の待ち状態を解除する（案内文そのものは呼び出し側が上書きする）。 */
+    function clearGoogleSignInPending() {
+      gsiSignInPending = false;
+      if (gsiPendingHintTimer !== null) {
+        clearTimeout(gsiPendingHintTimer);
+        gsiPendingHintTimer = null;
       }
     }
 
