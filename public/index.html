@@ -400,11 +400,23 @@
       color: #555;
       margin-bottom: 4px;
     }
-    #updateBanner .update-version {
-      font-size: 12px;
-      color: #aaa;
-      margin-bottom: 12px;
+    #updateBanner .update-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
     }
+    #updateBanner .update-status,
+    #forceUpdateOverlay .update-status {
+      font-size: 13px;
+      color: #555;
+      margin: 0 0 12px;
+    }
+    #updateBanner .update-status:empty,
+    #forceUpdateOverlay .update-status:empty { display: none; }
+    #updateBanner .update-status.is-error,
+    #forceUpdateOverlay .update-status.is-error { color: #c0574f; font-weight: 600; }
+    #updateBanner #updateBannerMsg { margin-bottom: 12px; }
     #updateBanner .banner-btns {
       display: flex;
       gap: 8px;
@@ -459,12 +471,7 @@
       font-weight: 600;
       margin-bottom: 6px;
     }
-    #forceUpdateOverlay .update-version {
-      font-size: 12px;
-      color: #aaa;
-      font-weight: 400;
-      margin-bottom: 20px;
-    }
+    #forceUpdateOverlay #forceUpdateMsg { margin-bottom: 20px; }
     #forceUpdateOverlay .btn-update {
       width: 100%;
       min-height: 48px;
@@ -1044,20 +1051,22 @@
     </div>
   </div>
 
-  <div id="updateBanner">
-    <p id="updateBannerMsg">Sukimaの新しいバージョンがあります</p>
-    <p class="update-version" id="updateBannerVersion"></p>
+  <!-- 通常のアップデート案内（画面下のパネル）。画面を覆わないのでフォーカスは移さない。 -->
+  <div id="updateBanner" role="region" aria-labelledby="updateBannerTitle">
+    <p class="update-title" id="updateBannerTitle">アップデートがあります</p>
+    <p id="updateBannerMsg">Sukimaの新しいバージョンを利用できます。</p>
+    <p class="update-status" id="updateBannerStatus" role="status" aria-live="polite"></p>
     <div class="banner-btns">
-      <button class="btn-update" id="updateBtn" onclick="applyUpdate()">アップデート</button>
-      <button class="btn-later" id="updateLaterBtn" onclick="dismissUpdate()">あとで</button>
+      <button type="button" class="btn-update" id="updateBtn" onclick="applyUpdate()">今すぐ更新</button>
+      <button type="button" class="btn-later" id="updateLaterBtn" onclick="dismissUpdate()">あとで</button>
     </div>
   </div>
 
-  <div id="forceUpdateOverlay" role="dialog" aria-modal="true" aria-hidden="true">
+  <div id="forceUpdateOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="forceUpdateMsg">
     <div class="force-card">
       <p id="forceUpdateMsg">このバージョンは更新が必要です</p>
-      <p class="update-version" id="forceUpdateVersion"></p>
-      <button class="btn-update" id="forceUpdateBtn" onclick="applyUpdate()">アップデート</button>
+      <p class="update-status" id="forceUpdateStatus" role="status" aria-live="polite"></p>
+      <button type="button" class="btn-update" id="forceUpdateBtn" onclick="applyUpdate()">今すぐ更新</button>
     </div>
   </div>
 
@@ -1323,11 +1332,13 @@
         iosInstallStep2: '「ホーム画面に追加」',
         iosInstallStep3: '「追加」',
         openInSafariMsg: 'SukimaをインストールするにはSafariで開いてください',
-        updateAvailable: 'Sukimaの新しいバージョンがあります',
+        updateTitle: 'アップデートがあります',
+        updateBody: 'Sukimaの新しいバージョンを利用できます。',
         updateRequired: 'このバージョンは更新が必要です',
-        updateButton: 'アップデート',
+        updateButton: '今すぐ更新',
         updateLater: 'あとで',
-        versionArrow: '→',
+        updating: 'アップデートしています…',
+        updateFailed: 'アップデートできませんでした。通信環境を確認して、もう一度お試しください。',
         loggedIn: 'Googleアカウント連携済み',
         // 状態 B（本人確認のみ。Calendar 未連携・連携切れ）専用。
         // 「連携済み」と書くとカレンダー連携と混同されるため分ける。
@@ -1506,11 +1517,13 @@
         iosInstallStep2: 'Choose "Add to Home Screen"',
         iosInstallStep3: 'Tap "Add"',
         openInSafariMsg: 'To install Sukima, please open this page in Safari',
-        updateAvailable: 'A new version of Sukima is available',
+        updateTitle: 'Update available',
+        updateBody: 'A new version of Sukima is available.',
         updateRequired: 'This version needs to be updated',
-        updateButton: 'Update',
+        updateButton: 'Update now',
         updateLater: 'Later',
-        versionArrow: '→',
+        updating: 'Updating…',
+        updateFailed: 'Could not update. Check your connection and try again.',
         loggedIn: 'Google Account connected',
         signedInOnly: 'Signed in with Google',
         loadingGoogle: 'Loading Google...',
@@ -5432,7 +5445,8 @@
     //   何も表示せず通常起動させる（fail-open）。
     // =====================================================
 
-    const UPDATE_SKIPPED_KEY = 'sukima_update_skipped';
+    // 旧仕様の「この版は永久にスキップ」の記録。新仕様では使わず、起動時に消す。
+    const LEGACY_UPDATE_SKIPPED_KEY = 'sukima_update_skipped';
     const INSTALL_DISMISSED_AT_KEY = 'sukima_install_dismissed_at';
     const INSTALL_DISMISS_DAYS = 14;
     const LATEST_VERSION_URL = '/latest-version.json';
@@ -5449,6 +5463,11 @@
     let updateCheckTimerId = null;  // タイマー重複登録の防止
     let updateUiMode = 'none';      // 'none' | 'normal' | 'forced'
     let updateInProgress = false;   // アップデート二重実行の防止
+    // 「あとで」を押したか。このページを開いている間だけ有効（保存しない）。
+    // visibilitychange 等の再判定では再表示せず、アプリを開き直すと再び案内できる。
+    let updateDismissedThisSession = false;
+    // 更新パネルの状態表示（'updating' | 'updateFailed' | null）。言語切替で描き直すために持つ。
+    let updateStatusKey = null;
 
     // -----------------------------------------------------
     // semver 比較
@@ -5519,8 +5538,9 @@
     // -----------------------------------------------------
     // 判定
     // -----------------------------------------------------
-    function getSkippedVersion() {
-      try { return localStorage.getItem(UPDATE_SKIPPED_KEY); } catch (e) { return null; }
+    /** 旧仕様の永久スキップ記録を消す（残っていても新仕様では案内を止めない）。 */
+    function migrateLegacyUpdateSkip() {
+      try { localStorage.removeItem(LEGACY_UPDATE_SKIPPED_KEY); } catch (e) { /* 使えなくても判定には使わない */ }
     }
 
     function evaluateUpdateState() {
@@ -5544,36 +5564,33 @@
       const cmpLatest = compareVersions(current, info.version);
       if (cmpLatest === null || cmpLatest >= 0) return;                      // 最新／比較不能
       if (!swUpdateState.updateAvailable || !swUpdateState.waiting) return;  // 実体がまだ無い
-      if (getSkippedVersion() === info.version) return;                      // 「あとで」済み
+      if (updateDismissedThisSession) return;                                // この起動中は「あとで」済み
       showNormalUpdate();
     }
 
     // -----------------------------------------------------
     // 表示
+    //   文言は固定（latest-version.json の message は使わない）。
+    //   バージョン番号は一般の利用者には見せない。
     // -----------------------------------------------------
-    function versionArrowText() {
-      const cur = swUpdateState.currentVersion;
-      const info = latestVersionInfo;
-      if (!cur || !info || typeof info.version !== 'string') return '';
-      return cur + ' ' + t('versionArrow') + ' ' + info.version;
-    }
 
-    function updateMessageText() {
-      const info = latestVersionInfo;
-      // latest-version.json の message は日本語で記述されるため ja のときだけ採用し、
-      // en では i18n の文言を使う（JSON が単一言語しか持てないため）。
-      if (currentLang === 'ja' && info && typeof info.message === 'string' && info.message) {
-        return info.message;
+    /** 更新パネル・強制更新の状態表示を書き換える。key が null なら消す。 */
+    function setUpdateStatus(key) {
+      updateStatusKey = key;
+      for (const id of ['updateBannerStatus', 'forceUpdateStatus']) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        el.textContent = key ? t(key) : '';
+        el.classList.toggle('is-error', key === 'updateFailed');
       }
-      return t('updateAvailable');
     }
 
     /** 表示中のアップデートUIを現在の言語で描き直す（applyLang から呼ばれる） */
     function applyUpdateUiLang() {
+      const titleEl = document.getElementById('updateBannerTitle');
+      if (titleEl) titleEl.textContent = t('updateTitle');
       const msgEl = document.getElementById('updateBannerMsg');
-      if (msgEl) msgEl.textContent = updateMessageText();
-      const verEl = document.getElementById('updateBannerVersion');
-      if (verEl) verEl.textContent = versionArrowText();
+      if (msgEl) msgEl.textContent = t('updateBody');
       const btn = document.getElementById('updateBtn');
       if (btn) btn.textContent = t('updateButton');
       const later = document.getElementById('updateLaterBtn');
@@ -5581,10 +5598,9 @@
 
       const fMsg = document.getElementById('forceUpdateMsg');
       if (fMsg) fMsg.textContent = t('updateRequired');
-      const fVer = document.getElementById('forceUpdateVersion');
-      if (fVer) fVer.textContent = versionArrowText();
       const fBtn = document.getElementById('forceUpdateBtn');
       if (fBtn) fBtn.textContent = t('updateButton');
+      setUpdateStatus(updateStatusKey);
     }
 
     function hideInstallBanner() {
@@ -5596,7 +5612,9 @@
 
     function showNormalUpdate() {
       if (updateUiMode === 'forced') return;   // 強制更新が優先
+      if (updateUiMode === 'normal') return;   // 表示中（再判定で状態表示を消さない）
       updateUiMode = 'normal';
+      if (!updateInProgress) setUpdateStatus(null);
       hideInstallBanner();                     // インストール案内とは同時に出さない
       applyUpdateUiLang();
       document.getElementById('updateBanner').style.display = 'block';
@@ -5648,42 +5666,52 @@
       window.location.reload();
     }
 
+    /**
+     * 更新できなかったとき。リロードせず、今の版をそのまま使える状態に戻して
+     * もう一度押せるようにする。
+     */
+    function failUpdate() {
+      updateInProgress = false;
+      setUpdateButtonsDisabled(false);
+      setUpdateStatus('updateFailed');
+    }
+
     async function applyUpdate() {
       if (updateInProgress) return;
       updateInProgress = true;
       setUpdateButtonsDisabled(true);
+      setUpdateStatus('updating');
       try {
+        // オフラインでは新しい版を確かめられない。今の版のまま案内だけ出す。
+        if (navigator.onLine === false) { failUpdate(); return; }
+
         const reg = swUpdateState.registration;
         let waiting = swUpdateState.waiting || (reg && reg.waiting) || null;
 
         // waiting が消えていた場合は取り直す
         if (!waiting && reg) {
-          try { await reg.update(); } catch (e) { /* 下のフォールバックへ */ }
+          try { await reg.update(); } catch (e) { /* 取り直せなければ失敗として扱う */ }
           waiting = reg.waiting || null;
         }
 
-        if (waiting) {
-          // 以降は controllerchange（第1段階のガード付き）が1回だけ reload する
-          waiting.postMessage({ type: 'SKIP_WAITING' });
-          // controllerchange が来なかったときの保険。多重リロードはしない。
-          setTimeout(reloadOnce, UPDATE_APPLY_FALLBACK_MS);
-          return;
-        }
+        // 有効化できる新しい版が無い。勝手にリロードしない。
+        if (!waiting) { failUpdate(); return; }
 
-        // waiting を用意できなかった場合の最終手段
-        reloadOnce();
+        // 以降は controllerchange（第1段階のガード付き）が1回だけ reload する
+        waiting.postMessage({ type: 'SKIP_WAITING' });
+        // controllerchange が来なかったときの保険。reloadOnce なので多重リロードはしない。
+        setTimeout(reloadOnce, UPDATE_APPLY_FALLBACK_MS);
       } catch (e) {
-        reloadOnce();
+        failUpdate();
       }
     }
 
     function dismissUpdate() {
       if (updateUiMode === 'forced') return;   // 強制更新では使えない
-      try {
-        if (latestVersionInfo && typeof latestVersionInfo.version === 'string') {
-          localStorage.setItem(UPDATE_SKIPPED_KEY, latestVersionInfo.version);
-        }
-      } catch (e) { /* localStorage が使えなくても致命的ではない */ }
+      if (updateInProgress) return;            // 更新中は閉じない
+      // 永久スキップは保存しない。この起動中だけ閉じる。
+      updateDismissedThisSession = true;
+      setUpdateStatus(null);
       updateUiMode = 'none';
       document.getElementById('updateBanner').style.display = 'none';
       maybeShowInstallBanner();                // 優先順位に従って案内へ戻す
@@ -5803,6 +5831,7 @@
 
     function initUpdateNotifications() {
       migrateInstallDismissed();
+      migrateLegacyUpdateSkip();
       document.addEventListener('keydown', forcedUpdateKeyGuard, true);
       fetchLatestVersion(true);
       scheduleUpdateChecks();

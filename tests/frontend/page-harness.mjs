@@ -201,7 +201,8 @@ export function makeFetch(routes = []) {
  *   warnings        console.warn の記録
  */
 export function loadPage(options = {}) {
-  const { fetchImpl } = options;
+  // navigator: スクリプト読み込み前に navigator へ足すプロパティ（serviceWorker の模擬など）。
+  const { fetchImpl, navigator: navigatorExtra } = options;
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const source = extractInlineScript(html);
 
@@ -273,6 +274,7 @@ export function loadPage(options = {}) {
     addEventListener() {}, removeEventListener() {},
     onload: null,
   };
+  if (navigatorExtra) Object.assign(sandbox.navigator, navigatorExtra);
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   sandbox.self = sandbox;
