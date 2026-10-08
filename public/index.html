@@ -506,6 +506,13 @@
       .daily-result-card { min-height: calc(100dvh - 180px); }
     }
     .daily-result-card > .btn { margin-top: auto; }
+    /* この日の空き時間（時刻だけ）をまとめてコピー。空き枠一覧のすぐ下に置く。 */
+    .btn-copy-times {
+      width: 100%; min-height: 44px; margin: 12px 0; padding: 10px;
+      border: 1px solid #cfdcf5; border-radius: 10px; background: #f5f8ff;
+      color: #2d4a7a; font-size: 14px; font-weight: 600; cursor: pointer; touch-action: manipulation;
+    }
+    .btn-copy-times:active { background: #e6eeff; }
     .swipe-hint {
       pointer-events: none; user-select: none;
       color: #b8c2cf; font-size: 12px; font-weight: 600;
@@ -1350,6 +1357,8 @@
         nextWeekFail: '翌週の検索に失敗しました',
         copied: 'コピーしました',
         copiedDay: 'この日をコピーしました',
+        copyDayTimes: 'この日の空き時間をまとめてコピー',
+        copiedDayTimes: 'この日の空き時間をコピーしました',
         copiedAll: '全件コピーしました',
         copyFailed: 'コピーできませんでした。ブラウザのクリップボード権限をご確認ください。',
         loginFailed: 'ログインに失敗しました',
@@ -1527,6 +1536,8 @@
         nextWeekFail: 'Failed to load next week',
         copied: 'Copied',
         copiedDay: 'Copied day',
+        copyDayTimes: 'Copy all times for this day',
+        copiedDayTimes: 'Copied all times for this day',
         copiedAll: 'Copied all',
         copyFailed: 'Could not copy. Please check your browser clipboard permission.',
         loginFailed: 'Login failed',
@@ -4714,6 +4725,7 @@
           ${renderWeekPosIndicator(dow)}
           <div class="day-card-date${dateColorClass}" style="padding-left:${DOW_LEFT_OFFSETS[dow]}">${dateStr}</div>
           ${slotsHtml}
+          ${day.slots.length > 0 ? `<button type="button" class="btn-copy-times" onclick="copyCurrentDayTimes()">${t('copyDayTimes')}</button>` : ''}
           <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>${t('copyDay')}</button>
         </div>
         <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="${t('nextWeekAria')}">
@@ -5159,6 +5171,19 @@
       if (!day || day.slots.length === 0) return;
       const text = day.slots.map(slotToText).join('\n');
       writeToClipboard(text, 'copiedDay');
+    }
+
+    /**
+     * 表示中の日の空き時間を、時刻だけ改行区切りでまとめてコピーする。
+     * 週間カレンダーで「+N件」に省略した分も含め、その日の全件を対象にする。
+     */
+    function copyCurrentDayTimes() {
+      const day = currentDailyResults[currentDayIndex];
+      if (!day || day.slots.length === 0) return;
+      const text = day.slots
+        .map(s => `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}〜${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`)
+        .join('\n');
+      writeToClipboard(text, 'copiedDayTimes');
     }
 
     function copyAll() {
