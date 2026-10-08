@@ -57,6 +57,12 @@
       border-radius: 8px; font-size: 15px; color: #333; background: #fafafa; outline: none;
     }
     input[type="date"]:focus, select:focus { border-color: #4f8ef7; background: white; }
+    /* 所要時間はスマホで頻繁に選ぶので、タップ領域を 44px 以上にし、
+       16px 未満だと iOS が選択時に画面を拡大するのを防ぐ。 */
+    #duration { min-height: 44px; font-size: 16px; }
+    .time-range { display: flex; align-items: center; gap: 8px; }
+    .time-range select { flex: 1; min-width: 0; min-height: 44px; font-size: 16px; }
+    .time-range-sep { color: #555; font-size: 15px; }
     .btn {
       width: 100%; padding: 14px; background: #4f8ef7; color: white;
       border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
@@ -154,6 +160,98 @@
     @media (min-width: 600px) {
       #resultContent { padding: 20px; max-width: 600px; margin: 0 auto; }
     }
+    /* 週間カレンダー（俯瞰用）。この領域だけを横スクロールさせる。
+       スマホでは約 3 列、広い画面では列幅の上限まで多くの日が見える。
+       スクロール容器なので、祖先の touch-action: pan-y に関係なく横に動かせる。 */
+    .weekly-calendar {
+      display: flex; align-items: flex-start; gap: 8px; width: 100%;
+      overflow-x: auto; overflow-y: hidden;
+      scroll-snap-type: x proximity; scroll-padding-left: 2px;
+      overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+      touch-action: pan-x pan-y; cursor: auto;
+      scrollbar-width: thin;
+      padding: 2px 2px 8px; margin-bottom: 14px;
+    }
+    .weekly-day {
+      flex: 0 0 clamp(96px, calc((100% - 16px) / 3), 140px);
+      scroll-snap-align: start;
+      background: rgba(255, 255, 255, 0.92); border: 1px solid #e3e8ef; border-radius: 10px;
+      padding: 8px 6px 10px; text-align: center;
+    }
+    .weekly-day.is-current { border-color: #4f8ef7; box-shadow: 0 0 0 1px #4f8ef7 inset; }
+    .weekly-day-head {
+      display: flex; justify-content: center; align-items: center; gap: 4px; width: 100%;
+      min-height: 44px; margin-bottom: 6px; padding: 0 2px;
+      border: none; border-radius: 8px; background: transparent; color: #333;
+      font: inherit; cursor: pointer; touch-action: manipulation;
+    }
+    .weekly-day-head:active { background: rgba(79, 142, 247, 0.12); }
+    .weekly-day-head:focus-visible { outline: 2px solid #4f8ef7; outline-offset: 1px; }
+    .weekly-day.is-current .weekly-day-head { background: rgba(79, 142, 247, 0.10); }
+    .weekly-dow { font-size: 13px; font-weight: 600; }
+    .weekly-date { font-size: 15px; font-weight: 700; }
+    .weekly-day.dow-sun .weekly-day-head { color: #c0574f; }
+    .weekly-day.dow-sat .weekly-day-head { color: #4a72c4; }
+    .weekly-slots { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .weekly-slot {
+      font-size: 13px; font-weight: 600; color: #2d4a7a; white-space: nowrap;
+      background: #eef3ff; border-radius: 6px; padding: 4px 2px; font-variant-numeric: tabular-nums;
+    }
+    .weekly-empty { font-size: 12px; color: #999; padding: 6px 0; }
+    .weekly-more { font-size: 12px; font-weight: 600; color: #4f6fa8; padding: 2px 0; }
+    /* 保存した検索条件（プリセット）。件数が増えても縦に伸びないよう横並び + 横スクロール。 */
+    .presets-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+      min-height: 44px; padding: 0 4px; margin: 0;
+      border: none; border-radius: 8px; background: transparent; font: inherit; cursor: pointer;
+      touch-action: manipulation;
+    }
+    .presets-toggle:active { background: rgba(79, 142, 247, 0.08); }
+    .presets-toggle:focus-visible { outline: 2px solid #4f8ef7; outline-offset: 1px; }
+    .presets-title { font-size: 13px; font-weight: 600; color: #555; }
+    .presets-toggle-icon { font-size: 11px; color: #888; transition: transform 0.15s ease; }
+    .presets-toggle[aria-expanded="true"] .presets-toggle-icon { transform: rotate(180deg); }
+    .presets-body { padding-top: 4px; }
+    .presets-body[hidden] { display: none; }
+    .presets-empty { font-size: 12px; color: #999; margin-bottom: 4px; }
+    .presets-list {
+      display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px;
+      scroll-padding-inline-end: 12px;
+    }
+    /* 右端の余白。flex の横スクロールでは padding-right が効かないブラウザがあるため要素で確保する。
+       gap 8px + 4px = 最後のチップの後ろに 12px。削除ボタンが端で切れずに押せる。 */
+    .presets-list::after { content: ''; flex: 0 0 4px; }
+    .preset-chip {
+      flex: 0 0 auto; display: flex; align-items: stretch; max-width: 230px;
+      border: 1px solid #cfdcf5; border-radius: 10px; background: #f5f8ff; scroll-snap-align: start;
+    }
+    /* 最後のチップは右端基準で止める（先頭基準だと削除ボタンが画面外に残ることがある）。 */
+    .preset-chip:last-child { scroll-snap-align: end; }
+    .preset-apply {
+      display: flex; flex-direction: column; justify-content: center; gap: 2px;
+      min-height: 52px; min-width: 112px; padding: 6px 10px;
+      border: none; background: transparent; text-align: left; font: inherit; cursor: pointer;
+      border-radius: 10px 0 0 10px; touch-action: manipulation;
+    }
+    .preset-apply:active { background: rgba(79, 142, 247, 0.12); }
+    .preset-name { font-size: 14px; font-weight: 700; color: #2d4a7a; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preset-summary { font-size: 12px; color: #666; white-space: nowrap; }
+    .preset-delete {
+      min-width: 44px; padding: 0 6px; border: none; border-left: 1px solid #dbe4f5;
+      background: transparent; color: #999; font-size: 16px; cursor: pointer;
+      border-radius: 0 10px 10px 0; touch-action: manipulation;
+    }
+    .preset-delete.is-confirming { background: #c0574f; color: white; font-size: 12px; font-weight: 700; }
+    .presets-add { margin-top: 8px; min-height: 44px; color: #4f6fa8; border-color: #cfdcf5; }
+    #presetNameInput {
+      width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px;
+      font-size: 16px; color: #333; background: #fafafa; outline: none; margin-top: 8px;
+    }
+    #presetNameInput:focus { border-color: #4f8ef7; background: white; }
+    .presets-save-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .presets-save-actions button { flex: 1; min-height: 44px; margin-top: 0; }
+    .btn-preset-save { background: #4f8ef7; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .presets-message { font-size: 12px; color: #4f6fa8; margin-top: 6px; }
 
     .slot-card {
       background: white; border-radius: 14px; padding: 20px 24px;
@@ -761,10 +859,20 @@
           <label>希望する空き時間</label>
           <select id="duration">
             <option value="30">30分</option>
+            <option value="45">45分</option>
             <option value="60" selected>1時間</option>
             <option value="90">1時間30分</option>
             <option value="120">2時間</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label>検索する時間帯</label>
+          <!-- 選択肢は renderTimeRangeOptions() が STEP_MIN 刻みで作る。 -->
+          <div class="time-range">
+            <select id="timeFrom" aria-label="開始時刻"></select>
+            <span class="time-range-sep">〜</span>
+            <select id="timeTo" aria-label="終了時刻"></select>
+          </div>
         </div>
         <div class="form-group">
           <label>カレンダー</label>
@@ -773,6 +881,28 @@
             <button id="btnModeSelect" onclick="setCalMode('select')" style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#f0f4f8;color:#555;border:1px solid #ddd;">選んで使う</button>
           </div>
           <div id="calList" style="display:none;margin-top:10px;max-height:160px;overflow-y:auto;border:1px solid #ddd;border-radius:8px;padding:8px;"></div>
+        </div>
+        <!-- 保存した検索条件。見出しは <label> にしない（applyLang は .form-group label を順番で訳すため）。 -->
+        <div class="form-group search-presets" id="searchPresets">
+          <!-- 見出し全体が開閉ボタン。初期状態は閉じる（開閉状態は保存しない）。 -->
+          <button type="button" class="presets-toggle" id="presetsToggle" aria-expanded="false" aria-controls="presetsBody" onclick="toggleSearchPresets()">
+            <span class="presets-title" id="presetsTitle">保存した条件（0）</span>
+            <span class="presets-toggle-icon" aria-hidden="true">▼</span>
+          </button>
+          <div class="presets-body" id="presetsBody" hidden>
+          <p class="presets-empty" id="presetsEmpty">よく使う条件を保存しておくと、ワンタップで呼び出せます</p>
+          <div class="presets-list" id="presetsList"></div>
+          <button type="button" class="btn-sub presets-add" id="presetSaveOpenBtn" onclick="openPresetSaveForm()">＋ 現在の条件を保存</button>
+          <div id="presetSaveForm" style="display:none;">
+            <input type="text" id="presetNameInput" maxlength="20" autocomplete="off" enterkeyhint="done"
+                   placeholder="名前（例: 商談）" aria-label="保存する条件の名前">
+            <div class="presets-save-actions">
+              <button type="button" class="btn-sub" id="presetSaveCancelBtn" onclick="closePresetSaveForm()">キャンセル</button>
+              <button type="button" class="btn-preset-save" id="presetSaveBtn" onclick="saveCurrentPreset()">保存</button>
+            </div>
+          </div>
+          <p class="presets-message" id="presetMessage" role="status" aria-live="polite"></p>
+          </div>
         </div>
         <button type="button" class="btn-sub" id="openBgSettingsBtn" onclick="showBackgroundSettings()">背景画像を設定</button>
         <button class="btn" id="searchBtn" onclick="startSearch()">空き時間を検索する</button>
@@ -916,6 +1046,16 @@
     const DAY_START = 9;
     const DAY_END = 22;
     const STEP_MIN = 30;
+    // 「検索する時間帯」で選べる範囲（分）。刻みは空き計算と同じ STEP_MIN。
+    // 24:00 は翌日 0:00 と表示が紛らわしいので 23:30 までにする。
+    const TIME_RANGE_MIN = 6 * 60;
+    const TIME_RANGE_MAX = 23 * 60 + 30;
+    // 週間カレンダー（俯瞰用）の 1 日あたりの表示件数の上限。超えた分は「+N件」にまとめる。
+    const WEEKLY_MAX_SLOTS = 4;
+    // 保存した検索条件（ブラウザ内のみ。サーバーへは送らない）。
+    const SEARCH_PRESETS_KEY = 'sukima_search_presets_v1';
+    const SEARCH_PRESET_MAX = 10;
+    const SEARCH_PRESET_NAME_MAX = 20;
 
     let tokenClient;
     // Google Calendar 専用の OAuth access token。Sukima の API へは絶対に送らない。
@@ -960,6 +1100,8 @@
     let calendarList = [];
     let swipeState = null;
     let weekSwipeState = null;
+    // 新しい検索のたびに増やす。週間カレンダーの横位置は同じ検索結果の中でだけ引き継ぐ。
+    let weeklyResultSeq = 0;
     let isSearching = false;
     let isAnimating = false;
     const SWIPE_MIN_DISTANCE = 50;
@@ -1134,7 +1276,7 @@
         labelCalendar: 'カレンダー',
         calModeAll: '全カレンダー',
         calModeSelect: '選んで使う',
-        dur30: '30分', dur60: '1時間', dur90: '1時間30分', dur120: '2時間',
+        dur30: '30分', dur45: '45分', dur60: '1時間', dur90: '1時間30分', dur120: '2時間',
         searchBtn: '空き時間を検索する',
         logoutBtn: '別のアカウントでログインする',
         footerTitle: 'スキマのご利用について',
@@ -1164,6 +1306,11 @@
         calListError: 'カレンダー一覧の取得に失敗しました',
         noDate: '日付を入力してください',
         invalidDate: '終了日は開始日より後にしてください',
+        labelTimeRange: '検索する時間帯',
+        timeFromLabel: '開始時刻',
+        timeToLabel: '終了時刻',
+        invalidTimeRange: '終了時刻は開始時刻より後にしてください',
+        timeRangeTooShort: '時間帯が希望する空き時間より短いため検索できません',
         loggingIn: 'Googleにログインしています...',
         loadingCal: 'カレンダーを取得中...',
         sessionExpired: 'セッションが切れました。再度ログインしてください。',
@@ -1174,6 +1321,28 @@
         copySlot: 'この枠をコピー',
         addCalendar: '予定を追加',
         noAvailability: '空き時間なし',
+        weeklyCalendarAria: '期間内の空き時間一覧（横にスクロールできます）',
+        weeklyDayNavAria: (m, d, dow) => `${m}月${d}日（${dow}）の詳細を表示`,
+        weeklyMore: (n) => `+${n}件`,
+        presetsTitle: (n) => `保存した条件（${n}）`,
+        presetsEmpty: 'よく使う条件を保存しておくと、ワンタップで呼び出せます',
+        presetSaveOpen: '＋ 現在の条件を保存',
+        presetNamePlaceholder: '名前（例: 商談）',
+        presetNameAria: '保存する条件の名前',
+        presetSave: '保存',
+        presetCancel: 'キャンセル',
+        presetNameRequired: '名前を入力してください',
+        presetNameTooLong: (n) => `名前は${n}文字以内にしてください`,
+        presetLimit: (n) => `保存できるのは${n}件までです。不要な条件を削除してから保存してください`,
+        presetStorageError: 'この端末・ブラウザでは条件を保存できません',
+        presetSaved: (name) => `「${name}」を保存しました`,
+        presetApplied: (name) => `「${name}」の条件を入れました。内容を確認して検索してください`,
+        presetDeleted: (name) => `「${name}」を削除しました`,
+        presetApplyAria: (name) => `「${name}」の条件をフォームに入れる`,
+        presetDeleteAria: (name) => `「${name}」を削除`,
+        presetDeleteConfirm: '削除',
+        presetDeleteConfirmAria: (name) => `もう一度押すと「${name}」を削除します`,
+        presetCalSelected: '選んだカレンダー',
         available: '空き時間',
         copyDay: 'この日をコピー',
         nextWeek: '↓ 翌週',
@@ -1286,7 +1455,7 @@
         labelCalendar: 'Calendar',
         calModeAll: 'All Calendars',
         calModeSelect: 'Select',
-        dur30: '30 min', dur60: '1 hour', dur90: '1.5 hours', dur120: '2 hours',
+        dur30: '30 min', dur45: '45 min', dur60: '1 hour', dur90: '1.5 hours', dur120: '2 hours',
         searchBtn: 'Search',
         logoutBtn: 'Switch Account',
         footerTitle: 'About Sukima',
@@ -1314,6 +1483,11 @@
         calListError: 'Failed to load calendar list',
         noDate: 'Please enter dates',
         invalidDate: 'End date must be after start date',
+        labelTimeRange: 'Time range',
+        timeFromLabel: 'From',
+        timeToLabel: 'To',
+        invalidTimeRange: 'End time must be after start time',
+        timeRangeTooShort: 'The time range is shorter than the free time you need',
         loggingIn: 'Logging in to Google...',
         loadingCal: 'Loading calendar...',
         sessionExpired: 'Session expired. Please login again.',
@@ -1324,6 +1498,28 @@
         copySlot: 'Copy',
         addCalendar: 'Add to Calendar',
         noAvailability: 'No availability',
+        weeklyCalendarAria: 'Free time overview (scroll sideways)',
+        weeklyDayNavAria: (month, d, dow) => `Show details for ${dow}, ${month} ${d}`,
+        weeklyMore: (n) => `+${n} more`,
+        presetsTitle: (n) => `Saved searches (${n})`,
+        presetsEmpty: 'Save conditions you use often and recall them in one tap',
+        presetSaveOpen: '+ Save current conditions',
+        presetNamePlaceholder: 'Name (e.g. Sales call)',
+        presetNameAria: 'Name for these conditions',
+        presetSave: 'Save',
+        presetCancel: 'Cancel',
+        presetNameRequired: 'Please enter a name',
+        presetNameTooLong: (n) => `Name must be ${n} characters or fewer`,
+        presetLimit: (n) => `You can save up to ${n}. Delete one you no longer need, then save.`,
+        presetStorageError: 'Conditions cannot be saved in this browser',
+        presetSaved: (name) => `Saved "${name}"`,
+        presetApplied: (name) => `Applied "${name}". Check the conditions, then search.`,
+        presetDeleted: (name) => `Deleted "${name}"`,
+        presetApplyAria: (name) => `Apply "${name}" to the form`,
+        presetDeleteAria: (name) => `Delete "${name}"`,
+        presetDeleteConfirm: 'Delete',
+        presetDeleteConfirmAria: (name) => `Tap again to delete "${name}"`,
+        presetCalSelected: 'Selected calendars',
         available: 'Available',
         copyDay: 'Copy Day',
         nextWeek: '↓ Next Week',
@@ -1463,13 +1659,20 @@
       if (labels[0]) labels[0].textContent = t('labelStart');
       if (labels[1]) labels[1].textContent = t('labelEnd');
       if (labels[2]) labels[2].textContent = t('labelDuration');
-      if (labels[3]) labels[3].textContent = t('labelCalendar');
+      if (labels[3]) labels[3].textContent = t('labelTimeRange');
+      if (labels[4]) labels[4].textContent = t('labelCalendar');
+      const timeFromEl = document.getElementById('timeFrom');
+      if (timeFromEl) timeFromEl.setAttribute('aria-label', t('timeFromLabel'));
+      const timeToEl = document.getElementById('timeTo');
+      if (timeToEl) timeToEl.setAttribute('aria-label', t('timeToLabel'));
 
       document.getElementById('btnModeAll').textContent = t('calModeAll');
       document.getElementById('btnModeSelect').textContent = t('calModeSelect');
+      applySearchPresetsLang();
       const durEl = document.getElementById('duration');
       if (durEl) {
         durEl.querySelector('option[value="30"]').textContent = t('dur30');
+        durEl.querySelector('option[value="45"]').textContent = t('dur45');
         durEl.querySelector('option[value="60"]').textContent = t('dur60');
         durEl.querySelector('option[value="90"]').textContent = t('dur90');
         durEl.querySelector('option[value="120"]').textContent = t('dur120');
@@ -1596,6 +1799,295 @@
         div.appendChild(label);
         container.appendChild(div);
       });
+      // 保存した条件を呼び出した時点でカレンダー一覧が未取得だった場合は、ここで反映する。
+      if (pendingPresetCalHashes) {
+        const hashes = pendingPresetCalHashes;
+        pendingPresetCalHashes = null;
+        applyPresetCalendars(hashes);
+      }
+    }
+
+    // =========================================================
+    // 保存した検索条件（プリセット）
+    //   保存先は localStorage だけ（Supabase 等には送らない）。日付は保存しない。
+    //   カレンダーは ID（メールアドレスのことが多い）を平文で残さず、
+    //   SHA-256 の先頭 16 桁だけを保存して、呼び出し時に現在の一覧と照合する。
+    //   localStorage が使えなくても検索本体は壊さない（読めなければ 0 件扱い）。
+    // =========================================================
+
+    let pendingPresetCalHashes = null;
+    let presetDeleteConfirmId = null;
+    let presetDeleteConfirmTimer = null;
+    // 「保存した条件」の開閉。ページ内だけで持ち、保存しない（開き直すと閉じた状態から）。
+    let searchPresetsOpen = false;
+
+    function applySearchPresetsOpenState() {
+      const toggle = document.getElementById('presetsToggle');
+      if (toggle) toggle.setAttribute('aria-expanded', searchPresetsOpen ? 'true' : 'false');
+      const body = document.getElementById('presetsBody');
+      if (body) body.hidden = !searchPresetsOpen;
+    }
+
+    function toggleSearchPresets(open) {
+      searchPresetsOpen = typeof open === 'boolean' ? open : !searchPresetsOpen;
+      applySearchPresetsOpenState();
+    }
+
+    function normalizeSearchPreset(p) {
+      if (!p || typeof p !== 'object') return null;
+      const name = typeof p.name === 'string' ? p.name.trim() : '';
+      if (!name || Array.from(name).length > SEARCH_PRESET_NAME_MAX) return null;
+      if (typeof p.id !== 'string' || !p.id) return null;
+      const duration = Number(p.duration);
+      if (![30, 45, 60, 90, 120].includes(duration)) return null;
+      const fromMin = hhmmToMinutes(p.timeFrom);
+      const toMin = hhmmToMinutes(p.timeTo);
+      if (fromMin === null || toMin === null || fromMin >= toMin) return null;
+      const calMode = p.calMode === 'select' ? 'select' : 'all';
+      const cals = Array.isArray(p.cals)
+        ? p.cals.filter(h => typeof h === 'string' && /^[0-9a-f]{16}$/.test(h))
+        : null;
+      return { id: p.id, name, duration, timeFrom: p.timeFrom, timeTo: p.timeTo, calMode, cals: cals && cals.length ? cals : null };
+    }
+
+    function readSearchPresets() {
+      let raw = null;
+      try { raw = localStorage.getItem(SEARCH_PRESETS_KEY); } catch (e) { return []; }
+      if (!raw) return [];
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch (e) { return []; }
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(normalizeSearchPreset).filter(Boolean).slice(0, SEARCH_PRESET_MAX);
+    }
+
+    function writeSearchPresets(list) {
+      try {
+        localStorage.setItem(SEARCH_PRESETS_KEY, JSON.stringify(list));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    /** カレンダー ID を平文で保存しないための短いハッシュ。使えない環境では null。 */
+    async function hashCalendarId(id) {
+      try {
+        if (!globalThis.crypto || !crypto.subtle || typeof TextEncoder === 'undefined') return null;
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(id)));
+        return Array.from(new Uint8Array(buf)).slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) {
+        return null;
+      }
+    }
+
+    /** 現在のカレンダー選択。一覧が未取得・ハッシュ不可なら「選んで使う」だけ残す。 */
+    async function collectCalendarSelectionForPreset() {
+      if (calMode !== 'select') return { calMode: 'all', cals: null };
+      if (!calendarList || calendarList.length === 0) return { calMode: 'select', cals: null };
+      const checked = Array.from(document.querySelectorAll('#calList input[type=checkbox]:checked')).map(cb => cb.value);
+      const hashes = [];
+      for (const id of checked) {
+        const h = await hashCalendarId(id);
+        if (!h) return { calMode: 'select', cals: null };
+        hashes.push(h);
+      }
+      return { calMode: 'select', cals: hashes.length ? hashes : null };
+    }
+
+    /** 保存時のハッシュと一致するカレンダーだけチェックする。1 つも無ければ現状のまま。 */
+    async function applyPresetCalendars(hashes) {
+      if (!Array.isArray(hashes) || hashes.length === 0) return;
+      const boxes = Array.from(document.querySelectorAll('#calList input[type=checkbox]'));
+      if (boxes.length === 0) return;
+      const wanted = new Set(hashes);
+      const matches = [];
+      for (const cb of boxes) {
+        const h = await hashCalendarId(cb.value);
+        matches.push(!!(h && wanted.has(h)));
+      }
+      if (!matches.some(Boolean)) return;
+      boxes.forEach((cb, i) => { cb.checked = matches[i]; });
+    }
+
+    function setPresetMessage(msg) {
+      const el = document.getElementById('presetMessage');
+      if (el) el.textContent = msg || '';
+    }
+
+    function openPresetSaveForm() {
+      const form = document.getElementById('presetSaveForm');
+      if (form) form.style.display = 'block';
+      const openBtn = document.getElementById('presetSaveOpenBtn');
+      if (openBtn) openBtn.style.display = 'none';
+      setPresetMessage('');
+      const input = document.getElementById('presetNameInput');
+      if (input) { input.value = ''; if (input.focus) input.focus(); }
+    }
+
+    function closePresetSaveForm() {
+      const form = document.getElementById('presetSaveForm');
+      if (form) form.style.display = 'none';
+      const openBtn = document.getElementById('presetSaveOpenBtn');
+      if (openBtn) openBtn.style.display = '';
+    }
+
+    async function saveCurrentPreset() {
+      const input = document.getElementById('presetNameInput');
+      const name = String((input && input.value) || '').trim();
+      if (!name) { setPresetMessage(t('presetNameRequired')); return false; }
+      if (Array.from(name).length > SEARCH_PRESET_NAME_MAX) {
+        setPresetMessage(t('presetNameTooLong', SEARCH_PRESET_NAME_MAX));
+        return false;
+      }
+      const list = readSearchPresets();
+      if (list.length >= SEARCH_PRESET_MAX) {
+        setPresetMessage(t('presetLimit', SEARCH_PRESET_MAX));
+        return false;
+      }
+      const duration = parseInt(document.getElementById('duration').value);
+      const { fromMin, toMin } = getSearchTimeRange();
+      if (fromMin >= toMin) { setPresetMessage(t('invalidTimeRange')); return false; }
+      const selection = await collectCalendarSelectionForPreset();
+      const preset = normalizeSearchPreset({
+        id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        duration,
+        timeFrom: minutesToHhmm(fromMin),
+        timeTo: minutesToHhmm(toMin),
+        calMode: selection.calMode,
+        cals: selection.cals,
+      });
+      if (!preset) { setPresetMessage(t('presetStorageError')); return false; }
+      if (!writeSearchPresets(list.concat([preset]))) {
+        setPresetMessage(t('presetStorageError'));
+        return false;
+      }
+      closePresetSaveForm();
+      searchPresetsOpen = true; // 保存できたことが一覧で分かるよう開いておく
+      renderSearchPresets();
+      setPresetMessage(t('presetSaved', name));
+      return true;
+    }
+
+    /** select に、その値の option があるか（無い値を入れると空欄になるため）。 */
+    function selectHasOption(el, value) {
+      if (!el) return false;
+      if (!el.options) return true;
+      return Array.from(el.options).some(o => o.value === value);
+    }
+
+    /** 保存した条件をフォームへ入れるだけ。日付には触れず、検索も実行しない。 */
+    function applySearchPreset(id) {
+      const preset = readSearchPresets().find(p => p.id === id);
+      if (!preset) { renderSearchPresets(); return false; }
+      const durEl = document.getElementById('duration');
+      if (selectHasOption(durEl, String(preset.duration))) durEl.value = String(preset.duration);
+      const fromEl = document.getElementById('timeFrom');
+      const toEl = document.getElementById('timeTo');
+      if (selectHasOption(fromEl, preset.timeFrom) && selectHasOption(toEl, preset.timeTo)) {
+        fromEl.value = preset.timeFrom;
+        toEl.value = preset.timeTo;
+      }
+      if (calMode !== preset.calMode) setCalMode(preset.calMode);
+      if (preset.calMode === 'select' && preset.cals) {
+        if (calendarList && calendarList.length > 0) applyPresetCalendars(preset.cals);
+        else pendingPresetCalHashes = preset.cals;
+      }
+      setPresetMessage(t('presetApplied', preset.name));
+      return true;
+    }
+
+    function resetPresetDeleteConfirm() {
+      presetDeleteConfirmId = null;
+      if (presetDeleteConfirmTimer) { clearTimeout(presetDeleteConfirmTimer); presetDeleteConfirmTimer = null; }
+    }
+
+    /** 削除は 2 段階。1 回目で確認表示、3 秒以内にもう一度押すと削除。 */
+    function requestDeleteSearchPreset(id) {
+      const list = readSearchPresets();
+      const preset = list.find(p => p.id === id);
+      if (!preset) { resetPresetDeleteConfirm(); renderSearchPresets(); return false; }
+      if (presetDeleteConfirmId !== id) {
+        resetPresetDeleteConfirm();
+        presetDeleteConfirmId = id;
+        presetDeleteConfirmTimer = setTimeout(() => { resetPresetDeleteConfirm(); renderSearchPresets(); }, 3000);
+        renderSearchPresets();
+        return false;
+      }
+      resetPresetDeleteConfirm();
+      if (!writeSearchPresets(list.filter(p => p.id !== id))) {
+        setPresetMessage(t('presetStorageError'));
+        return false;
+      }
+      renderSearchPresets();
+      setPresetMessage(t('presetDeleted', preset.name));
+      return true;
+    }
+
+    function presetSummaryText(p) {
+      const parts = [t('dur' + p.duration), `${p.timeFrom}〜${p.timeTo}`];
+      if (p.calMode === 'select') parts.push(t('presetCalSelected'));
+      return parts.join('・');
+    }
+
+    /** プリセット一覧を描く。名前は textContent で入れ、HTML として解釈させない。 */
+    function renderSearchPresets() {
+      const listEl = document.getElementById('presetsList');
+      if (!listEl) return;
+      const presets = readSearchPresets();
+      listEl.innerHTML = '';
+      presets.forEach(p => {
+        const chip = document.createElement('div');
+        chip.className = 'preset-chip';
+        chip.setAttribute('data-preset-id', p.id);
+
+        const applyBtn = document.createElement('button');
+        applyBtn.type = 'button';
+        applyBtn.className = 'preset-apply';
+        applyBtn.setAttribute('aria-label', t('presetApplyAria', p.name));
+        applyBtn.onclick = () => applySearchPreset(p.id);
+        const nameEl = document.createElement('span');
+        nameEl.className = 'preset-name';
+        nameEl.textContent = p.name;
+        const summaryEl = document.createElement('span');
+        summaryEl.className = 'preset-summary';
+        summaryEl.textContent = presetSummaryText(p);
+        applyBtn.appendChild(nameEl);
+        applyBtn.appendChild(summaryEl);
+
+        const confirming = presetDeleteConfirmId === p.id;
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = confirming ? 'preset-delete is-confirming' : 'preset-delete';
+        delBtn.textContent = confirming ? t('presetDeleteConfirm') : '×';
+        delBtn.setAttribute('aria-label', confirming ? t('presetDeleteConfirmAria', p.name) : t('presetDeleteAria', p.name));
+        delBtn.onclick = () => requestDeleteSearchPreset(p.id);
+
+        chip.appendChild(applyBtn);
+        chip.appendChild(delBtn);
+        listEl.appendChild(chip);
+      });
+      const emptyEl = document.getElementById('presetsEmpty');
+      if (emptyEl) emptyEl.style.display = presets.length === 0 ? '' : 'none';
+      listEl.style.display = presets.length === 0 ? 'none' : '';
+      const titleEl = document.getElementById('presetsTitle');
+      if (titleEl) titleEl.textContent = t('presetsTitle', presets.length);
+      applySearchPresetsOpenState();
+    }
+
+    /** 言語切替用。固定の文言だけ差し替え、一覧は描き直す。 */
+    function applySearchPresetsLang() {
+      const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = t(key); };
+      set('presetsEmpty', 'presetsEmpty');
+      set('presetSaveOpenBtn', 'presetSaveOpen');
+      set('presetSaveBtn', 'presetSave');
+      set('presetSaveCancelBtn', 'presetCancel');
+      const input = document.getElementById('presetNameInput');
+      if (input) {
+        input.setAttribute('placeholder', t('presetNamePlaceholder'));
+        input.setAttribute('aria-label', t('presetNameAria'));
+      }
+      renderSearchPresets();
     }
 
     function setBgImageError(key) {
@@ -1952,6 +2444,8 @@
       nextWeek.setDate(today.getDate() + 7);
       document.getElementById('startDate').value = toLocalDateStr(today);
       document.getElementById('endDate').value = toLocalDateStr(nextWeek);
+      renderTimeRangeOptions();
+      renderSearchPresets();
 
       // Calendar access token の復元（既存挙動を維持）。
       // これは Calendar 認可の有無だけを表し、Sukima の本人確認とは無関係。
@@ -2930,7 +3424,25 @@
     }
 
     function showResult(html) {
+      // 日を切り替えると結果全体を描き直すため、同じ検索結果の間は
+      // 週間カレンダーの横スクロール位置を引き継ぐ（新しい検索では先頭に戻る）。
+      const prevWeekly = document.querySelector('[data-weekly-calendar]');
+      const prevRange = prevWeekly && prevWeekly.getAttribute ? prevWeekly.getAttribute('data-weekly-range') : null;
+      const prevScrollLeft = prevWeekly ? prevWeekly.scrollLeft : 0;
+      // 日付ボタンで切り替えた場合、描き直しでフォーカスが失われないよう戻す（キーボード操作用）。
+      const active = document.activeElement;
+      const focusedNavKey = active && active.getAttribute ? active.getAttribute('data-weekly-nav') : null;
       document.getElementById('resultContent').innerHTML = html;
+      const nextWeekly = document.querySelector('[data-weekly-calendar]');
+      const sameRange = !!(nextWeekly && prevRange
+          && nextWeekly.getAttribute && nextWeekly.getAttribute('data-weekly-range') === prevRange);
+      if (sameRange && prevScrollLeft) {
+        nextWeekly.scrollLeft = prevScrollLeft;
+      }
+      if (sameRange && focusedNavKey) {
+        const navBtn = document.querySelector(`[data-weekly-nav="${focusedNavKey}"]`);
+        if (navBtn && navBtn.focus) navBtn.focus({ preventScroll: true });
+      }
       document.getElementById('startView').style.display = 'none';
       document.getElementById('searchView').style.display = 'none';
       document.getElementById('backgroundSettingsView').style.display = 'none';
@@ -3674,6 +4186,8 @@
       const endDate = document.getElementById('endDate').value;
       if (!startDate || !endDate) { setStatusForm(t('noDate')); return; }
       if (startDate > endDate) { setStatusForm(t('invalidDate')); return; }
+      const timeRangeError = validateSearchTimeRange(parseInt(document.getElementById('duration').value));
+      if (timeRangeError) { setStatusForm(t(timeRangeError)); return; }
       const searchBtn = document.getElementById('searchBtn');
       searchBtn.disabled = true;
 
@@ -3847,9 +4361,11 @@
 
         const events = allEvents;
         setStatusForm(t('calculating'));
-        currentSlots = findFreeSlots(startDate, endDate, duration, events);
+        const { fromMin, toMin } = getSearchTimeRange();
+        currentSlots = findFreeSlots(startDate, endDate, duration, events, fromMin, toMin);
         currentDailyResults = buildDailyResults(currentSlots, startDate, endDate);
         currentDayIndex = 0;
+        weeklyResultSeq += 1; // 新しい検索なので、週間カレンダーは先頭から見せる
         const html = renderDailyResultHtml();
         sessionStorage.setItem(RESULT_KEY, html);
         sessionStorage.setItem('last_slots', JSON.stringify(currentSlots));
@@ -3868,7 +4384,72 @@
       }
     }
 
-    function findFreeSlots(startDate, endDate, duration, events) {
+    /** 分（540）を "09:00" にする。 */
+    function minutesToHhmm(min) {
+      return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+    }
+
+    /** "09:00" を分（540）にする。形式が違えば null。 */
+    function hhmmToMinutes(value) {
+      const m = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
+      if (!m) return null;
+      const h = Number(m[1]);
+      const mi = Number(m[2]);
+      if (h > 23 || mi > 59) return null;
+      return h * 60 + mi;
+    }
+
+    /** 時間帯 select の <option> 群。selectedMin を選択状態にする。 */
+    function timeRangeOptionsHtml(selectedMin) {
+      let html = '';
+      for (let min = TIME_RANGE_MIN; min <= TIME_RANGE_MAX; min += STEP_MIN) {
+        const v = minutesToHhmm(min);
+        html += `<option value="${v}"${min === selectedMin ? ' selected' : ''}>${v}</option>`;
+      }
+      return html;
+    }
+
+    /** 時間帯の選択肢を作る。初期値は従来の固定範囲（DAY_START〜DAY_END）。 */
+    function renderTimeRangeOptions() {
+      const fromEl = document.getElementById('timeFrom');
+      const toEl = document.getElementById('timeTo');
+      if (fromEl) {
+        fromEl.innerHTML = timeRangeOptionsHtml(DAY_START * 60);
+        fromEl.value = minutesToHhmm(DAY_START * 60);
+      }
+      if (toEl) {
+        toEl.innerHTML = timeRangeOptionsHtml(DAY_END * 60);
+        toEl.value = minutesToHhmm(DAY_END * 60);
+      }
+    }
+
+    /**
+     * 画面で選ばれている検索時間帯（分）。
+     * 未設定・不正な値は従来の固定範囲（DAY_START〜DAY_END）として扱う。
+     */
+    function getSearchTimeRange() {
+      const fromEl = document.getElementById('timeFrom');
+      const toEl = document.getElementById('timeTo');
+      const fromMin = hhmmToMinutes(fromEl && fromEl.value);
+      const toMin = hhmmToMinutes(toEl && toEl.value);
+      return {
+        fromMin: fromMin === null ? DAY_START * 60 : fromMin,
+        toMin: toMin === null ? DAY_END * 60 : toMin,
+      };
+    }
+
+    /**
+     * 検索前の時間帯チェック。問題があれば I18N のキー、無ければ null。
+     * quota を消費する前に呼ぶ（結果が必ず 0 件になる検索で回数を減らさない）。
+     */
+    function validateSearchTimeRange(duration) {
+      const { fromMin, toMin } = getSearchTimeRange();
+      if (fromMin >= toMin) return 'invalidTimeRange';
+      if (Number.isFinite(duration) && toMin - fromMin < duration) return 'timeRangeTooShort';
+      return null;
+    }
+
+    function findFreeSlots(startDate, endDate, duration, events, fromMin = DAY_START * 60, toMin = DAY_END * 60) {
       const slots = [];
       const [sy, sm, sd] = startDate.split('-').map(Number);
       const [ey, em, ed] = endDate.split('-').map(Number);
@@ -3883,12 +4464,12 @@
           // 現在時刻を30分単位で切り捨て（14:32→14:30、14:45→14:30）
           const nowMinutes = now.getHours() * 60 + now.getMinutes();
           const roundedMinutes = Math.floor(nowMinutes / STEP_MIN) * STEP_MIN;
-          const startMinutes = Math.max(DAY_START * 60, roundedMinutes);
+          const startMinutes = Math.max(fromMin, roundedMinutes);
           dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(startMinutes / 60), startMinutes % 60, 0);
         } else {
-          dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_START, 0, 0);
+          dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(fromMin / 60), fromMin % 60, 0);
         }
-        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), DAY_END, 0, 0);
+        const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(toMin / 60), toMin % 60, 0);
         const dayEvents = events
           .map(e => ({ start: new Date(e.start), end: new Date(e.end) }))
           .filter(e => e.start < dayEnd && e.end > dayStart)
@@ -3903,11 +4484,15 @@
             if (bStart === null) bStart = new Date(cur);
             cur = next;
           } else {
-            if (bStart !== null && (cur - bStart) >= duration * 60000) {
-              slots.push({ start: new Date(bStart), end: new Date(cur) });
+            const blocking = dayEvents.filter(e => e.start < next && e.end > cur);
+            // 空き塊の終わりは、刻みの途中で始まる予定の開始時刻まで伸ばす。
+            // 刻み（30分）で切り捨てると、10:00-10:45 のような 45 分の隙間が 30 分に縮む。
+            const minStart = new Date(Math.min(...blocking.map(e => e.start)));
+            const freeEnd = minStart > cur ? minStart : cur;
+            if (bStart !== null && (freeEnd - bStart) >= duration * 60000) {
+              slots.push({ start: new Date(bStart), end: new Date(freeEnd) });
             }
             bStart = null;
-            const blocking = dayEvents.filter(e => e.start < next && e.end > cur);
             const maxEnd = new Date(Math.max(...blocking.map(e => e.end)));
             cur = maxEnd > next ? maxEnd : next;
           }
@@ -4136,13 +4721,51 @@
         </div>`;
     }
 
+    /**
+     * 週間カレンダー（俯瞰用）。currentDailyResults をそのまま列にするだけで、
+     * 空き時間の再計算はしない。操作（コピー等）は日別カード側に残す。
+     */
+    function renderWeeklyCalendar(dailyResults, currentIndex) {
+      if (!dailyResults || dailyResults.length === 0) return '';
+      const days = t('days');
+      const months = t('months');
+      const columns = dailyResults.map((day, idx) => {
+        const dow = day.date.getDay();
+        const dateLabel = currentLang === 'en'
+          ? `${months[day.date.getMonth()]} ${day.date.getDate()}`
+          : `${day.date.getMonth() + 1}/${day.date.getDate()}`;
+        const dowClass = dow === 0 ? ' dow-sun' : dow === 6 ? ' dow-sat' : '';
+        const isCurrent = idx === currentIndex;
+        const navAria = currentLang === 'en'
+          ? t('weeklyDayNavAria', months[day.date.getMonth()], day.date.getDate(), days[dow])
+          : t('weeklyDayNavAria', day.date.getMonth() + 1, day.date.getDate(), days[dow]);
+        // 俯瞰用なので 1 日 WEEKLY_MAX_SLOTS 件まで。残りは件数だけ出す（全件は日別カードで見る）。
+        const shown = day.slots.slice(0, WEEKLY_MAX_SLOTS);
+        const hidden = day.slots.length - shown.length;
+        const body = day.slots.length === 0
+          ? `<div class="weekly-empty">${t('noAvailability')}</div>`
+          : `<ul class="weekly-slots">${shown.map((s) =>
+              `<li class="weekly-slot">${pad(s.start.getHours())}:${pad(s.start.getMinutes())}〜${pad(s.end.getHours())}:${pad(s.end.getMinutes())}</li>`
+            ).join('')}${hidden > 0 ? `<li class="weekly-more">${t('weeklyMore', hidden)}</li>` : ''}</ul>`;
+        return `
+          <div class="weekly-day${dowClass}${isCurrent ? ' is-current' : ''}" data-weekly-day="${day.dateKey}"${isCurrent ? ' aria-current="date"' : ''}>
+            <button type="button" class="weekly-day-head" data-weekly-nav="${day.dateKey}" onclick="triggerDateNav('${day.dateKey}')" aria-label="${navAria}"><span class="weekly-dow">${days[dow]}</span><span class="weekly-date">${dateLabel}</span></button>
+            ${body}
+          </div>`;
+      }).join('');
+      // 同じ検索結果かどうかの目印。日付範囲が同じでも、検索し直したら別物として扱う。
+      const range = `${dailyResults[0].dateKey}_${dailyResults[dailyResults.length - 1].dateKey}#${weeklyResultSeq}`;
+      return `<div class="weekly-calendar" data-weekly-calendar data-weekly-range="${range}" role="region" aria-label="${t('weeklyCalendarAria')}">${columns}</div>`;
+    }
+
     function renderDailyResultHtml() {
       if (!currentDailyResults || currentDailyResults.length === 0) {
         return `<div style="text-align:center;padding:60px 20px;color:#888;">${t('noSlotsMsg')}</div>`;
       }
       if (currentDayIndex < 0) currentDayIndex = 0;
       if (currentDayIndex > currentDailyResults.length - 1) currentDayIndex = currentDailyResults.length - 1;
-      return renderDailyCard(currentDailyResults[currentDayIndex]);
+      return renderWeeklyCalendar(currentDailyResults, currentDayIndex)
+        + renderDailyCard(currentDailyResults[currentDayIndex]);
     }
 
     function renderCurrentDay() {
@@ -4171,6 +4794,12 @@
       if (!sukimaAuthenticated) {
         showToast(t('needsSignIn'));
         updateAuthUi();
+        return;
+      }
+      // 検索後に時間帯を変えてから翌週へ進んだ場合も、quota を使う前に止める。
+      const timeRangeError = validateSearchTimeRange(parseInt(document.getElementById('duration').value));
+      if (timeRangeError) {
+        showToast(t(timeRangeError));
         return;
       }
       const startDate = document.getElementById('startDate').value;
@@ -4234,7 +4863,8 @@
     }
 
     function isSwipeExcludedTarget(target) {
-      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone]'));
+      // 週間カレンダーの上では日送りスワイプを始めない（ネイティブの横スクロールに任せる）。
+      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone], [data-weekly-calendar]'));
     }
 
     function isWeekSwipeZoneTarget(target) {
