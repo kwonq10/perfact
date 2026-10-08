@@ -14,12 +14,18 @@ Claude Code / Codex / その他AIコーディングエージェントは、作�
 
 ## 正式な作業場所
 
-C:\Users\tetsu\perfact
+正式なソースは GitHub の `kwonq10/perfact`（origin/main）です。
+作業場所は PC ごとに異なってよく、パスはすべてリポジトリルート基準で扱います。
+各PCでは origin から clone した作業コピー（またはその git worktree）だけを使ってください。
+
+- 開発環境の構築: DEVELOPMENT_SETUP.md
+- 本番反映のルール: DEPLOYMENT.md
+- 現在の状態: PROJECT_STATUS.md
 
 Tempフォルダ内の古い作業コピーは使わないでください。
 
-G:\マイドライブ\バイブコーディング\perfact は旧コピーです。
-参照のみに使い、current source として扱わないでください。G: 側から push しないでください。
+Google Drive 上にある旧コピー（バイブコーディング配下の perfact）は参照専用です。
+current source として扱わず、そこから push しないでください。
 
 ## 本番URL
 
@@ -50,14 +56,25 @@ G:\マイドライブ\バイブコーディング\perfact は旧コピーです�
 Netlify は現在の production ホストではありません。
 リポジトリに残っている netlify.toml は現在の配信に使われていません。
 
-### production の環境変数
+### 環境変数
 
-すべて Cloudflare Pages の secret として登録済みです。
+本番の値は Cloudflare Pages の secret として管理し、Git には入れません。
 **値はこのファイルに絶対に書かないでください。** 名前のみ記載します。
+ローカルではリポジトリルートの `.dev.vars`（gitignore 済み）に置きます。テンプレートは `.dev.vars.example` です。
 
-- GOOGLE_CLIENT_IDS
-- SUPABASE_URL
-- SUPABASE_SERVICE_ROLE_KEY
+| 変数 | 用途 |
+|---|---|
+| GOOGLE_CLIENT_IDS | 許可する Google OAuth クライアントID（カンマ区切り） |
+| SUPABASE_URL | Supabase プロジェクト URL |
+| SUPABASE_SERVICE_ROLE_KEY | Supabase service_role キー（秘密・サーバー専用） |
+| STRIPE_SECRET_KEY | Stripe シークレットキー（秘密） |
+| STRIPE_API_VERSION | Stripe API バージョン（任意） |
+| ALLOWED_ORIGINS | Web API の許可 Origin（任意。設定すると既定値を上書き） |
+| EXTENSION_IDS | 許可する Chrome 拡張機能 ID（任意。未設定なら許可 0 件） |
+| EXTENSION_QUOTA_ENABLED | 拡張機能 quota の有効化（厳密に "true" のときだけ有効） |
+
+本番に登録済みと記録されているのは GOOGLE_CLIENT_IDS / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY です。
+その他の変数の登録状況は Cloudflare 側で確認してください（確認は読み取りのみ。変更は承認制）。
 
 ### preview 環境
 
@@ -104,7 +121,12 @@ commit前に必ず確認してください。
 ## 禁止事項
 
 - ユーザー確認なしにcommitしない
-- ユーザー確認なしにpushしない
+- ユーザー確認なしにpushしない（main への push は本番への自動deployです。DEPLOYMENT.md 参照）
+- ユーザー確認なしにdeployしない（`wrangler pages deploy` は使わない）
+- ユーザー確認なしに Cloudflare の設定・secret を変更しない
+- ユーザー確認なしに本番 DB へ migration を適用しない
+- secrets の値を Git・文書・チャットに書かない
+- `npm install` / `npm update` / `npm audit fix` で lockfile を勝手に変えない（`npm ci` を使う）
 - OAuth Client IDを勝手に変更しない
 - SCOPESを勝手に変更しない
 - privacy.html のOAuth審査向け文言を勝手に変更しない

@@ -1,0 +1,44 @@
+# .dev.vars.example
+#
+# `npx wrangler pages dev` がローカルで読む環境変数のテンプレートです。
+# このファイルをコピーして `.dev.vars` を作り、値は各PCで手入力してください。
+#
+#   cp .dev.vars.example .dev.vars        (Git Bash)
+#   Copy-Item .dev.vars.example .dev.vars (PowerShell)
+#
+# 重要:
+# - このファイルには値を絶対に書かない（変数名と説明だけ）。
+# - `.dev.vars` は .gitignore 済み。commit しない。
+# - 本番の値は Cloudflare Pages の secret にあり、Git では管理しない。
+# - 本番 Supabase / Stripe live の鍵をローカルで使うと本番データに書き込む。
+#   使う場合は事前に明示承認を得る（DEVELOPMENT_SETUP.md 参照）。
+#
+# テスト（npm test）にはこのファイルは不要です。
+
+# 許可する Google OAuth クライアントID（カンマ区切り）。
+# 未設定だと /api/auth/session が 500 server_misconfigured を返す。
+GOOGLE_CLIENT_IDS=
+
+# Supabase プロジェクトの URL。
+SUPABASE_URL=
+
+# Supabase の service_role キー（秘密）。サーバー側専用。クライアントへ渡さない。
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Stripe のシークレットキー（秘密）。ローカルではテストモードのキーのみ使う。
+STRIPE_SECRET_KEY=
+
+# 任意。Stripe API バージョン。未設定なら Stripe アカウントの既定版。
+# 課金スケジュール処理は特定の版を前提にしている（functions/api/_lib/billing-schedule.js 参照）。
+STRIPE_API_VERSION=
+
+# 任意。Web API が受け付ける Origin（カンマ区切り）。
+# 設定すると既定値（本番 origin）を「上書き」する。ローカルではローカルの origin を入れる。
+ALLOWED_ORIGINS=
+
+# 任意。許可する Chrome 拡張機能 ID（カンマ区切り、32文字 a〜p）。
+# 未設定なら拡張機能からのアクセスは 0 件許可（フェイルクローズ）。
+EXTENSION_IDS=
+
+# 任意。拡張機能の quota を有効にするか。trim + 小文字化して厳密に "true" のときだけ有効。
+EXTENSION_QUOTA_ENABLED=

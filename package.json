@@ -4,6 +4,7 @@
   "private": true,
   "description": "スキマ — Cloudflare Pages Functions（課金バックエンド）",
   "type": "module",
+  "packageManager": "npm@11.11.0",
   "engines": {
     "node": ">=20"
   },

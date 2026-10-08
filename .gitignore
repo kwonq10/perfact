@@ -16,3 +16,9 @@ node_modules/
 # wrangler のローカル変数（秘密値を含むため絶対に commit しない）
 .dev.vars
 .dev.vars.*
+# 変数名と説明だけのテンプレートは共有する（値は書かない）
+!.dev.vars.example
+
+# 汎用の env ファイルも誤 commit を防ぐ（現状は未使用）
+.env
+.env.*
