@@ -367,3 +367,144 @@ test('sw.js の APP_VERSION は 1.4.0、latest-version.json は 1.4.0 / minimumV
   assert.equal(LATEST.version, '1.4.0');
   assert.equal(LATEST.minimumVersion, '1.0.0');
 });
+
+// =========================================================
+// 「あとで」のあと 30 分以上離れて戻ったら再案内（Android の PWA は同じページのまま復帰するため）
+// =========================================================
+
+const MIN = 60 * 1000;
+
+/** 時刻を差し替えられるようにする。 */
+function withClock(ctx, start = 1_000_000) {
+  ctx.p.run(`var __now = ${start}; Date.now = () => __now;`);
+  return {
+    advance: (ms) => ctx.p.run(`__now += ${ms};`),
+  };
+}
+
+/** バックグラウンドへ行って、ms 後に前面へ戻る（visibilitychange 経由）。 */
+function awayFor(ctx, clock, ms) {
+  ctx.p.run("document.visibilityState = 'hidden';");
+  ctx.p.call('handleUpdateVisibilityChange');
+  clock.advance(ms);
+  ctx.p.run("document.visibilityState = 'visible';");
+  ctx.p.call('handleUpdateVisibilityChange');
+}
+
+/** 「あとで」を押した直後の状態を作る。 */
+function dismissedPage(opts = {}) {
+  const ctx = swPage();
+  const clock = withClock(ctx);
+  arrive(ctx, opts);
+  ctx.p.call('dismissUpdate');
+  assert.equal(shown(ctx.p), false);
+  return { ctx, clock };
+}
+
+test('30 分ルール: 定数で 30 分、visibilitychange / pagehide / pageshow に接続されている', () => {
+  assert.match(HTML, /const UPDATE_DISMISS_REPROMPT_MS = 30 \* 60 \* 1000;/);
+  assert.match(HTML, /document\.addEventListener\('visibilitychange', handleUpdateVisibilityChange\);/);
+  assert.match(HTML, /window\.addEventListener\('pagehide', markUpdateHidden\);/);
+  assert.match(HTML, /window\.addEventListener\('pageshow', handleUpdatePageShow\);/);
+});
+
+test('「あとで」→ 29 分後に復帰: 再表示しない（抑止を保つ）', () => {
+  const { ctx, clock } = dismissedPage();
+  awayFor(ctx, clock, 29 * MIN);
+  assert.equal(shown(ctx.p), false);
+  assert.equal(ctx.p.run('updateDismissedThisSession'), true);
+});
+
+test('「あとで」→ ちょうど 30 分後に復帰: 抑止を解除して再判定し、案内する', () => {
+  const { ctx, clock } = dismissedPage();
+  awayFor(ctx, clock, 30 * MIN);
+  assert.equal(ctx.p.run('updateDismissedThisSession'), false);
+  assert.equal(shown(ctx.p), true);
+});
+
+test('「あとで」→ 31 分後に復帰: 再表示する', () => {
+  const { ctx, clock } = dismissedPage();
+  awayFor(ctx, clock, 31 * MIN);
+  assert.equal(shown(ctx.p), true);
+});
+
+test('短い離脱を何度繰り返しても、合計が 30 分を超えただけでは再表示しない（離れていた 1 回の長さで判定）', () => {
+  const { ctx, clock } = dismissedPage();
+  for (let i = 0; i < 5; i++) awayFor(ctx, clock, 10 * MIN);
+  assert.equal(shown(ctx.p), false);
+});
+
+test('30 分経過していても、更新が無い（current === latest）なら表示しない', () => {
+  const { ctx, clock } = dismissedPage();
+  ctx.p.run("swUpdateState.currentVersion = '1.4.0';"); // 待機中だった版が有効になった
+  awayFor(ctx, clock, 31 * MIN);
+  assert.equal(shown(ctx.p), false);
+});
+
+test('30 分経過していても、待機中の SW が無ければ表示しない', () => {
+  const { ctx, clock } = dismissedPage();
+  ctx.p.run('swUpdateState.waiting = null; swUpdateState.updateAvailable = false;');
+  awayFor(ctx, clock, 31 * MIN);
+  assert.equal(shown(ctx.p), false);
+});
+
+test('再表示後に visibilitychange を繰り返しても、案内を重ねて出し直さない', () => {
+  const { ctx, clock } = dismissedPage();
+  ctx.p.run('var __shows = 0; const __origShow = showNormalUpdate; showNormalUpdate = function () { __shows += 1; return __origShow(); };');
+  awayFor(ctx, clock, 31 * MIN);
+  assert.equal(ctx.p.run('__shows'), 1);
+  for (let i = 0; i < 3; i++) awayFor(ctx, clock, 1 * MIN);
+  awayFor(ctx, clock, 40 * MIN); // 「あとで」していないので抑止解除の対象外
+  assert.equal(ctx.p.run('__shows'), 1);
+  assert.equal(shown(ctx.p), true);
+});
+
+test('30 分経過後の再表示でも「あとで」をもう一度使え、その後の短い復帰では出ない', () => {
+  const { ctx, clock } = dismissedPage();
+  awayFor(ctx, clock, 31 * MIN);
+  assert.equal(shown(ctx.p), true);
+  ctx.p.call('dismissUpdate');
+  assert.equal(shown(ctx.p), false);
+  awayFor(ctx, clock, 5 * MIN);
+  assert.equal(shown(ctx.p), false);
+  awayFor(ctx, clock, 30 * MIN);
+  assert.equal(shown(ctx.p), true);
+});
+
+test('BFCache からの復元（pageshow persisted）でも 30 分ルールを使う。通常の pageshow では何もしない', () => {
+  const { ctx, clock } = dismissedPage();
+  ctx.p.call('markUpdateHidden');           // pagehide
+  clock.advance(10 * MIN);
+  ctx.p.call('handleUpdatePageShow', { persisted: true });
+  assert.equal(shown(ctx.p), false, '10 分では出さない');
+  ctx.p.call('markUpdateHidden');
+  clock.advance(31 * MIN);
+  ctx.p.call('handleUpdatePageShow', { persisted: false });
+  assert.equal(shown(ctx.p), false, '通常の読み込みの pageshow では判定しない');
+  ctx.p.call('handleUpdatePageShow', { persisted: true });
+  assert.equal(shown(ctx.p), true);
+});
+
+test('強制更新には 30 分ルールを適用しない（従来どおり最優先・閉じられない）', () => {
+  const ctx = swPage();
+  const clock = withClock(ctx);
+  arrive(ctx, { current: '0.9.0', minimum: '1.0.0' });
+  assert.equal(ctx.p.run('updateUiMode'), 'forced');
+  ctx.p.call('dismissUpdate');
+  assert.equal(ctx.p.run('updateDismissedThisSession'), false, '強制更新では「あとで」自体が効かない');
+  awayFor(ctx, clock, 5 * MIN);
+  assert.equal(ctx.p.run('updateUiMode'), 'forced');
+  assert.equal(ctx.p.el('forceUpdateOverlay').style.display, 'flex');
+});
+
+test('完全終了後に新しい SW が有効化済み（current === latest、待機なし）なら何も表示しない', () => {
+  const ctx = swPage();
+  arrive(ctx, { current: '1.4.0', latest: '1.4.0', waiting: false });
+  assert.equal(shown(ctx.p), false);
+  assert.equal(ctx.p.run('updateUiMode'), 'none');
+  assert.equal(ctx.p.el('toast').textContent, '', '通知も出さない');
+});
+
+test('「更新しました」のような新しい通知は追加していない', () => {
+  assert.doesNotMatch(HTML, /更新しました|アップデートしました|Updated to|has been updated/);
+});
