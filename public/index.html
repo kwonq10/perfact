@@ -1081,6 +1081,8 @@
     const SEARCH_PRESETS_KEY = 'sukima_search_presets_v1';
     const SEARCH_PRESET_MAX = 10;
     const SEARCH_PRESET_NAME_MAX = 20;
+    // 削除ボタンを 1 回押したあと、もう一度押せば削除になる猶予（ミリ秒）。
+    const SEARCH_PRESET_DELETE_CONFIRM_MS = 3000;
 
     let tokenClient;
     // Google Calendar 専用の OAuth access token。Sukima の API へは絶対に送らない。
@@ -2047,7 +2049,7 @@
       if (presetDeleteConfirmId !== id) {
         resetPresetDeleteConfirm();
         presetDeleteConfirmId = id;
-        presetDeleteConfirmTimer = setTimeout(() => { resetPresetDeleteConfirm(); renderSearchPresets(); }, 3000);
+        presetDeleteConfirmTimer = setTimeout(() => { resetPresetDeleteConfirm(); renderSearchPresets(); }, SEARCH_PRESET_DELETE_CONFIRM_MS);
         renderSearchPresets();
         return false;
       }
@@ -4413,8 +4415,9 @@
       } catch (e) {
         const errMsg = t('errorPrefix') + e.message;
         setStatusForm(errMsg);
+        // e.message には受け取った応答の一部が混ざることがある（JSON の解析エラー等）ので必ずエスケープする。
         document.getElementById('resultContent').innerHTML =
-          '<div style="text-align:center;padding:60px 20px;color:#c00;font-size:15px;">' + errMsg + '</div>';
+          '<div style="text-align:center;padding:60px 20px;color:#c00;font-size:15px;">' + escapeHtml(errMsg) + '</div>';
         return { success: false, authExpired: false };
       } finally {
         btn.disabled = false;
@@ -4640,6 +4643,17 @@
 
     function pad(n) { return String(n).padStart(2, '0'); }
 
+    /** Date を "09:00" にする。 */
+    function formatHm(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+    /** 空き枠を "09:00〜09:30" にする（週間カレンダー・選択コピー共通）。 */
+    function formatSlotRange(slot) { return `${formatHm(slot.start)}〜${formatHm(slot.end)}`; }
+
+    /** innerHTML に入れる文字列のエスケープ（外から来た可能性がある文字列用）。 */
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function slotToCalendarUrl(slot) {
       const fmt = (d) =>
         `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
@@ -4649,8 +4663,8 @@
     function slotToText(slot) {
       const days = t('days');
       const dow = slot.start.getDay();
-      const startT = `${pad(slot.start.getHours())}:${pad(slot.start.getMinutes())}`;
-      const endT = `${pad(slot.end.getHours())}:${pad(slot.end.getMinutes())}`;
+      const startT = formatHm(slot.start);
+      const endT = formatHm(slot.end);
       let dateStr;
       if (currentLang === 'en') {
         const months = t('months');
@@ -4659,37 +4673,6 @@
         dateStr = `${slot.start.getMonth()+1}月${slot.start.getDate()}日(${days[dow]})`;
       }
       return `${dateStr} ${startT}〜${endT}`;
-    }
-
-
-
-    function formatResult(slots) {
-      const days = t('days');
-      if (slots.length === 0) {
-        return `<div style="text-align:center;padding:60px 20px;color:#888;">${t('noSlotsMsg')}</div>`;
-      }
-      let html = `<p style="text-align:center;color:#888;font-size:14px;margin-bottom:20px;">${t('slotsFound', slots.length)}</p>`;
-      slots.forEach((s, i) => {
-        let dateStr;
-        if (currentLang === 'en') {
-          const months = t('months');
-          dateStr = `${months[s.start.getMonth()]} ${s.start.getDate()} (${days[s.start.getDay()]})`;
-        } else {
-          dateStr = `${s.start.getMonth()+1}月${s.start.getDate()}日 (${days[s.start.getDay()]})`;
-        }
-        const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
-        const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
-        html += `
-          <div class="slot-card">
-            <div class="slot-date">${dateStr}</div>
-            <div class="slot-time">${startT}<span>〜</span>${endT}</div>
-            <div class="slot-actions">
-              <button class="btn-copy" onclick="copySlot(${i})">${t('copySlot')}</button>
-              <button class="btn-calendar" onclick="openCalendar(${i})">${t('addCalendar')}</button>
-            </div>
-          </div>`;
-      });
-      return html;
     }
 
     function dateKeyOfDate(d) {
@@ -4733,8 +4716,8 @@
         slotsHtml = `<div class="no-slots-message">${t('noAvailability')}</div>`;
       } else {
         slotsHtml = day.slots.map((s, i) => {
-          const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
-          const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
+          const startT = formatHm(s.start);
+          const endT = formatHm(s.end);
           const selected = selectedSlotKeys.has(slotSelectionKey(day, i));
           // 行のどこを押しても選択できる（コピー・予定追加ボタンは除く）。
           // キーボード・読み上げ用に、左上のチェックボックス（role=checkbox）でも切り替えられる。
@@ -4790,7 +4773,7 @@
         const body = day.slots.length === 0
           ? `<div class="weekly-empty">${t('noAvailability')}</div>`
           : `<ul class="weekly-slots">${shown.map((s) =>
-              `<li class="weekly-slot">${pad(s.start.getHours())}:${pad(s.start.getMinutes())}〜${pad(s.end.getHours())}:${pad(s.end.getMinutes())}</li>`
+              `<li class="weekly-slot">${formatSlotRange(s)}</li>`
             ).join('')}${hidden > 0 ? `<li class="weekly-more">${t('weeklyMore', hidden)}</li>` : ''}</ul>`;
         return `
           <div class="weekly-day${dowClass}${isCurrent ? ' is-current' : ''}" data-weekly-day="${day.dateKey}"${isCurrent ? ' aria-current="date"' : ''}>
@@ -5174,7 +5157,9 @@
       const day = currentDailyResults[currentDayIndex];
       if (!day || !day.slots[i]) return;
       const url = slotToCalendarUrl(day.slots[i]);
-      window.open(url, '_blank');
+      // 開いた先のページから window.opener 経由でこのページを操作させない。
+      // noopener 指定時の戻り値は null なので使わない。
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
 
     // クリップボードへの書き込みは、権限拒否・非セキュアコンテキスト・
@@ -5284,7 +5269,7 @@
         const times = day.slots
           .map((s, i) => ({ s, i }))
           .filter(({ i }) => selectedSlotKeys.has(slotSelectionKey(day, i)))
-          .map(({ s }) => `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}〜${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`);
+          .map(({ s }) => formatSlotRange(s));
         if (times.length > 0) blocks.push([selectedCopyDateLabel(day.date)].concat(times).join('\n'));
       });
       if (blocks.length === 0) return;
