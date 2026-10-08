@@ -506,13 +506,31 @@
       .daily-result-card { min-height: calc(100dvh - 180px); }
     }
     .daily-result-card > .btn { margin-top: auto; }
-    /* この日の空き時間（時刻だけ）をまとめてコピー。空き枠一覧のすぐ下に置く。 */
+    /* 選んだ空き時間（時刻だけ）をまとめてコピー。空き枠一覧のすぐ下に置く。 */
     .btn-copy-times {
       width: 100%; min-height: 44px; margin: 12px 0; padding: 10px;
       border: 1px solid #cfdcf5; border-radius: 10px; background: #f5f8ff;
       color: #2d4a7a; font-size: 14px; font-weight: 600; cursor: pointer; touch-action: manipulation;
     }
     .btn-copy-times:active { background: #e6eeff; }
+    .btn-copy-times:disabled { color: #9aa6b8; background: #f7f8fa; border-color: #e3e8ef; cursor: default; }
+    /* 空き時間の選択。チェックの見た目は 24px、押せる範囲は 44px。 */
+    .day-slot-row { cursor: pointer; }
+    .day-slot-row.is-selected { background: #f0f5ff; box-shadow: 0 0 0 8px #f0f5ff; border-radius: 6px; }
+    .slot-select-line { display: flex; align-items: center; gap: 2px; }
+    .slot-select-line .slot-date { margin-bottom: 0; }
+    .slot-select {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; margin: -10px 0 -10px -12px; padding: 0;
+      border: none; background: transparent; cursor: pointer; touch-action: manipulation;
+    }
+    .slot-check {
+      display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+      border: 2px solid #b8c6e0; border-radius: 6px; background: #fff;
+      color: transparent; font-size: 15px; font-weight: 700; line-height: 1;
+    }
+    .day-slot-row.is-selected .slot-check { background: #4f8ef7; border-color: #4f8ef7; color: #fff; }
+    .slot-select:focus-visible { outline: 2px solid #4f8ef7; outline-offset: -4px; border-radius: 8px; }
     .swipe-hint {
       pointer-events: none; user-select: none;
       color: #b8c2cf; font-size: 12px; font-weight: 600;
@@ -1109,6 +1127,10 @@
     let weekSwipeState = null;
     // 新しい検索のたびに増やす。週間カレンダーの横位置は同じ検索結果の中でだけ引き継ぐ。
     let weeklyResultSeq = 0;
+    // 日別カードで選んだ空き時間（その日の slots の添字）。
+    // 「検索ごとの番号 + 日付」が変わったら（日付切替・新しい検索）空に戻す。
+    let selectedSlotIndexes = new Set();
+    let selectedSlotsScope = null;
     let isSearching = false;
     let isAnimating = false;
     const SWIPE_MIN_DISTANCE = 50;
@@ -1357,8 +1379,10 @@
         nextWeekFail: '翌週の検索に失敗しました',
         copied: 'コピーしました',
         copiedDay: 'この日をコピーしました',
-        copyDayTimes: 'この日の空き時間をまとめてコピー',
-        copiedDayTimes: 'この日の空き時間をコピーしました',
+        copySelectedNone: '空き時間を選んでください',
+        copySelected: (n) => `選んだ${n}件をコピー`,
+        copiedSelected: '選んだ空き時間をコピーしました',
+        slotSelectAria: (time) => `${time} を選ぶ`,
         copiedAll: '全件コピーしました',
         copyFailed: 'コピーできませんでした。ブラウザのクリップボード権限をご確認ください。',
         loginFailed: 'ログインに失敗しました',
@@ -1536,8 +1560,10 @@
         nextWeekFail: 'Failed to load next week',
         copied: 'Copied',
         copiedDay: 'Copied day',
-        copyDayTimes: 'Copy all times for this day',
-        copiedDayTimes: 'Copied all times for this day',
+        copySelectedNone: 'Select free times to copy',
+        copySelected: (n) => (n === 1 ? 'Copy 1 selected time' : `Copy ${n} selected times`),
+        copiedSelected: 'Copied the selected times',
+        slotSelectAria: (time) => `Select ${time}`,
         copiedAll: 'Copied all',
         copyFailed: 'Could not copy. Please check your browser clipboard permission.',
         loginFailed: 'Login failed',
@@ -4701,6 +4727,7 @@
       const DOW_LEFT_OFFSETS = ['0%', '4%', '7%', '11%', '15%', '19%', '22%'];
       const dateColorClass = dow === 0 ? ' dow-sun' : dow === 6 ? ' dow-sat' : '';
 
+      ensureSlotSelectionScope(day);
       let slotsHtml;
       if (day.slots.length === 0) {
         slotsHtml = `<div class="no-slots-message">${t('noAvailability')}</div>`;
@@ -4708,9 +4735,15 @@
         slotsHtml = day.slots.map((s, i) => {
           const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
           const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
+          const selected = selectedSlotIndexes.has(i);
+          // 行のどこを押しても選択できる（コピー・予定追加ボタンは除く）。
+          // キーボード・読み上げ用に、左上のチェックボックス（role=checkbox）でも切り替えられる。
           return `
-            <div class="day-slot-row">
-              <div class="slot-date">${t('available')}</div>
+            <div class="day-slot-row${selected ? ' is-selected' : ''}" data-slot-index="${i}" onclick="handleSlotRowClick(event, ${i})">
+              <div class="slot-select-line">
+                <button type="button" class="slot-select" role="checkbox" aria-checked="${selected ? 'true' : 'false'}" aria-label="${t('slotSelectAria', `${startT}〜${endT}`)}" onclick="toggleSlotSelection(${i})"><span class="slot-check" aria-hidden="true">✓</span></button>
+                <div class="slot-date">${t('available')}</div>
+              </div>
               <div class="slot-time">${startT}<span>〜</span>${endT}</div>
               <div class="slot-actions">
                 <button class="btn-copy" onclick="copySlot(${i})">${t('copySlot')}</button>
@@ -4725,7 +4758,7 @@
           ${renderWeekPosIndicator(dow)}
           <div class="day-card-date${dateColorClass}" style="padding-left:${DOW_LEFT_OFFSETS[dow]}">${dateStr}</div>
           ${slotsHtml}
-          ${day.slots.length > 0 ? `<button type="button" class="btn-copy-times" onclick="copyCurrentDayTimes()">${t('copyDayTimes')}</button>` : ''}
+          ${day.slots.length > 0 ? `<button type="button" class="btn-copy-times" id="copySelectedBtn" onclick="copySelectedSlots()"${selectedSlotIndexes.size === 0 ? ' disabled' : ''}>${copySelectedLabel()}</button>` : ''}
           <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>${t('copyDay')}</button>
         </div>
         <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="${t('nextWeekAria')}">
@@ -5173,17 +5206,75 @@
       writeToClipboard(text, 'copiedDay');
     }
 
-    /**
-     * 表示中の日の空き時間を、時刻だけ改行区切りでまとめてコピーする。
-     * 週間カレンダーで「+N件」に省略した分も含め、その日の全件を対象にする。
-     */
-    function copyCurrentDayTimes() {
+    // -----------------------------------------------------
+    // 空き時間の選択と「選んだN件をコピー」
+    //   選択はその日・その検索結果の中だけで持つ（日付切替・新しい検索で空に戻す）。
+    //   週間カレンダーで「+N件」に省略した分も、日別カードの全件から選べる。
+    // -----------------------------------------------------
+
+    function slotSelectionScopeOf(day) {
+      return day ? `${weeklyResultSeq}|${day.dateKey}` : null;
+    }
+
+    function ensureSlotSelectionScope(day) {
+      const scope = slotSelectionScopeOf(day);
+      if (scope !== selectedSlotsScope) {
+        selectedSlotsScope = scope;
+        selectedSlotIndexes = new Set();
+      }
+    }
+
+    function copySelectedLabel() {
+      const n = selectedSlotIndexes.size;
+      return n === 0 ? t('copySelectedNone') : t('copySelected', n);
+    }
+
+    /** 再描画せずに、選択の見た目とコピーボタンだけ更新する（カードのアニメーションを起こさない）。 */
+    function updateSlotSelectionUi() {
+      document.querySelectorAll('[data-slot-index]').forEach(row => {
+        const i = Number(row.getAttribute('data-slot-index'));
+        const selected = selectedSlotIndexes.has(i);
+        row.classList.toggle('is-selected', selected);
+        const box = row.querySelector('.slot-select');
+        if (box) box.setAttribute('aria-checked', selected ? 'true' : 'false');
+      });
+      const btn = document.getElementById('copySelectedBtn');
+      if (btn) {
+        btn.textContent = copySelectedLabel();
+        btn.disabled = selectedSlotIndexes.size === 0;
+      }
+    }
+
+    function toggleSlotSelection(i) {
       const day = currentDailyResults[currentDayIndex];
-      if (!day || day.slots.length === 0) return;
-      const text = day.slots
+      if (!day || !day.slots[i]) return;
+      ensureSlotSelectionScope(day);
+      if (selectedSlotIndexes.has(i)) selectedSlotIndexes.delete(i);
+      else selectedSlotIndexes.add(i);
+      updateSlotSelectionUi();
+    }
+
+    /** 行のクリック。コピー・予定追加・チェックボックス自身の押下は除く（二重に切り替えない）。 */
+    function handleSlotRowClick(event, i) {
+      const target = event && event.target;
+      if (target && target.closest && target.closest('.slot-actions, .slot-select')) return;
+      toggleSlotSelection(i);
+    }
+
+    /** 選んだ空き時間だけを、表示順に時刻だけ改行区切りでコピーする。 */
+    function copySelectedSlots() {
+      const day = currentDailyResults[currentDayIndex];
+      if (!day) return;
+      ensureSlotSelectionScope(day);
+      const picked = Array.from(selectedSlotIndexes)
+        .filter(i => day.slots[i])
+        .sort((a, b) => a - b)
+        .map(i => day.slots[i]);
+      if (picked.length === 0) return;
+      const text = picked
         .map(s => `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}〜${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`)
         .join('\n');
-      writeToClipboard(text, 'copiedDayTimes');
+      writeToClipboard(text, 'copiedSelected');
     }
 
     function copyAll() {
