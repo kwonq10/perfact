@@ -1127,10 +1127,10 @@
     let weekSwipeState = null;
     // 新しい検索のたびに増やす。週間カレンダーの横位置は同じ検索結果の中でだけ引き継ぐ。
     let weeklyResultSeq = 0;
-    // 日別カードで選んだ空き時間（その日の slots の添字）。
-    // 「検索ごとの番号 + 日付」が変わったら（日付切替・新しい検索）空に戻す。
-    let selectedSlotIndexes = new Set();
-    let selectedSlotsScope = null;
+    // 日別カードで選んだ空き時間。キーは「日付#その日の slots の添字」で、日付をまたいで持つ。
+    // 新しい検索（weeklyResultSeq が変わったとき）だけ空に戻す。
+    let selectedSlotKeys = new Set();
+    let selectedSlotsSeq = null;
     let isSearching = false;
     let isAnimating = false;
     const SWIPE_MIN_DISTANCE = 50;
@@ -4727,7 +4727,7 @@
       const DOW_LEFT_OFFSETS = ['0%', '4%', '7%', '11%', '15%', '19%', '22%'];
       const dateColorClass = dow === 0 ? ' dow-sun' : dow === 6 ? ' dow-sat' : '';
 
-      ensureSlotSelectionScope(day);
+      ensureSlotSelectionScope();
       let slotsHtml;
       if (day.slots.length === 0) {
         slotsHtml = `<div class="no-slots-message">${t('noAvailability')}</div>`;
@@ -4735,7 +4735,7 @@
         slotsHtml = day.slots.map((s, i) => {
           const startT = `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}`;
           const endT = `${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`;
-          const selected = selectedSlotIndexes.has(i);
+          const selected = selectedSlotKeys.has(slotSelectionKey(day, i));
           // 行のどこを押しても選択できる（コピー・予定追加ボタンは除く）。
           // キーボード・読み上げ用に、左上のチェックボックス（role=checkbox）でも切り替えられる。
           return `
@@ -4758,7 +4758,7 @@
           ${renderWeekPosIndicator(dow)}
           <div class="day-card-date${dateColorClass}" style="padding-left:${DOW_LEFT_OFFSETS[dow]}">${dateStr}</div>
           ${slotsHtml}
-          ${day.slots.length > 0 ? `<button type="button" class="btn-copy-times" id="copySelectedBtn" onclick="copySelectedSlots()"${selectedSlotIndexes.size === 0 ? ' disabled' : ''}>${copySelectedLabel()}</button>` : ''}
+          ${day.slots.length > 0 || selectedSlotKeys.size > 0 ? `<button type="button" class="btn-copy-times" id="copySelectedBtn" onclick="copySelectedSlots()"${selectedSlotKeys.size === 0 ? ' disabled' : ''}>${copySelectedLabel()}</button>` : ''}
           <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>${t('copyDay')}</button>
         </div>
         <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="${t('nextWeekAria')}">
@@ -5208,32 +5208,35 @@
 
     // -----------------------------------------------------
     // 空き時間の選択と「選んだN件をコピー」
-    //   選択はその日・その検索結果の中だけで持つ（日付切替・新しい検索で空に戻す）。
+    //   選択は同じ検索結果の中で日付をまたいで持つ（日付タップ・日送り・言語切替・
+    //   再描画では消さない）。新しい検索を実行したときだけ全日付ぶん空に戻す。
     //   週間カレンダーで「+N件」に省略した分も、日別カードの全件から選べる。
     // -----------------------------------------------------
 
-    function slotSelectionScopeOf(day) {
-      return day ? `${weeklyResultSeq}|${day.dateKey}` : null;
+    function slotSelectionKey(day, i) {
+      return `${day.dateKey}#${i}`;
     }
 
-    function ensureSlotSelectionScope(day) {
-      const scope = slotSelectionScopeOf(day);
-      if (scope !== selectedSlotsScope) {
-        selectedSlotsScope = scope;
-        selectedSlotIndexes = new Set();
+    function ensureSlotSelectionScope() {
+      if (selectedSlotsSeq !== weeklyResultSeq) {
+        selectedSlotsSeq = weeklyResultSeq;
+        selectedSlotKeys = new Set();
       }
     }
 
+    /** ボタンの文言。件数は全日付の合計。 */
     function copySelectedLabel() {
-      const n = selectedSlotIndexes.size;
+      ensureSlotSelectionScope();
+      const n = selectedSlotKeys.size;
       return n === 0 ? t('copySelectedNone') : t('copySelected', n);
     }
 
     /** 再描画せずに、選択の見た目とコピーボタンだけ更新する（カードのアニメーションを起こさない）。 */
     function updateSlotSelectionUi() {
+      const day = currentDailyResults[currentDayIndex];
       document.querySelectorAll('[data-slot-index]').forEach(row => {
         const i = Number(row.getAttribute('data-slot-index'));
-        const selected = selectedSlotIndexes.has(i);
+        const selected = !!day && selectedSlotKeys.has(slotSelectionKey(day, i));
         row.classList.toggle('is-selected', selected);
         const box = row.querySelector('.slot-select');
         if (box) box.setAttribute('aria-checked', selected ? 'true' : 'false');
@@ -5241,17 +5244,25 @@
       const btn = document.getElementById('copySelectedBtn');
       if (btn) {
         btn.textContent = copySelectedLabel();
-        btn.disabled = selectedSlotIndexes.size === 0;
+        btn.disabled = selectedSlotKeys.size === 0;
       }
     }
 
     function toggleSlotSelection(i) {
       const day = currentDailyResults[currentDayIndex];
       if (!day || !day.slots[i]) return;
-      ensureSlotSelectionScope(day);
-      if (selectedSlotIndexes.has(i)) selectedSlotIndexes.delete(i);
-      else selectedSlotIndexes.add(i);
+      ensureSlotSelectionScope();
+      const key = slotSelectionKey(day, i);
+      if (selectedSlotKeys.has(key)) selectedSlotKeys.delete(key);
+      else selectedSlotKeys.add(key);
       updateSlotSelectionUi();
+    }
+
+    /** コピー用の日付見出し。ja: 10/10（金） / en: Fri, Oct 10 */
+    function selectedCopyDateLabel(date) {
+      const days = t('days');
+      if (currentLang === 'en') return `${days[date.getDay()]}, ${t('months')[date.getMonth()]} ${date.getDate()}`;
+      return `${date.getMonth() + 1}/${date.getDate()}（${days[date.getDay()]}）`;
     }
 
     /** 行のクリック。コピー・予定追加・チェックボックス自身の押下は除く（二重に切り替えない）。 */
@@ -5261,20 +5272,23 @@
       toggleSlotSelection(i);
     }
 
-    /** 選んだ空き時間だけを、表示順に時刻だけ改行区切りでコピーする。 */
+    /**
+     * 選んだ空き時間を、日付順 → 時刻（表示）順にコピーする。
+     * 日付ごとに見出しを 1 回だけ付け、その下に時刻を並べる。日付の区切りは空行。
+     */
     function copySelectedSlots() {
-      const day = currentDailyResults[currentDayIndex];
-      if (!day) return;
-      ensureSlotSelectionScope(day);
-      const picked = Array.from(selectedSlotIndexes)
-        .filter(i => day.slots[i])
-        .sort((a, b) => a - b)
-        .map(i => day.slots[i]);
-      if (picked.length === 0) return;
-      const text = picked
-        .map(s => `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}〜${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`)
-        .join('\n');
-      writeToClipboard(text, 'copiedSelected');
+      ensureSlotSelectionScope();
+      if (selectedSlotKeys.size === 0) return;
+      const blocks = [];
+      (currentDailyResults || []).forEach(day => {
+        const times = day.slots
+          .map((s, i) => ({ s, i }))
+          .filter(({ i }) => selectedSlotKeys.has(slotSelectionKey(day, i)))
+          .map(({ s }) => `${pad(s.start.getHours())}:${pad(s.start.getMinutes())}〜${pad(s.end.getHours())}:${pad(s.end.getMinutes())}`);
+        if (times.length > 0) blocks.push([selectedCopyDateLabel(day.date)].concat(times).join('\n'));
+      });
+      if (blocks.length === 0) return;
+      writeToClipboard(blocks.join('\n\n'), 'copiedSelected');
     }
 
     function copyAll() {
