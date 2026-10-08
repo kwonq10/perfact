@@ -6,7 +6,7 @@
 //     - 日別カードの各空き時間を選べる（行のどこでも・チェックボックスでも）。複数選択可。
 //     - 選択は同じ検索結果の中で日付をまたいで保持する（日付タップ・日送り・言語切替・
 //       再描画では消さない）。新しい検索を実行したときだけ全部消す。
-//     - ボタンは全日付の合計件数: 0 件で無効「空き時間を選んでください」、n 件で「選んだn件をコピー」。
+//     - コピーは画面下の固定の選択バーから。0 件ではバーを出さず、n 件で「n件選択中」「選んだn件をコピー」（全日付の合計）。
 //     - コピー内容は日付順 → 時刻順。日付見出しは日ごとに 1 回、その下に時刻。日の区切りは空行。
 //         ja: 6/2（月）  en: Mon, Jun 2
 //     - 週間カレンダーで「+N件」に省略された分も日別カードから選べる。
@@ -61,7 +61,8 @@ const cardNow = (p) => {
   const h = p.run('renderDailyResultHtml()');
   return h.slice(h.indexOf('data-day-card'));
 };
-const copyBtn = (c) => (/<button type="button" class="btn-copy-times" id="copySelectedBtn" onclick="copySelectedSlots\(\)"( disabled)?>([^<]*)<\/button>/.exec(c) || []);
+/** 固定の選択バーのボタン文言。バーが出ていなければ null。 */
+const barLabel = (p) => (p.el('selectionBar').hidden ? null : p.el('selectionCopyBtn').textContent);
 const copied = (p) => Array.from(p.run('__copied'));
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const keys = (p) => Array.from(p.run('Array.from(selectedSlotKeys)')).sort();
@@ -114,13 +115,13 @@ test('1 日目で 2 件 → 2 日目へ移動しても 2 件保持 → 2 日目�
   const p = pageWithDays(3);
   p.call('toggleSlotSelection', 0);
   p.call('toggleSlotSelection', 2);
-  assert.equal(copyBtn(cardNow(p))[2], '選んだ2件をコピー');
+  assert.equal(barLabel(p), '選んだ2件をコピー');
   go(p, D2);
   assert.deepEqual(keys(p), [`${D1}#0`, `${D1}#2`], '日付タップでは消えない');
-  assert.equal(copyBtn(cardNow(p))[2], '選んだ2件をコピー', '他の日の選択も件数に入る');
+  assert.equal(barLabel(p), '選んだ2件をコピー', '他の日の選択も件数に入る');
   assert.deepEqual(checkedRows(cardNow(p)), [], '2 日目の行はまだ未選択');
   p.call('toggleSlotSelection', 1);
-  assert.equal(copyBtn(cardNow(p))[2], '選んだ3件をコピー');
+  assert.equal(barLabel(p), '選んだ3件をコピー');
 });
 
 test('1 日目へ戻ると 2 件がチェック済みで表示され、1 件解除すると合計 2 件', () => {
@@ -132,7 +133,7 @@ test('1 日目へ戻ると 2 件がチェック済みで表示され、1 件解�
   go(p, D1);
   assert.deepEqual(checkedRows(cardNow(p)), [0, 2]);
   p.call('toggleSlotSelection', 0);
-  assert.equal(copyBtn(cardNow(p))[2], '選んだ2件をコピー');
+  assert.equal(barLabel(p), '選んだ2件をコピー');
   assert.deepEqual(keys(p), [`${D1}#2`, `${D2}#1`]);
 });
 
@@ -153,46 +154,46 @@ test('言語切替・同じ結果の再描画では選択を保つ', () => {
   assert.deepEqual(keys(p), [`${D1}#1`]);
 });
 
-test('空き 0 件の日でも、他の日で選んでいればコピーボタンを出す（選択 UI は出さない）', () => {
+test('空き 0 件の日でも、他の日で選んでいれば選択バーを出す（その日の選択 UI は出さない）', () => {
   const p = pageWithDays(3);
   go(p, D3);
-  assert.doesNotMatch(cardNow(p), /copySelectedBtn|slot-select/, '何も選んでいなければ出さない');
+  assert.doesNotMatch(cardNow(p), /slot-select/);
+  assert.equal(barLabel(p), null, '何も選んでいなければ出さない');
   go(p, D1);
   p.call('toggleSlotSelection', 0);
   go(p, D3);
   const c = cardNow(p);
   assert.match(c, /空き時間なし/);
   assert.doesNotMatch(c, /slot-select/);
-  assert.equal(copyBtn(c)[2], '選んだ1件をコピー');
+  assert.equal(barLabel(p), '選んだ1件をコピー');
 });
 
 // =========================================================
 // ボタンの表示
 // =========================================================
 
-test('0 件選択: ボタンは無効で「空き時間を選んでください」', () => {
-  const b = copyBtn(cardNow(pageWithDays(3)));
-  assert.equal(b[1], ' disabled');
-  assert.equal(b[2], '空き時間を選んでください');
+test('0 件選択: 選択バーは出さず、カード内にもコピーボタンを置かない（コピー操作は 1 か所）', () => {
+  const p = pageWithDays(3);
+  assert.equal(barLabel(p), null);
+  assert.doesNotMatch(cardNow(p), /copySelectedSlots|btn-copy-times|copySelectedBtn/);
 });
 
 test('1 件 / 3 件選択の文言', () => {
   const p = pageWithDays(5);
   p.call('toggleSlotSelection', 0);
-  assert.equal(copyBtn(cardNow(p))[1], undefined, '有効');
-  assert.equal(copyBtn(cardNow(p))[2], '選んだ1件をコピー');
+  assert.equal(barLabel(p), '選んだ1件をコピー');
   [2, 4].forEach((i) => p.call('toggleSlotSelection', i));
-  assert.equal(copyBtn(cardNow(p))[2], '選んだ3件をコピー');
+  assert.equal(barLabel(p), '選んだ3件をコピー');
 });
 
 test('英語表示の文言', () => {
   const p = pageWithDays(3, 'en');
-  assert.equal(copyBtn(cardNow(p))[2], 'Select free times to copy');
+  assert.equal(barLabel(p), null);
   p.call('toggleSlotSelection', 0);
-  assert.equal(copyBtn(cardNow(p))[2], 'Copy 1 selected time');
+  assert.equal(barLabel(p), 'Copy 1 selected time');
   go(p, D2);
   p.call('toggleSlotSelection', 0);
-  assert.equal(copyBtn(cardNow(p))[2], 'Copy 2 selected times');
+  assert.equal(barLabel(p), 'Copy 2 selected times');
   assert.match(cardNow(p), /aria-label="Select 13:00〜13:45"/);
 });
 
@@ -269,7 +270,7 @@ test('13 件ある日（週間カレンダーは +9件）でも一部だけ選�
   [1, 7, 12].forEach((i) => p.call('toggleSlotSelection', i)); // 週間では隠れている 8・13 件目も
   go(p, D2);
   p.call('toggleSlotSelection', 0);
-  assert.equal(copyBtn(cardNow(p))[2], '選んだ4件をコピー');
+  assert.equal(barLabel(p), '選んだ4件をコピー');
   p.call('copySelectedSlots');
   await flush();
   assert.deepEqual(copied(p), ['6/2（月）\n10:00〜10:45\n16:00〜16:30\n21:00〜21:30\n\n6/3（火）\n13:00〜13:45']);
@@ -307,7 +308,7 @@ test('新しい検索を実行すると、全日付の選択がリセットさ�
   assert.equal(keys(p).length, 2);
   await p.call('fetchAndCalc');
   assert.deepEqual(keys(p), []);
-  assert.equal(copyBtn(cardNow(p))[2], '空き時間を選んでください');
+  assert.equal(barLabel(p), null, '選択バーも消える');
 });
 
 // =========================================================

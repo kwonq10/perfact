@@ -513,14 +513,29 @@
       .daily-result-card { min-height: calc(100dvh - 180px); }
     }
     .daily-result-card > .btn { margin-top: auto; }
-    /* 選んだ空き時間（時刻だけ）をまとめてコピー。空き枠一覧のすぐ下に置く。 */
-    .btn-copy-times {
-      width: 100%; min-height: 44px; margin: 12px 0; padding: 10px;
-      border: 1px solid #cfdcf5; border-radius: 10px; background: #f5f8ff;
-      color: #2d4a7a; font-size: 14px; font-weight: 600; cursor: pointer; touch-action: manipulation;
+    /* 選択アクションバー（選んだ空き時間をまとめてコピー）。1 件以上選んだときだけ画面下に固定。
+       重なり順はトースト(100) < このバー(190) < インストール案内(200) < 更新案内(210)。
+       案内が出ている間はバー自体を隠す（updateSelectionBar）。 */
+    .selection-bar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 190;
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px max(16px, calc((100% - 600px) / 2)) calc(10px + env(safe-area-inset-bottom, 0px));
+      background: white; border-top: 1px solid #e3e8ef; box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
     }
-    .btn-copy-times:active { background: #e6eeff; }
-    .btn-copy-times:disabled { color: #9aa6b8; background: #f7f8fa; border-color: #e3e8ef; cursor: default; }
+    .selection-bar[hidden] { display: none; }
+    .selection-count { flex: 0 0 auto; font-size: 14px; font-weight: 700; color: #2d4a7a; white-space: nowrap; }
+    .selection-copy-btn {
+      flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 10px 12px;
+      border: none; border-radius: 10px; background: #4f8ef7; color: white;
+      font-size: 15px; font-weight: 600; cursor: pointer; touch-action: manipulation;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .selection-copy-btn:active { background: #3a7de8; }
+    .selection-copy-btn:focus-visible { outline: 3px solid #1a1a2e; outline-offset: 2px; }
+    /* バー表示中は、カードの最後（「この日をコピー」など）がバーに隠れないよう下に余白を足す */
+    #resultView.has-selection-bar #resultContent { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    /* コピー完了のトーストがバーの裏に隠れないよう、バーの上に出す */
+    body.has-selection-bar .copy-toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
     /* 空き時間の選択。チェックの見た目は 24px、押せる範囲は 44px。 */
     .day-slot-row { cursor: pointer; }
     .day-slot-row.is-selected { background: #f0f5ff; box-shadow: 0 0 0 8px #f0f5ff; border-radius: 6px; }
@@ -1025,6 +1040,12 @@
     </div>
     <p class="swipe-intro-hint">カードを左右にスワイプして日付を移動できます</p>
     <div id="resultContent"></div>
+    <!-- 選択アクションバー。日を切り替えても消えないよう #resultContent の外に置く。
+         件数は aria-live にしない（選ぶたびに読み上げ続けないため）。 -->
+    <div id="selectionBar" class="selection-bar" data-selection-bar role="region" aria-label="選んだ空き時間" hidden>
+      <span class="selection-count" id="selectionCount"></span>
+      <button type="button" class="selection-copy-btn" id="selectionCopyBtn" onclick="copySelectedSlots()"></button>
+    </div>
   </div>
 
   <div class="copy-toast" id="toast"></div>
@@ -1392,8 +1413,10 @@
         nextWeekFail: '翌週の検索に失敗しました',
         copied: 'コピーしました',
         copiedDay: 'この日をコピーしました',
-        copySelectedNone: '空き時間を選んでください',
         copySelected: (n) => `選んだ${n}件をコピー`,
+        selectedCount: (n) => `${n}件選択中`,
+        copySelectedAria: (n) => `選んだ${n}件の空き時間をコピー`,
+        selectionBarAria: '選んだ空き時間',
         copiedSelected: '選んだ空き時間をコピーしました',
         slotSelectAria: (time) => `${time} を選ぶ`,
         copiedAll: '全件コピーしました',
@@ -1575,8 +1598,10 @@
         nextWeekFail: 'Failed to load next week',
         copied: 'Copied',
         copiedDay: 'Copied day',
-        copySelectedNone: 'Select free times to copy',
         copySelected: (n) => (n === 1 ? 'Copy 1 selected time' : `Copy ${n} selected times`),
+        selectedCount: (n) => `${n} selected`,
+        copySelectedAria: (n) => (n === 1 ? 'Copy the 1 selected free time' : `Copy the ${n} selected free times`),
+        selectionBarAria: 'Selected free times',
         copiedSelected: 'Copied the selected times',
         slotSelectAria: (time) => `Select ${time}`,
         copiedAll: 'Copied all',
@@ -1721,6 +1746,7 @@
       document.getElementById('btnModeAll').textContent = t('calModeAll');
       document.getElementById('btnModeSelect').textContent = t('calModeSelect');
       applySearchPresetsLang();
+      updateSelectionBar();
       const durEl = document.getElementById('duration');
       if (durEl) {
         durEl.querySelector('option[value="30"]').textContent = t('dur30');
@@ -3421,6 +3447,7 @@
       document.getElementById('searchView').style.display = 'flex';
       document.getElementById('resultView').style.display = 'none';
       document.getElementById('backgroundSettingsView').style.display = 'none';
+      updateSelectionBar();   // 結果画面を離れたらバーの余白・トースト位置も戻す
     }
 
     /**
@@ -3499,6 +3526,7 @@
       document.getElementById('searchView').style.display = 'none';
       document.getElementById('backgroundSettingsView').style.display = 'none';
       document.getElementById('resultView').style.display = 'block';
+      updateSelectionBar();   // 描き直し・新しい検索（選択リセット）に合わせる
       window.scrollTo(0, 0);
     }
 
@@ -4753,9 +4781,7 @@
         <div class="slot-card daily-result-card" data-day-card>
           ${renderWeekPosIndicator(dow)}
           <div class="day-card-date${dateColorClass}" style="padding-left:${DOW_LEFT_OFFSETS[dow]}">${dateStr}</div>
-          ${slotsHtml}
-          ${day.slots.length > 0 || selectedSlotKeys.size > 0 ? `<button type="button" class="btn-copy-times" id="copySelectedBtn" onclick="copySelectedSlots()"${selectedSlotKeys.size === 0 ? ' disabled' : ''}>${copySelectedLabel()}</button>` : ''}
-          <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>${t('copyDay')}</button>
+          ${slotsHtml}          <button class="btn" onclick="copyCurrentDay()" ${day.slots.length === 0 ? 'disabled' : ''}>${t('copyDay')}</button>
         </div>
         <div class="week-swipe-zone" data-week-swipe-zone role="button" tabindex="0" aria-label="${t('nextWeekAria')}">
           <div class="swipe-hint swipe-hint-week" aria-hidden="true">${t('nextWeek')}</div>
@@ -4905,7 +4931,7 @@
 
     function isSwipeExcludedTarget(target) {
       // 週間カレンダーの上では日送りスワイプを始めない（ネイティブの横スクロールに任せる）。
-      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone], [data-weekly-calendar]'));
+      return !!(target && target.closest && target.closest('button, a, input, select, textarea, label, [data-week-swipe-zone], [data-weekly-calendar], [data-selection-bar]'));
     }
 
     function isWeekSwipeZoneTarget(target) {
@@ -5222,14 +5248,44 @@
       }
     }
 
-    /** ボタンの文言。件数は全日付の合計。 */
-    function copySelectedLabel() {
-      ensureSlotSelectionScope();
-      const n = selectedSlotKeys.size;
-      return n === 0 ? t('copySelectedNone') : t('copySelected', n);
+    /** 画面下の固定の案内（更新・強制更新・インストール）が出ているか。出ていれば選択バーは譲る。 */
+    function isBottomNoticeVisible() {
+      if (updateUiMode !== 'none') return true;
+      for (const id of ['installBanner', 'iosBanner']) {
+        const el = document.getElementById(id);
+        if (el && el.style.display === 'block') return true;
+      }
+      return false;
     }
 
-    /** 再描画せずに、選択の見た目とコピーボタンだけ更新する（カードのアニメーションを起こさない）。 */
+    /**
+     * 選択アクションバーの表示を合わせる。件数は全日付の合計。
+     * 0 件・結果画面以外・画面下の案内が出ている間は出さない。
+     */
+    function updateSelectionBar() {
+      const bar = document.getElementById('selectionBar');
+      if (!bar) return;
+      ensureSlotSelectionScope();
+      const n = selectedSlotKeys.size;
+      const resultView = document.getElementById('resultView');
+      const onResult = !!resultView && resultView.style.display === 'block';
+      const show = n > 0 && onResult && !isBottomNoticeVisible();
+      bar.hidden = !show;
+      bar.setAttribute('aria-label', t('selectionBarAria'));
+      if (resultView) resultView.classList.toggle('has-selection-bar', show);
+      if (document.body) document.body.classList.toggle('has-selection-bar', show);
+      if (n > 0) {
+        const count = document.getElementById('selectionCount');
+        if (count) count.textContent = t('selectedCount', n);
+        const btn = document.getElementById('selectionCopyBtn');
+        if (btn) {
+          btn.textContent = t('copySelected', n);
+          btn.setAttribute('aria-label', t('copySelectedAria', n));
+        }
+      }
+    }
+
+    /** 再描画せずに、選択の見た目と選択バーだけ更新する（カードのアニメーションを起こさない）。 */
     function updateSlotSelectionUi() {
       const day = currentDailyResults[currentDayIndex];
       document.querySelectorAll('[data-slot-index]').forEach(row => {
@@ -5239,11 +5295,7 @@
         const box = row.querySelector('.slot-select');
         if (box) box.setAttribute('aria-checked', selected ? 'true' : 'false');
       });
-      const btn = document.getElementById('copySelectedBtn');
-      if (btn) {
-        btn.textContent = copySelectedLabel();
-        btn.disabled = selectedSlotKeys.size === 0;
-      }
+      updateSelectionBar();
     }
 
     function toggleSlotSelection(i) {
@@ -5608,6 +5660,7 @@
       if (banner) banner.style.display = 'none';
       const ios = document.getElementById('iosBanner');
       if (ios) ios.style.display = 'none';
+      updateSelectionBar();
     }
 
     function showNormalUpdate() {
@@ -5618,6 +5671,7 @@
       hideInstallBanner();                     // インストール案内とは同時に出さない
       applyUpdateUiLang();
       document.getElementById('updateBanner').style.display = 'block';
+      updateSelectionBar();                    // 更新案内が優先。選択バーは隠す
     }
 
     function showForcedUpdate() {
@@ -5630,6 +5684,7 @@
       overlay.style.display = 'flex';
       overlay.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
+      updateSelectionBar();
       const btn = document.getElementById('forceUpdateBtn');
       if (btn) { try { btn.focus(); } catch (e) {} }
     }
@@ -5715,6 +5770,7 @@
       updateUiMode = 'none';
       document.getElementById('updateBanner').style.display = 'none';
       maybeShowInstallBanner();                // 優先順位に従って案内へ戻す
+      updateSelectionBar();                    // 案内が無くなれば選択バーを戻す
     }
 
     // -----------------------------------------------------
@@ -5795,6 +5851,7 @@
 
       if (deferredPrompt) {
         document.getElementById('installBanner').style.display = 'block';
+        updateSelectionBar();
         return;
       }
       if (isIosDevice) {
@@ -5804,6 +5861,7 @@
         const steps = document.getElementById('iosSteps');
         if (steps) steps.style.display = isIosSafari ? 'block' : 'none';
         document.getElementById('iosBanner').style.display = 'block';
+        updateSelectionBar();
       }
     }
 
