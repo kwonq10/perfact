@@ -197,16 +197,91 @@ test('強制更新中はバーを出さない', () => {
   assert.equal(bar(p).shown, false);
 });
 
-test('インストール案内が出たらバーを隠し、「後で」で閉じたら戻す', () => {
-  const p = page();
-  pick(p, 0);
-  // standalone（ホーム画面から起動）ではないブラウザ表示にする
+/** インストール案内を出せる状態（ブラウザ表示・beforeinstallprompt 済み）にする。 */
+function installable(p) {
+  // standalone（ホーム画面から起動）ではないブラウザ表示にする。reduced-motion だけ一致させる
   p.run("window.matchMedia = (q) => ({ matches: !/display-mode/.test(q) }); deferredPrompt = { prompt() {}, userChoice: Promise.resolve({}) };");
+}
+const installShown = (p) => p.el('installBanner').style.display === 'block';
+
+test('選択中はインストール案内より選択バーを優先する（案内を出そうとしても出さない）', () => {
+  const p = page();
+  installable(p);
+  pick(p, 0);
   p.call('maybeShowInstallBanner');
-  assert.equal(p.el('installBanner').style.display, 'block');
-  assert.equal(bar(p).shown, false);
-  p.call('dismissInstall');
+  assert.equal(installShown(p), false);
   assert.equal(bar(p).shown, true);
+});
+
+test('インストール案内の表示中に選ぶと、案内を一時的に隠して選択バーを出す（14 日の「後で」は記録しない）', () => {
+  const p = page();
+  installable(p);
+  p.call('maybeShowInstallBanner');
+  assert.equal(installShown(p), true);
+  pick(p, 0);
+  assert.equal(installShown(p), false);
+  assert.equal(bar(p).shown, true);
+  assert.equal(p.run("localStorage.getItem('sukima_install_dismissed_at')"), null);
+});
+
+test('選択が 0 件になると選択バーを消し、隠していたインストール案内を戻す', () => {
+  const p = page();
+  installable(p);
+  p.call('maybeShowInstallBanner');
+  pick(p, 0);
+  pick(p, 0); // 解除して 0 件
+  assert.equal(bar(p).shown, false);
+  assert.equal(installShown(p), true);
+});
+
+test('結果画面を離れたときも、隠していたインストール案内を戻す', () => {
+  const p = page();
+  installable(p);
+  p.call('maybeShowInstallBanner');
+  pick(p, 0);
+  p.call('showSearch');
+  assert.equal(installShown(p), true);
+  p.call('renderCurrentDay'); // 結果へ戻ると再び選択バーが優先
+  assert.equal(bar(p).shown, true);
+  assert.equal(installShown(p), false);
+});
+
+test('14 日以内に「後で」を押していれば、0 件になってもインストール案内は戻さない', () => {
+  const p = page();
+  installable(p);
+  p.call('maybeShowInstallBanner');
+  pick(p, 0);
+  p.run("localStorage.setItem('sukima_install_dismissed_at', String(Date.now()));");
+  pick(p, 0);
+  assert.equal(installShown(p), false);
+});
+
+test('もともとインストール案内を隠していなければ、0 件になっても勝手に出さない', () => {
+  const p = page();
+  installable(p);
+  pick(p, 0);
+  pick(p, 0);
+  assert.equal(installShown(p), false);
+});
+
+test('更新案内は最上位: 選択中でも更新案内が出れば選択バーもインストール案内も出さない', () => {
+  const p = page();
+  installable(p);
+  p.call('maybeShowInstallBanner');
+  pick(p, 0);
+  p.run(`
+    swUpdateState.currentVersion = '1.3.0';
+    swUpdateState.waiting = { postMessage() {} };
+    swUpdateState.updateAvailable = true;
+    latestVersionInfo = { version: '1.4.0', minimumVersion: '1.0.0' };
+    evaluateUpdateState();
+  `);
+  assert.equal(p.el('updateBanner').style.display, 'block');
+  assert.equal(bar(p).shown, false);
+  assert.equal(installShown(p), false);
+  p.call('dismissUpdate'); // 更新案内を閉じると、選択中なので選択バーが戻る（インストール案内は出さない）
+  assert.equal(bar(p).shown, true);
+  assert.equal(installShown(p), false);
 });
 
 test('重なり順はトースト < 選択バー < インストール案内 < 更新案内', () => {

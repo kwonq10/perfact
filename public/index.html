@@ -514,8 +514,8 @@
     }
     .daily-result-card > .btn { margin-top: auto; }
     /* 選択アクションバー（選んだ空き時間をまとめてコピー）。1 件以上選んだときだけ画面下に固定。
-       重なり順はトースト(100) < このバー(190) < インストール案内(200) < 更新案内(210)。
-       案内が出ている間はバー自体を隠す（updateSelectionBar）。 */
+       表示の優先順位は 更新案内 > このバー > インストール案内（updateSelectionBar が出し分ける）。
+       同時に出さないが、念のため z-index は トースト(100) < このバー(190) < インストール案内(200) < 更新案内(210)。 */
     .selection-bar {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 190;
       display: flex; align-items: center; gap: 12px;
@@ -1163,6 +1163,8 @@
     // 新しい検索（weeklyResultSeq が変わったとき）だけ空に戻す。
     let selectedSlotKeys = new Set();
     let selectedSlotsSeq = null;
+    // 選択バーを出すためにインストール案内を一時的に隠したか（選択が 0 件になったら戻すため）。
+    let installHiddenForSelection = false;
     let isSearching = false;
     let isAnimating = false;
     const SWIPE_MIN_DISTANCE = 50;
@@ -5248,28 +5250,49 @@
       }
     }
 
-    /** 画面下の固定の案内（更新・強制更新・インストール）が出ているか。出ていれば選択バーは譲る。 */
+    // -----------------------------------------------------
+    // 画面下の固定 UI の優先順位: 更新案内（通常・強制） > 選択バー > インストール案内
+    //   選択バーを出している間はインストール案内を一時的に隠し（14 日の「後で」は記録しない）、
+    //   選択が 0 件になる・結果画面を離れると、隠していた場合だけ再表示を試みる。
+    // -----------------------------------------------------
+
+    /** 更新案内（通常・強制）が出ているか。出ていれば選択バーは譲る。 */
     function isBottomNoticeVisible() {
-      if (updateUiMode !== 'none') return true;
-      for (const id of ['installBanner', 'iosBanner']) {
-        const el = document.getElementById(id);
-        if (el && el.style.display === 'block') return true;
-      }
-      return false;
+      return updateUiMode !== 'none';
+    }
+
+    /** 選択バーを出すべき状態か（1 件以上・結果画面・更新案内なし）。 */
+    function isSelectionBarActive() {
+      ensureSlotSelectionScope();
+      const resultView = document.getElementById('resultView');
+      const onResult = !!resultView && resultView.style.display === 'block';
+      return selectedSlotKeys.size > 0 && onResult && !isBottomNoticeVisible();
     }
 
     /**
      * 選択アクションバーの表示を合わせる。件数は全日付の合計。
-     * 0 件・結果画面以外・画面下の案内が出ている間は出さない。
+     * 0 件・結果画面以外・更新案内が出ている間は出さない。
+     * 出すときはインストール案内を一時的に隠す。
      */
     function updateSelectionBar() {
       const bar = document.getElementById('selectionBar');
       if (!bar) return;
-      ensureSlotSelectionScope();
       const n = selectedSlotKeys.size;
       const resultView = document.getElementById('resultView');
-      const onResult = !!resultView && resultView.style.display === 'block';
-      const show = n > 0 && onResult && !isBottomNoticeVisible();
+      const show = isSelectionBarActive();
+      if (show) {
+        for (const id of ['installBanner', 'iosBanner']) {
+          const el = document.getElementById(id);
+          if (el && el.style.display === 'block') {
+            el.style.display = 'none';
+            installHiddenForSelection = true;
+          }
+        }
+      } else if (installHiddenForSelection) {
+        // 選択バーのために隠していたインストール案内を、条件を満たすなら戻す
+        installHiddenForSelection = false;
+        maybeShowInstallBanner();
+      }
       bar.hidden = !show;
       bar.setAttribute('aria-label', t('selectionBarAria'));
       if (resultView) resultView.classList.toggle('has-selection-bar', show);
@@ -5848,6 +5871,8 @@
       if (updateUiMode !== 'none') return;   // アップデートUIが優先
       if (isStandaloneMode()) return;        // すでにインストール済み
       if (isInstallDismissActive()) return;  // 14日以内に「後で」を押している
+      // 選択バーが優先。選択が 0 件になったら updateSelectionBar から改めて呼ばれる。
+      if (isSelectionBarActive()) { installHiddenForSelection = true; return; }
 
       if (deferredPrompt) {
         document.getElementById('installBanner').style.display = 'block';
