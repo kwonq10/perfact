@@ -5442,7 +5442,8 @@
       registration: null,     // ServiceWorkerRegistration
       waiting: null,          // 更新候補の waiting Service Worker
       updateAvailable: false, // 更新が利用可能か
-      currentVersion: null    // 現在ページを制御している SW の APP_VERSION
+      currentVersion: null,   // 現在ページを制御している SW の APP_VERSION
+      activeVersion: null     // 登録済み active SW の APP_VERSION
     };
 
     // controllerchange は skipWaiting 後に発火する。二重リロードを防ぐ。
@@ -5457,18 +5458,31 @@
 
     // 現在の Service Worker のバージョンを MessageChannel 経由で取得する
     function requestSwVersion() {
-      const controller = navigator.serviceWorker.controller;
-      if (!controller) return;
-      try {
-        const channel = new MessageChannel();
-        channel.port1.onmessage = (e) => {
-          if (e.data && typeof e.data.version === 'string') {
-            swUpdateState.currentVersion = e.data.version;
-            evaluateUpdateState();
-          }
-        };
-        controller.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
-      } catch (e) { /* 取得できなくてもアプリ本体の動作は妨げない */ }
+      const serviceWorker = navigator.serviceWorker;
+      if (!serviceWorker) return;
+      const reg = swUpdateState.registration;
+      for (const [key, worker] of [
+        ['currentVersion', serviceWorker.controller],
+        ['activeVersion', reg && reg.active]
+      ]) {
+        swUpdateState[key] = null;
+        if (!worker) continue;
+        try {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = (e) => {
+            channel.port1.close();
+            const currentWorker = key === 'currentVersion'
+              ? serviceWorker.controller : swUpdateState.registration && swUpdateState.registration.active;
+            // 更新前の worker から遅れて届いた応答は使わない。
+            if (currentWorker !== worker) return;
+            if (e.data && typeof e.data.version === 'string') {
+              swUpdateState[key] = e.data.version;
+              evaluateUpdateState();
+            }
+          };
+          worker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+        } catch (e) { /* 取得できない間は既存の強制更新を解除しない */ }
+      }
     }
 
     function initServiceWorkerUpdates() {
@@ -5497,6 +5511,7 @@
         }
 
         reg.addEventListener('updatefound', () => {
+          evaluateUpdateState();
           const installing = reg.installing;
           if (!installing) return;
           installing.addEventListener('statechange', () => {
@@ -5623,7 +5638,10 @@
       const current = swUpdateState.currentVersion;
 
       // バージョンが分からないうちは何も出さない（強制更新も行わない）
-      if (!info || !current) return;
+      if (!info || !current) {
+        if (updateUiMode === 'forced') showForcedUpdate();
+        return;
+      }
 
       // 1. 強制更新を先に判定する
       if (typeof info.minimumVersion === 'string') {
@@ -5635,7 +5653,24 @@
       }
 
       // 2. 通常更新
-      if (updateUiMode === 'forced') return;
+      if (updateUiMode === 'forced') {
+        const controllerReady = compareVersions(current, info.minimumVersion);
+        const activeReady = compareVersions(swUpdateState.activeVersion, info.minimumVersion);
+        if (controllerReady === null || controllerReady < 0 || activeReady === null || activeReady < 0) {
+          showForcedUpdate();
+          return;
+        }
+        // controller と active の両方が最低版を満たしたときだけ解除する。
+        document.getElementById('forceUpdateOverlay').style.display = 'none';
+        document.getElementById('forceUpdateOverlay').setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        updateUiMode = 'none';
+        updateInProgress = false;
+        setUpdateButtonsDisabled(false);
+        setUpdateStatus(null);
+        updateSelectionBar();
+        maybeShowInstallBanner();
+      }
       const cmpLatest = compareVersions(current, info.version);
       if (cmpLatest === null || cmpLatest >= 0) return;                      // 最新／比較不能
       if (!swUpdateState.updateAvailable || !swUpdateState.waiting) return;  // 実体がまだ無い
@@ -5698,18 +5733,19 @@
     }
 
     function showForcedUpdate() {
-      if (updateUiMode === 'forced') return;
+      const overlay = document.getElementById('forceUpdateOverlay');
+      const needsFocus = updateUiMode !== 'forced' || overlay.style.display !== 'flex';
       updateUiMode = 'forced';
       hideInstallBanner();
       document.getElementById('updateBanner').style.display = 'none';
       applyUpdateUiLang();
-      const overlay = document.getElementById('forceUpdateOverlay');
+      overlay.hidden = false;
       overlay.style.display = 'flex';
       overlay.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
       updateSelectionBar();
       const btn = document.getElementById('forceUpdateBtn');
-      if (btn) { try { btn.focus(); } catch (e) {} }
+      if (btn && needsFocus) { try { btn.focus(); } catch (e) {} }
     }
 
     // 強制更新中は背後の Sukima をキーボードで操作させない。
@@ -5894,6 +5930,8 @@
     // 初期化と定期チェック
     // -----------------------------------------------------
     function runUpdateCheck() {
+      evaluateUpdateState();  // 通信の間引き・失敗に関係なく強制更新を再表示する
+      requestSwVersion();
       const reg = swUpdateState.registration;
       if (reg) { try { reg.update(); } catch (e) {} }
       fetchLatestVersion(false);   // 間引きは fetchLatestVersion 内で行う
@@ -5910,6 +5948,8 @@
         if (document.visibilityState !== 'visible') return;
         runUpdateCheck();
       });
+      window.addEventListener('pageshow', runUpdateCheck);
+      window.addEventListener('focus', runUpdateCheck);
     }
 
     function initUpdateNotifications() {

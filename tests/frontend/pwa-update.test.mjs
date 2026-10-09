@@ -19,7 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { extractDivById, loadPage, makeFetch } from './page-harness.mjs';
+import { extractDivById, jsonResponse, loadPage, makeFetch } from './page-harness.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -480,7 +480,8 @@ test('前面復帰の更新確認は維持し、ページ内のあとで抑止�
   ctx.p.call('scheduleUpdateChecks');
   assert.equal(typeof docEvents.visibilitychange, 'function');
   assert.equal(windowEvents.includes('pagehide'), false);
-  assert.equal(windowEvents.includes('pageshow'), false);
+  assert.equal(windowEvents.includes('pageshow'), true);
+  assert.equal(windowEvents.includes('focus'), true);
   ctx.p.run("document.visibilityState = 'hidden';");
   docEvents.visibilitychange();
   assert.equal(ctx.p.run('__checks'), 0);
@@ -489,4 +490,146 @@ test('前面復帰の更新確認は維持し、ページ内のあとで抑止�
   assert.equal(ctx.p.run('__checks'), 1);
   assert.equal(ctx.p.run('updateDismissedThisSession'), true);
   assert.equal(shown(ctx.p), false);
+});
+
+function forcedPage() {
+  const ctx = swPage();
+  arrive(ctx, {current:'1.3.0', minimum:'1.4.0'});
+  return ctx;
+}
+function hideForced(p) {
+  p.el('forceUpdateOverlay').style.display = 'none';
+  p.el('forceUpdateOverlay').hidden = true;
+  p.el('forceUpdateOverlay').setAttribute('aria-hidden','true');
+  p.run("document.body.style.overflow = '';");
+}
+function assertForced(p) {
+  assert.equal(p.run('updateUiMode'), 'forced');
+  assert.equal(p.el('forceUpdateOverlay').style.display,'flex');
+  assert.equal(p.el('forceUpdateOverlay').hidden,false);
+  assert.equal(p.el('forceUpdateOverlay').getAttribute('aria-hidden'),'false');
+  assert.equal(p.run('document.body.style.overflow'),'hidden');
+}
+function updateEvents(ctx) {
+  const doc = {}, win = {};
+  ctx.p.context.document.addEventListener = (type,fn)=>{ doc[type]=fn; };
+  ctx.p.context.addEventListener = (type,fn)=>{ win[type]=fn; };
+  ctx.p.run('setInterval = () => 1;');
+  ctx.p.call('scheduleUpdateChecks');
+  return {doc,win};
+}
+
+test('forced表示フラグが残っていても既存DOMの非表示を復元し、重複生成しない', () => {
+  const {p} = forcedPage();
+  const overlay = p.el('forceUpdateOverlay');
+  p.context.document.createElement = () => { throw Error('must reuse DOM'); };
+  p.call('setUpdateStatus','updateFailed');
+  hideForced(p);
+  p.call('evaluateUpdateState');
+  assertForced(p);
+  assert.equal(p.el('forceUpdateOverlay'),overlay);
+  assert.equal(p.run('updateStatusKey'),'updateFailed');
+  p.call('evaluateUpdateState');
+  assertForced(p);
+});
+
+for (const event of ['visibilitychange','focus','pageshow']) {
+  test('forcedは' + event + 'で即時再表示する（fetch間引き中でも有効）', () => {
+    const ctx = forcedPage();
+    const events = updateEvents(ctx);
+    ctx.p.run("lastLatestFetchAt = Date.now(); document.visibilityState = 'visible';");
+    hideForced(ctx.p);
+    (event === 'visibilitychange' ? events.doc[event] : events.win[event])({persisted:true});
+    assertForced(ctx.p);
+  });
+  test('任意更新のあとでは' + event + 'でも解除しない', () => {
+    const ctx = swPage();
+    arrive(ctx);
+    ctx.p.call('dismissUpdate');
+    const events = updateEvents(ctx);
+    ctx.p.run("lastLatestFetchAt = Date.now(); document.visibilityState = 'visible';");
+    (event === 'visibilitychange' ? events.doc[event] : events.win[event])({persisted:true});
+    assert.equal(ctx.p.run('updateDismissedThisSession'),true);
+    assert.equal(ctx.p.run('updateUiMode'),'none');
+    assert.equal(shown(ctx.p),false);
+  });
+}
+
+test('latest-version取得成功時は強制モーダルを復元する', async () => {
+  const ctx = forcedPage();
+  hideForced(ctx.p);
+  ctx.p.context.AbortController = AbortController;
+  ctx.p.context.fetch = async () => jsonResponse(200,{version:'1.4.0',minimumVersion:'1.4.0'});
+  await ctx.p.call('fetchLatestVersion',true);
+  assertForced(ctx.p);
+});
+
+test('SW updatefoundとwaiting検知時に強制モーダルを復元する', async () => {
+  const ctx = swPage();
+  const events = {};
+  ctx.reg.addEventListener = (type,fn)=>{ events[type]=fn; };
+  ctx.p.call('initServiceWorkerUpdates');
+  await new Promise(r=>setImmediate(r));
+  arrive(ctx,{current:'1.3.0',minimum:'1.4.0'});
+  hideForced(ctx.p);
+  events.updatefound();
+  assertForced(ctx.p);
+  hideForced(ctx.p);
+  ctx.p.call('markSwUpdateAvailable',ctx.waitingWorker);
+  assertForced(ctx.p);
+});
+
+test('controllerだけ・activeだけ・不明では解除せず、両方が最低版以上のときだけ解除する', () => {
+  const {p} = forcedPage();
+  for (const [current,active] of [['1.3.0','1.4.0'],['1.4.0','1.3.0'],['1.4.0',null],[null,'1.4.0']]) {
+    p.run('swUpdateState.currentVersion = ' + JSON.stringify(current) + '; swUpdateState.activeVersion = ' + JSON.stringify(active) + ';');
+    hideForced(p);
+    p.call('evaluateUpdateState');
+    assertForced(p);
+  }
+  p.run("swUpdateState.currentVersion = '1.4.0'; swUpdateState.activeVersion = '1.4.0';");
+  p.call('evaluateUpdateState');
+  assert.equal(p.run('updateUiMode'),'none');
+  assert.equal(p.el('forceUpdateOverlay').style.display,'none');
+  assert.equal(p.el('forceUpdateOverlay').getAttribute('aria-hidden'),'true');
+  assert.equal(p.run('document.body.style.overflow'),'');
+  p.call('evaluateUpdateState');
+  assert.equal(p.run('updateUiMode'),'none');
+});
+
+test('forcedはセッションのあとでフラグやstorageのスキップ値で抑止されない', () => {
+  const {p} = forcedPage();
+  p.run("updateDismissedThisSession = true; sessionStorage.setItem('sukima_update_skipped','1.4.0');");
+  hideForced(p);
+  p.call('evaluateUpdateState');
+  assertForced(p);
+  const modal = extractDivById(HTML,'forceUpdateOverlay');
+  assert.doesNotMatch(modal,/dismissUpdate|onclick="[^"\n]*(?:close|hide)|あとで|閉じる/);
+});
+
+test('現在controllerとactiveのGET_VERSION応答を取得し、古いworkerの応答を無視する', () => {
+  const {p,reg} = forcedPage();
+  const pending = [];
+  p.context.MessageChannel = class {
+    constructor() { this.port1 = {close(){}}; this.port2 = {peer:this.port1}; }
+  };
+  function worker(version) {
+    return {postMessage(message,ports) {
+      assert.equal(message.type,'GET_VERSION');
+      pending.push(()=>ports[0].peer.onmessage({data:{version}}));
+    }};
+  }
+  p.context.navigator.serviceWorker.controller = worker('1.4.0');
+  reg.active = worker('1.4.0');
+  p.call('requestSwVersion');
+  pending.shift()();
+  assertForced(p);
+  pending.shift()();
+  assert.equal(p.run('updateUiMode'),'none');
+  p.call('requestSwVersion');
+  p.context.navigator.serviceWorker.controller = worker('1.3.0');
+  reg.active = worker('1.3.0');
+  pending.splice(0).forEach(reply=>reply());
+  assert.equal(p.run('swUpdateState.currentVersion'),null);
+  assert.equal(p.run('swUpdateState.activeVersion'),null);
 });
