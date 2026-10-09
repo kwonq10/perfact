@@ -5531,9 +5531,6 @@
     const LATEST_FETCH_MIN_INTERVAL_MS = 10 * 60 * 1000;
     // SKIP_WAITING を送っても controllerchange が来なかったときの保険
     const UPDATE_APPLY_FALLBACK_MS = 10000;
-    // 「あとで」のあと、これ以上バックグラウンドにいてから戻ったら「新しい起動」とみなして再案内する。
-    // Android の PWA はホームに戻っても同じページのまま復帰するため、時間で区切る。
-    const UPDATE_DISMISS_REPROMPT_MS = 30 * 60 * 1000;
 
     let latestVersionInfo = null;   // 取得できるまで null（= 判定しない）
     let lastLatestFetchAt = 0;
@@ -5542,10 +5539,8 @@
     let updateUiMode = 'none';      // 'none' | 'normal' | 'forced'
     let updateInProgress = false;   // アップデート二重実行の防止
     // 「あとで」を押したか。このページを開いている間だけ有効（保存しない）。
-    // 短時間の切り替えでは再表示せず、UPDATE_DISMISS_REPROMPT_MS 以上離れて戻った・開き直した場合は再び案内できる。
+    // visibilitychange 等の再判定では再表示せず、アプリを開き直すと再び案内できる。
     let updateDismissedThisSession = false;
-    // ページが非表示になった時刻（ページ内だけ。保存しない）。表示中は null。
-    let updateHiddenAt = null;
     // 更新パネルの状態表示（'updating' | 'updateFailed' | null）。言語切替で描き直すために持つ。
     let updateStatusKey = null;
 
@@ -5911,41 +5906,10 @@
           runUpdateCheck();
         }, UPDATE_CHECK_INTERVAL_MS);
       }
-      document.addEventListener('visibilitychange', handleUpdateVisibilityChange);
-      window.addEventListener('pagehide', markUpdateHidden);
-      window.addEventListener('pageshow', handleUpdatePageShow);
-    }
-
-    /** バックグラウンドへ行った時刻を記録する（既に記録済みなら最初の時刻を保つ）。 */
-    function markUpdateHidden() {
-      if (updateHiddenAt === null) updateHiddenAt = Date.now();
-    }
-
-    /**
-     * 前面に戻ったとき。UPDATE_DISMISS_REPROMPT_MS 以上離れていたら「新しい起動」とみなして
-     * 「あとで」を取り消し、既存の判定で再案内する（短時間の復帰では抑止を保つ）。
-     * 強制更新はもともと「あとで」に左右されないので、この判定の対象外。
-     */
-    function returnFromBackground() {
-      const hiddenAt = updateHiddenAt;
-      updateHiddenAt = null;
-      if (updateDismissedThisSession && hiddenAt !== null
-          && Date.now() - hiddenAt >= UPDATE_DISMISS_REPROMPT_MS) {
-        updateDismissedThisSession = false;
-        evaluateUpdateState();
-      }
-    }
-
-    function handleUpdateVisibilityChange() {
-      if (document.visibilityState !== 'visible') { markUpdateHidden(); return; }
-      returnFromBackground();
-      runUpdateCheck();
-    }
-
-    /** BFCache 等から復元されたときも同じ扱いにする（通常の読み込みでは何もしない）。 */
-    function handleUpdatePageShow(e) {
-      if (!e || !e.persisted) return;
-      returnFromBackground();
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        runUpdateCheck();
+      });
     }
 
     function initUpdateNotifications() {
