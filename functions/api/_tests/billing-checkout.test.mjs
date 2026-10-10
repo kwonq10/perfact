@@ -540,7 +540,7 @@ test('subscription mode / 数量 1 / プロモーションコード入力有効'
   assert.equal(p.mode, 'subscription');
   assert.equal(p.line_items.length, 1);
   assert.equal(p.line_items[0].quantity, 1);
-  // Stripe 側の Promotion Code を使う（duration=once 運用）
+  // Stripe 側の Promotion Code を使う（once / foreverの選択はStripe側）
   assert.equal(p.allow_promotion_codes, true);
   assert.equal(p.billing_address_collection, 'required');
   // 税の登録判断が未決なので automatic_tax は有効にしない
@@ -921,3 +921,22 @@ test('ログに user_id / customer / Checkout URL / Cookie を出さない', asy
     assert.equal(log.includes(leak), false, leak);
   }
 });
+
+for (const amount of [0, 300]) {
+  test(`Checkout: 割引後${amount}円でもpromotion入力とカード収集の既存設定を維持`, async () => {
+    const d = deps({ stripe: stubStripe({
+      id: 'cs_test_dummy', url: CHECKOUT_URL, amount_total: amount,
+    }) });
+    const { res, body } = await call(d);
+    assert.equal(res.status, 200);
+    assert.equal(body.url, CHECKOUT_URL);
+    const params = d.stripe.calls[0].params;
+    assert.equal(params.allow_promotion_codes, true);
+    assert.equal(params.mode, 'subscription');
+    assert.equal(params.line_items[0].price, ENV.STRIPE_PRICE_WEB_PRO_JPY_LAUNCH);
+    assert.equal('discounts' in params, false, '割引の選択はHosted Checkoutに任せる');
+    assert.equal('payment_method_collection' in params, false, 'if_requiredへ勝手に変えない');
+    assert.equal('payment_method_collection' in params.subscription_data, false);
+    assert.deepEqual(d.rpc.calls.map((c) => c.name), [RPC_NAME], 'CheckoutでPro権限を書き込まない');
+  });
+}

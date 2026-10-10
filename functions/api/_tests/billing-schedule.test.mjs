@@ -24,6 +24,7 @@ import {
   scheduleRepairKey,
 } from '../_lib/billing-schedule.js';
 import { LAUNCH_END_MS } from '../_lib/billing-config.js';
+import { hasWebEntitlement } from '../_lib/entitlement.js';
 import { handleWebhook } from '../billing/webhook.js';
 import { computeStripeSignature } from '../_lib/stripe-webhook.js';
 
@@ -117,7 +118,7 @@ function desiredSchedule(over = {}) {
  *
  * o.subscription       初期の subscription
  * o.schedules          初期の schedule（配列）
- * o.failUpdates        schedule update を 500 で失敗させる回数
+ * o.failUpdates        実行前のrate limitでschedule updateを失敗させる回数
  * o.ignoreUpdates      schedule update が 200 を返すのに何も変えない
  * o.createDoesNotAttach from_subscription が 200 を返すのに subscription に付けない
  * o.failCreateStatus   schedule 作成を指定ステータスで失敗させる
@@ -135,17 +136,37 @@ function fakeStripe(o = {}) {
     createDoesNotAttach: o.createDoesNotAttach === true,
     failCreateStatus: o.failCreateStatus ?? null,
     calls: [],
+    discountObjects: new Map(),
   };
+  for (const discount of [...(Array.isArray(state.subscription.discounts)
+    ? state.subscription.discounts : []), ...(o.discountObjects ?? [])]) {
+    if (discount && typeof discount === 'object') {
+      state.discountObjects.set(discount.id, structuredClone(discount));
+    }
+  }
   for (const s of o.schedules ?? []) state.schedules.set(s.id, structuredClone(s));
 
   const clone = (x) => structuredClone(x);
   const stripeError = (message, type = 'invalid_request_error') => ({ error: { type, message } });
 
-  function route(method, path, form) {
+  function route(method, path, form, query) {
     const sub = state.subscription;
 
     if (path === `/v1/subscriptions/${sub.id}`) {
-      if (method === 'GET') return [200, clone(sub)];
+      if (method === 'GET') {
+        state.subscriptionReads = (state.subscriptionReads ?? 0) + 1;
+        o.onSubscriptionRead?.(state, state.subscriptionReads);
+        if (o.failDiscountExpansion && query.has('expand[0]')) {
+          return [503, stripeError('expansion unavailable', 'api_error')];
+        }
+        const expanded = clone(sub);
+        if (query.get('expand[0]') === 'discounts.source.coupon'
+            && Array.isArray(expanded.discounts)) {
+          expanded.discounts = expanded.discounts.map((d) =>
+            clone(state.discountObjects.get(typeof d === 'string' ? d : d.id) ?? d));
+        }
+        return [200, expanded];
+      }
       if (method === 'DELETE') {
         sub.status = 'canceled';
         return [200, clone(sub)];
@@ -191,7 +212,7 @@ function fakeStripe(o = {}) {
       if (method === 'POST') {
         if (state.failUpdates > 0) {
           state.failUpdates -= 1;
-          return [500, stripeError('boom', 'api_error')];
+          return [o.failUpdatesStatus ?? 429, stripeError('temporarily unavailable', 'api_error')];
         }
         if (state.ignoreUpdates) return [200, clone(schedule)];
         if (form.has('end_behavior')) schedule.end_behavior = form.get('end_behavior');
@@ -202,7 +223,14 @@ function fakeStripe(o = {}) {
             ? Number(form.get(`phases[${i}][start_date]`)) : prev.end_date;
           const end = form.has(`phases[${i}][end_date]`)
             ? Number(form.get(`phases[${i}][end_date]`)) : start + FAKE_MONTH;
+          const discounts = [];
+          for (let j = 0; form.has(`phases[${i}][discounts][${j}][discount]`); j++) {
+            const id = form.get(`phases[${i}][discounts][${j}][discount]`);
+            if (!state.discountObjects.has(id)) return [400, stripeError('Unknown discount')];
+            discounts.push({ discount: id });
+          }
           phases.push({
+            discounts: o.dropDiscountsOnUpdate ? [] : discounts,
             start_date: start,
             end_date: end,
             proration_behavior: form.get(`phases[${i}][proration_behavior]`),
@@ -213,6 +241,8 @@ function fakeStripe(o = {}) {
           });
         }
         schedule.phases = phases;
+        // Stripe updates the active subscription when the current phase changes.
+        sub.discounts = phases[0].discounts.map((d) => clone(state.discountObjects.get(d.discount)));
         return [200, clone(schedule)];
       }
     }
@@ -227,16 +257,20 @@ function fakeStripe(o = {}) {
     const method = init.method ?? 'GET';
     const key = init.headers?.['Idempotency-Key'] ?? null;
     const form = new URLSearchParams(init.body ?? '');
-    state.calls.push({ method, path: u.pathname, key, form: Object.fromEntries(form) });
+    state.calls.push({ method, path: u.pathname, key, form: Object.fromEntries(form), query: Object.fromEntries(u.searchParams) });
 
-    // Stripe と同じく、同じキーの再送は最初の 2xx 応答をそのまま返す（状態は見ない）。
+    // 実行済み応答は同じキーで再送する。500のキャッシュも専用ケースで再現する。
     if (key !== null && state.idempotency.has(key)) {
       const saved = state.idempotency.get(key);
+      if (JSON.stringify(Object.fromEntries(form)) !== JSON.stringify(saved.form)) {
+        return new Response(JSON.stringify(stripeError('Idempotency parameters differ', 'idempotency_error')),
+          { status: 400 });
+      }
       return new Response(JSON.stringify(saved.body), { status: saved.status });
     }
-    const [status, body] = route(method, u.pathname, form);
-    if (key !== null && status >= 200 && status < 300) {
-      state.idempotency.set(key, { status, body: clone(body) });
+    const [status, body] = route(method, u.pathname, form, u.searchParams);
+    if (key !== null && ((status >= 200 && status < 300) || (o.cacheServerErrors && status >= 500))) {
+      state.idempotency.set(key, { status, body: clone(body), form: Object.fromEntries(form) });
     }
     return new Response(JSON.stringify(body), { status });
   };
@@ -252,6 +286,28 @@ function fakeStripe(o = {}) {
     schedule.status = 'released';
     schedule.subscription = null;
     sub.schedule = null;
+  };
+  /** Stripe phase transition model only; this does not contact Stripe. */
+  fn.advanceToStandard = () => {
+    const sub = state.subscription;
+    const schedule = state.schedules.get(sub.schedule);
+    const phase = schedule.phases[1];
+    sub.items.data[0].price.id = phase.items[0].price;
+    sub.items.data[0].current_period_start = phase.start_date;
+    sub.items.data[0].current_period_end = phase.end_date;
+    sub.discounts = (phase.discounts ?? []).map((d) => clone(state.discountObjects.get(d.discount)));
+    schedule.current_phase = { start_date: phase.start_date, end_date: phase.end_date };
+  };
+  fn.invoiceTotal = () => {
+    // Model the product-scoped percent discount without treating zero as Free.
+    let amount = state.subscription.items.data[0].price.id === LAUNCH ? 300 : 500;
+    for (const discount of state.subscription.discounts ?? []) {
+      const coupon = discount.source.coupon;
+      if (coupon.applies_to.products.includes('prod_dummy_web_pro')) {
+        amount *= (100 - coupon.percent_off) / 100;
+      }
+    }
+    return amount;
   };
   return fn;
 }
@@ -394,7 +450,7 @@ test('クーポンの有無で launch -> standard の対象判定は変わらな
   assert.deepEqual(withCoupon, plain);
 });
 
-test('予約する phases は割引を引き継がない（duration=once 運用の根拠）', () => {
+test('適用中の割引がなければphasesへ割引を新規追加しない', () => {
   const params = buildDesiredScheduleParams({
     launchPriceId: LAUNCH,
     standardPriceId: STANDARD,
@@ -463,6 +519,7 @@ test('F: active + launch + schedule なし -> 作成して standard phase を付
     'POST /v1/subscription_schedules',
     `GET /v1/subscriptions/${SUB_ID}`,
     `GET /v1/subscription_schedules/${schedId}`,
+    `GET /v1/subscriptions/${SUB_ID}`,
     `POST /v1/subscription_schedules/${schedId}`,
     `GET /v1/subscriptions/${SUB_ID}`,
     `GET /v1/subscription_schedules/${schedId}`,
@@ -525,7 +582,7 @@ test('I: schedule あり + standard phase なし（部分失敗）-> 修復す�
   assert.equal(fake.state.subscription.schedule, 'sub_sched_existing');
   assertDesired(fake);
   const update = fake.posts()[0];
-  assert.equal(update.key, scheduleRepairKey('sub_sched_existing', EVT_1));
+  assert.match(update.key, new RegExp('^' + scheduleRepairKey('sub_sched_existing', EVT_1) + ':[0-9a-f]{64}' + '$'));
 });
 
 test('I: end_behavior が release でない / standard の開始がずれている schedule も修復する', async () => {
@@ -566,7 +623,7 @@ test('Idempotency-Key は event id で世代を分ける（subscription ID だ�
   const schedId = fake.state.subscription.schedule;
   assert.equal(create.key, `schedule:create:launch2standard:${SUB_ID}:${EVT_1}`);
   assert.equal(create.key, scheduleCreateKey(SUB_ID, EVT_1));
-  assert.equal(update.key, `schedule:repair:launch2standard:${schedId}:${EVT_1}`);
+  assert.match(update.key, new RegExp(`^schedule:repair:launch2standard:${schedId}:${EVT_1}:discounts-v1:[0-9a-f]{64}` + '$'));
   for (const c of fake.posts()) {
     assert.notEqual(c.key, `sched:launch2standard:${SUB_ID}`);
     assert.equal(c.key.includes(String(PERIOD_END)), false, 'current_period_end を世代に使わない');
@@ -837,4 +894,317 @@ test('webhook: 対象外の契約では Stripe を追加で呼ばない（従来
     `GET /v1/subscriptions/${SUB_ID}`,
     `GET /v1/customers/${CUS_ID}`,
   ]);
+});
+
+// =========================================================
+// 7. 既存Discountの維持（Cloverのsource.coupon形状）
+// =========================================================
+function appliedDiscount(duration = 'forever', over = {}) {
+  return {
+    id: `di_dummy_${duration}`,
+    object: 'discount',
+    start: PERIOD_START,
+    end: duration === 'repeating' ? PERIOD_END + FAKE_MONTH * 2 : null,
+    promotion_code: 'promo_dummy_lifetime',
+    source: { type: 'coupon', coupon: {
+      id: `coupon_dummy_${duration}`, object: 'coupon', duration, percent_off: 100,
+      applies_to: { products: ['prod_dummy_web_pro'] },
+    } },
+    ...over,
+  };
+}
+
+function discountedFake(discount = appliedDiscount(), over = {}) {
+  return fakeStripe({ subscription: launchSubscription({ discounts: [discount] }), ...over });
+}
+
+function assertProSnapshot(delivery) {
+  const args = delivery.rpc.calls[0].args;
+  assert.equal(args.p_plan_id, 'web_pro');
+  assert.equal(args.p_status, 'active');
+  assert.equal(hasWebEntitlement({ plan_id: args.p_plan_id, status: args.p_status }), true);
+}
+
+test('100% forever: Schedule作成・300→500切替・release後も同じ割引で0円とProを維持', async () => {
+  const discount = appliedDiscount();
+  const fake = discountedFake(discount);
+  assert.equal(fake.invoiceTotal(), 0, 'Schedule切替前の300円も100%OFF');
+  const before = await deliver(fake, stripeEvent('customer.subscription.updated', { id: SUB_ID }));
+  assert.equal(before.res.status, 200);
+  assertProSnapshot(before);
+  const update = fake.posts().find((c) => c.path.startsWith('/v1/subscription_schedules/'));
+  for (const i of [0, 1]) {
+    assert.equal(update.form[`phases[${i}][discounts][0][discount]`], discount.id);
+    assert.equal(`phases[${i}][discounts][0][coupon]` in update.form, false);
+    assert.equal(`phases[${i}][discounts][0][promotion_code]` in update.form, false);
+  }
+  fake.advanceToStandard();
+  assert.equal(fake.state.subscription.items.data[0].price.id, STANDARD);
+  assert.deepEqual(fake.state.subscription.discounts, [discount], '適用開始日時・Promotion Codeも保持');
+  assert.equal(fake.invoiceTotal(), 0, '500円へ切替後も100%OFF');
+  const postsBefore = fake.posts().length;
+  const after = await deliver(fake, stripeEvent('customer.subscription.updated', { id: SUB_ID }, EVT_2));
+  assert.equal(after.res.status, 200);
+  assertProSnapshot(after);
+  assert.equal(after.rpc.calls[0].args.p_price_phase, 'standard');
+  assert.equal(fake.posts().length, postsBefore, 'standard移行後は再作成しない');
+  fake.releaseAttached();
+  assert.deepEqual(fake.state.subscription.discounts, [discount], 'releaseはSubscriptionを残す');
+  assert.equal(fake.invoiceTotal(), 0);
+});
+
+test('forever: Schedule対象期間になる前は割引を保持したままStripeへ追加アクセスしない', async () => {
+  const discount = appliedDiscount();
+  const fake = fakeStripe({ subscription: withPeriod(
+    launchSubscription({ discounts: [discount] }), PERIOD_START - FAKE_MONTH, PERIOD_START) });
+  assert.equal((await reconcile(fake)).action, RECONCILE_ACTION.NOT_ELIGIBLE);
+  assert.deepEqual(fake.state.subscription.discounts, [discount]);
+  assert.equal(fake.state.calls.length, 0);
+});
+
+test('forever: SubscriptionのDiscount IDをClover source.couponまでexpandしてから修復する', async () => {
+  const discount = appliedDiscount();
+  const fake = fakeStripe({
+    subscription: launchSubscription({ discounts: [discount.id] }), discountObjects: [discount],
+  });
+  const result = await reconcile(fake);
+  assert.equal(result.ok, true);
+  assert.deepEqual(fake.state.calls[0].query, { 'expand[0]': 'discounts.source.coupon' });
+  assertDesired(fake);
+  fake.advanceToStandard();
+  assert.deepEqual(fake.state.subscription.discounts, [discount]);
+});
+
+test('forever: 価格だけ予約済みでも将来phaseの割引欠落を修復する', async () => {
+  const discount = appliedDiscount();
+  const schedule = desiredSchedule();
+  schedule.phases[0].discounts = [{ discount: discount.id }];
+  const fake = discountedFake(discount, {
+    subscription: launchSubscription({ schedule: schedule.id, discounts: [discount] }), schedules: [schedule],
+  });
+  assert.equal((await reconcile(fake)).action, RECONCILE_ACTION.REPAIRED);
+  assert.deepEqual(fake.state.schedules.get(schedule.id).phases[1].discounts, [{ discount: discount.id }]);
+});
+
+test('forever: 将来phaseだけ割引ありでも現在phaseの欠落を修復する', async () => {
+  const discount = appliedDiscount();
+  const schedule = desiredSchedule();
+  schedule.phases[1].discounts = [{ discount: { id: discount.id } }];
+  const fake = discountedFake(discount, {
+    subscription: launchSubscription({ schedule: schedule.id, discounts: [discount] }), schedules: [schedule],
+  });
+  assert.equal((await reconcile(fake)).action, RECONCILE_ACTION.REPAIRED);
+  assert.deepEqual(fake.state.schedules.get(schedule.id).phases[0].discounts, [{ discount: discount.id }]);
+});
+
+test('forever: 割引込みで予約済みなら同一webhookと別eventの再送でもmutationしない', async () => {
+  const fake = discountedFake();
+  const event = stripeEvent('customer.subscription.updated', { id: SUB_ID });
+  assert.equal((await deliver(fake, event)).res.status, 200);
+  const count = fake.posts().length;
+  for (const id of [EVT_1, EVT_2]) {
+    const again = await deliver(fake, stripeEvent('customer.subscription.updated', { id: SUB_ID }, id),
+      { rpc: rpcMock({ processed: false, already_processed: true, stale: false }) });
+    assert.equal(again.res.status, 200);
+    assert.equal(again.body.already_processed, true);
+    assertProSnapshot(again);
+  }
+  assert.equal(fake.posts().length, count);
+  assert.equal(liveSchedules(fake).length, 1);
+  fake.advanceToStandard();
+  assert.equal(fake.invoiceTotal(), 0);
+});
+
+test('forever: Schedule更新失敗→webhook再送でも同じDiscountを保持して修復する', async () => {
+  const fake = discountedFake(appliedDiscount(), { failUpdates: 1 });
+  const event = stripeEvent('customer.subscription.updated', { id: SUB_ID });
+  assert.equal((await deliver(fake, event)).res.status, 502);
+  const retry = await deliver(fake, event,
+    { rpc: rpcMock({ processed: false, already_processed: true, stale: false }) });
+  assert.equal(retry.res.status, 200);
+  assert.equal(liveSchedules(fake).length, 1);
+  fake.advanceToStandard();
+  assert.equal(fake.invoiceTotal(), 0);
+});
+
+test('forever: Stripeが更新200を返しても割引を落としたら成功扱いしない', async () => {
+  const fake = discountedFake(appliedDiscount(), { dropDiscountsOnUpdate: true });
+  assert.deepEqual(await reconcile(fake), { ok: false, code: 'discounts_not_preserved', retryable: true });
+});
+
+test('初回once: 現在phaseは保持、将来phaseには再適用しない（end=nullでもforeverと区別）', async () => {
+  const discount = appliedDiscount('once');
+  const fake = discountedFake(discount);
+  assert.equal((await reconcile(fake)).ok, true);
+  const update = fake.posts().find((c) => c.path.startsWith('/v1/subscription_schedules/'));
+  assert.equal(update.form['phases[0][discounts][0][discount]'], discount.id);
+  assert.equal(update.form['phases[1][discounts]'], '', '次phaseで初回割引を再適用しない');
+  assert.equal(fake.invoiceTotal(), 0, '未確定の初回Invoice向け割引を消さない');
+  fake.advanceToStandard();
+  assert.deepEqual(fake.state.subscription.discounts, []);
+  assert.equal(fake.invoiceTotal(), 500);
+});
+
+test('初回once使用済み: Subscriptionに割引がなければ初回割引を復元しない', async () => {
+  const fake = fakeStripe({ subscription: launchSubscription({ discounts: [] }) });
+  assert.equal((await reconcile(fake)).ok, true);
+  const update = fake.posts().find((c) => c.path.startsWith('/v1/subscription_schedules/'));
+  assert.equal(Object.keys(update.form).some((key) => key.includes('discount')), false);
+  assert.equal(fake.invoiceTotal(), 300);
+  fake.advanceToStandard();
+  assert.equal(fake.invoiceTotal(), 500);
+});
+
+for (const remaining of [0, -1, FAKE_MONTH]) {
+  test(`repeating: 終了時刻を延長せず引き継ぐ（切替境界との差${remaining}秒）`, async () => {
+    const discount = appliedDiscount('repeating', { end: PERIOD_END + remaining });
+    const fake = discountedFake(discount);
+    assert.equal((await reconcile(fake)).ok, true);
+    assert.deepEqual(fake.state.subscription.discounts, [discount]);
+    fake.advanceToStandard();
+    assert.deepEqual(fake.state.subscription.discounts, remaining > 0 ? [discount] : []);
+    assert.equal(fake.invoiceTotal(), remaining > 0 ? 0 : 500);
+  });
+}
+
+test('複数割引: 現在は全件と順序を保持、将来はonceだけ除外する', async () => {
+  const once = appliedDiscount('once');
+  const forever = appliedDiscount();
+  const fake = fakeStripe({ subscription: launchSubscription({ discounts: [once, forever] }) });
+  assert.equal((await reconcile(fake)).ok, true);
+  assert.deepEqual(fake.state.subscription.discounts, [once, forever]);
+  fake.advanceToStandard();
+  assert.deepEqual(fake.state.subscription.discounts, [forever]);
+});
+
+test('割引の内容不明ならGETで再確認しても書き換えず、webhookを再送させる', async () => {
+  const invalid = appliedDiscount();
+  invalid.source.coupon = 'coupon_not_expanded';
+  const fake = discountedFake(invalid);
+  const delivery = await deliver(fake, stripeEvent('customer.subscription.updated', { id: SUB_ID }));
+  assert.equal(delivery.res.status, 502);
+  assert.deepEqual(delivery.body, { error: 'schedule_reconcile_failed' });
+  assert.equal(fake.posts().length, 0);
+});
+
+test('割引展開の一時障害ではScheduleを作らない', async () => {
+  const discount = appliedDiscount();
+  const fake = fakeStripe({ subscription: launchSubscription({ discounts: [discount.id] }),
+    discountObjects: [discount], failDiscountExpansion: true });
+  assert.deepEqual(await reconcile(fake), { ok: false, code: 'stripe_failed', retryable: true });
+  assert.equal(fake.posts().length, 0);
+});
+
+test('repeatingの終了時刻不明では割引を失わせず停止する', async () => {
+  const fake = discountedFake(appliedDiscount('repeating', { end: null }));
+  assert.deepEqual(await reconcile(fake), { ok: false, code: 'discounts_unverified', retryable: true });
+  assert.equal(fake.posts().length, 0);
+});
+
+test('旧APIの展開済みcoupon形状でもDiscount IDを再利用する', async () => {
+  const discount = appliedDiscount();
+  discount.coupon = discount.source.coupon;
+  delete discount.source;
+  const fake = discountedFake(discount);
+  assert.equal((await reconcile(fake)).ok, true);
+  assert.deepEqual(fake.state.schedules.get(fake.state.subscription.schedule).phases[1].discounts,
+    [{ discount: discount.id }]);
+});
+test('Subscription本体の永久割引が落ちたらScheduleに残っていても成功扱いしない', async () => {
+  const fake = discountedFake(appliedDiscount(), { onSubscriptionRead(state, count) {
+    if (count === 3) state.subscription.discounts = [];
+  } });
+  assert.deepEqual(await reconcile(fake), { ok: false, code: 'discounts_not_preserved', retryable: true });
+  const schedule = fake.state.schedules.get(fake.state.subscription.schedule);
+  assert.deepEqual(schedule.phases[1].discounts, [{ discount: 'di_dummy_forever' }]);
+});
+
+test('作成中に新しく適用された永久割引を古い空配列で上書きしない', async () => {
+  const discount = appliedDiscount();
+  const fake = fakeStripe({ subscription: launchSubscription({ discounts: [] }), discountObjects: [discount],
+    onSubscriptionRead(state, count) {
+      if (count === 2) state.subscription.discounts = [structuredClone(discount)];
+    } });
+  assert.equal((await reconcile(fake)).ok, true);
+  assert.deepEqual(fake.state.subscription.discounts, [discount]);
+  fake.advanceToStandard();
+  assert.equal(fake.invoiceTotal(), 0);
+});
+
+test('更新直前に永久割引が消えた場合は上書きせず再送させる', async () => {
+  const fake = discountedFake(appliedDiscount(), { onSubscriptionRead(state, count) {
+    if (count === 2) state.subscription.discounts = [];
+  } });
+  assert.deepEqual(await reconcile(fake), { ok: false, code: 'discounts_changed', retryable: true });
+  assert.equal(fake.posts().length, 1, 'from_subscription後に修復POSTはしない');
+});
+
+test('同一event再送の間にonceが消費されてもparams変更による冪等キー衝突を起こさない', async () => {
+  const fake = discountedFake(appliedDiscount('once'));
+  assert.equal((await reconcile(fake, EVT_1)).ok, true);
+  const firstKey = fake.posts().at(-1).key;
+  fake.state.subscription.discounts = []; // Invoice確定によりonceが消費された状態
+  assert.equal((await reconcile(fake, EVT_1)).ok, true);
+  const secondKey = fake.posts().at(-1).key;
+  assert.notEqual(secondKey, firstKey, '割引構成が変われば別のIdempotency-Key');
+  assert.equal((await reconcile(fake, EVT_1)).action, RECONCILE_ACTION.NOOP);
+  assert.deepEqual(fake.state.subscription.discounts, []);
+});
+for (const read of [2, 3]) {
+  for (const retain of [true, false]) {
+    test(`料金切替の瞬間も永久割引を確認する（read=${read},保持=${retain}）`, async () => {
+      const fake = discountedFake(appliedDiscount(), { onSubscriptionRead(state, count) {
+        if (count === read) {
+          state.subscription.items.data[0].price.id = STANDARD;
+          if (!retain) state.subscription.discounts = [];
+        }
+      } });
+      const result = await reconcile(fake);
+      assert.equal(result.ok, retain);
+      if (retain) {
+        assert.equal(result.action, RECONCILE_ACTION.NOT_ELIGIBLE);
+        assert.equal(fake.invoiceTotal(), 0);
+      } else {
+        assert.equal(result.code, read === 2 ? 'discounts_changed' : 'discounts_not_preserved');
+        assert.equal(result.retryable, true);
+      }
+    });
+  }
+}
+
+test('Promotion Codeなし: 通常の300円→500円切替とPro権限は従来どおり', async () => {
+  const fake = fakeStripe({ subscription: launchSubscription({ discounts: [] }) });
+  assert.equal(fake.invoiceTotal(), 300);
+  const before = await deliver(fake, stripeEvent('customer.subscription.updated', { id: SUB_ID }));
+  assert.equal(before.res.status, 200);
+  assertProSnapshot(before);
+  fake.advanceToStandard();
+  assert.equal(fake.invoiceTotal(), 500);
+  const after = await deliver(fake, stripeEvent('customer.subscription.updated', { id: SUB_ID }, EVT_2));
+  assert.equal(after.res.status, 200);
+  assertProSnapshot(after);
+});
+
+test('Promotion Codeを介さず適用済みのforever Couponでも同じDiscount IDを保持する', async () => {
+  const discount = appliedDiscount('forever', { promotion_code: null });
+  const fake = discountedFake(discount);
+  assert.equal((await reconcile(fake)).ok, true);
+  fake.advanceToStandard();
+  assert.deepEqual(fake.state.subscription.discounts, [discount]);
+  assert.equal(fake.invoiceTotal(), 0);
+});
+
+test('Stripeが500を冪等キャッシュした再送は成功扱いせず、別eventで割引を保って修復できる', async () => {
+  const fake = discountedFake(appliedDiscount(), {
+    failUpdates: 1, failUpdatesStatus: 500, cacheServerErrors: true,
+  });
+  const event = stripeEvent('customer.subscription.updated', { id: SUB_ID });
+  assert.equal((await deliver(fake, event)).res.status, 502);
+  assert.equal((await deliver(fake, event)).res.status, 502, '同じkeyの500を成功と偽らない');
+  assert.equal(liveSchedules(fake).length, 1);
+  assert.equal(fake.invoiceTotal(), 0);
+  assert.equal((await deliver(fake,
+    stripeEvent('customer.subscription.updated', { id: SUB_ID }, EVT_2))).res.status, 200);
+  fake.advanceToStandard();
+  assert.equal(fake.invoiceTotal(), 0);
 });

@@ -315,10 +315,9 @@ export function buildCheckoutParams(o) {
     // Stripe の Promotion Code 入力欄を出す。
     // **クーポンの正は Stripe 側**で、独自のクーポン DB もコードへのハードコードも持たない。
     //
-    // **Sukima では duration=once のクーポン運用に限定する（継続割引は扱わない）。**
-    // launch -> standard の Subscription Schedule は phases を明示指定しており discounts を持たないため
-    // （billing-schedule.js の buildDesiredScheduleParams）、
-    // repeating / forever の継続割引は schedule 作成時に失われる。
+    // 適用済みDiscountは billing-schedule.js で引き継ぐ。
+    // onceは初回のみ、repeatingは元の期限まで、foreverは価格切替後も維持する。
+    // payment_method_collectionは未指定（既定always）。0円時のカード収集仕様も維持する。
     //
     // plan / phase の判定は price_id だけを見るので、
     // 割引で請求額が下がっても ¥300 -> ¥500 の移行判定は変わらない。

@@ -179,6 +179,49 @@ export function evaluateScheduleEligibility(subscription, env) {
 }
 
 /**
+ * 現在適用中の Discount を再利用する。Coupon / Promotion Code を再適用しない
+ * （once の再適用や repeating の期間リセットを防ぐ）。
+ * Clover は discounts.source.coupon を expand すると duration を読める。
+ * once は現在 phase だけ、repeating は元の終了日時まで、forever は両 phase。
+ * 型や期間が確認できなければ null。割引なしと推測して上書きしない。
+ */
+function readScheduleDiscounts(subscription, periodEnd) {
+  const applied = subscription?.discounts;
+  if (applied === null || applied === undefined) return { current: [], standard: [] };
+  if (!Array.isArray(applied)) return null;
+  const current = [];
+  const standard = [];
+  for (const discount of applied) {
+    const id = readId(discount);
+    const coupon = discount?.source?.coupon ?? discount?.coupon;
+    const duration = coupon?.duration;
+    if (id === null || !['once', 'repeating', 'forever'].includes(duration)) return null;
+    if (duration === 'repeating' && toSeconds(discount.end) === null) return null;
+    const reference = { discount: id };
+    current.push(reference);
+    if (duration === 'forever'
+        || (duration === 'repeating' && discount.end > periodEnd)) {
+      standard.push({ ...reference });
+    }
+  }
+  return { current, standard };
+}
+
+/** 継続すべき割引がSubscription本体から落ちていないことも確認する。 */
+function hasContinuingDiscounts(subscription, expected) {
+  const applied = subscription?.discounts ?? [];
+  return Array.isArray(applied) && expected.standard.every((reference) =>
+    applied.some((discount) => readId(discount) === reference.discount));
+}
+
+/** Schedule の割引も既存 Discount ID と順序まで照合する。 */
+function hasPhaseDiscounts(phase, expected) {
+  const actual = phase?.discounts ?? [];
+  return Array.isArray(actual) && actual.length === expected.length
+    && actual.every((entry, i) => readId(entry?.discount) === expected[i].discount);
+}
+
+/**
  * schedule が desired 状態か。
  *
  *   - この subscription に付いた、生きている schedule である
@@ -194,10 +237,18 @@ export function hasDesiredStandardPhase(schedule, target) {
   if (schedule.end_behavior !== DESIRED_END_BEHAVIOR) return false;
   const phases = schedule.phases;
   if (!Array.isArray(phases)) return false;
-  return phases.some((p) => toSeconds(p?.start_date) === target.periodEnd
+  const standard = phases.find((p) => toSeconds(p?.start_date) === target.periodEnd
     && Array.isArray(p?.items)
     && p.items.length === 1
     && readId(p.items[0]?.price) === target.standardPriceId);
+  if (!standard) return false;
+  if (!target.discounts) return true;
+  const current = phases.find((p) => toSeconds(p?.start_date) === currentPhaseStart(schedule, target)
+    && toSeconds(p?.end_date) === target.periodEnd
+    && Array.isArray(p?.items) && p.items.length === 1
+    && readId(p.items[0]?.price) === target.launchPriceId);
+  return !!current && hasPhaseDiscounts(current, target.discounts.current)
+    && hasPhaseDiscounts(standard, target.discounts.standard);
 }
 
 /**
@@ -219,11 +270,15 @@ export function buildDesiredScheduleParams(o) {
         start_date: o.phaseStart,
         end_date: o.periodEnd,
         proration_behavior: 'none',
+        ...(o.discounts?.current.length ? { discounts: o.discounts.current } : {}),
       },
       {
         items: [{ price: o.standardPriceId, quantity: 1 }],
         duration: { interval: 'month', interval_count: 1 },
         proration_behavior: 'none',
+        // once / 期限切れ repeating は次 phase に再適用しない。
+        ...(o.discounts?.current.length
+          ? { discounts: o.discounts.standard.length ? o.discounts.standard : '' } : {}),
       },
     ],
   };
@@ -235,8 +290,9 @@ export function scheduleCreateKey(subscriptionId, eventId) {
 }
 
 /** schedule 修復（update）の Idempotency-Key。世代 = 署名検証済み event の id。 */
-export function scheduleRepairKey(scheduleId, eventId) {
-  return `schedule:repair:launch2standard:${scheduleId}:${eventId}`;
+export function scheduleRepairKey(scheduleId, eventId, fingerprint = null) {
+  // 旧コードが同じ event で送った割引なし params と衝突させない。
+  return `schedule:repair:launch2standard:${scheduleId}:${eventId}:discounts-v1${fingerprint ? ':' + fingerprint : ''}`;
 }
 
 /** update の phase[0] の開始。現在の phase の開始をそのまま使う（変えると Stripe が拒否する）。 */
@@ -270,6 +326,9 @@ function failure(code, retryable) {
  *   'schedule_create_rejected' 作成が 4xx で拒否され、取り直しても schedule が無い
  *   'schedule_changed'        修復中に別の schedule に付け替わった
  *   'desired_phase_missing'   修復後に取り直しても standard phase が無い
+ *   'discounts_unverified'    割引の内容を確認できない（retryable）
+ *   'discounts_changed'       修復前に継続割引が変わった（retryable）
+ *   'discounts_not_preserved' 修復後にSubscriptionの継続割引を確認できない（retryable）
  *   'stripe_failed'           Stripe の呼び出しが失敗した
  */
 export async function ensureLaunchToStandardSchedule(o) {
@@ -291,7 +350,10 @@ export async function ensureLaunchToStandardSchedule(o) {
   }
 
   const subscriptionPath = `/v1/subscriptions/${target.subscriptionId}`;
-  const getSubscription = () => stripe({ env, method: 'GET', path: subscriptionPath, fetchImpl });
+  const getSubscription = () => stripe({
+    env, method: 'GET', path: subscriptionPath,
+    params: { expand: ['discounts.source.coupon'] }, fetchImpl,
+  });
   const getSchedule = (id) => stripe({
     env, method: 'GET', path: `/v1/subscription_schedules/${id}`, fetchImpl,
   });
@@ -299,6 +361,24 @@ export async function ensureLaunchToStandardSchedule(o) {
   let action = RECONCILE_ACTION.NOOP;
 
   try {
+    let discounts = readScheduleDiscounts(subscription, target.periodEnd);
+    if (discounts === null) {
+      const expanded = await getSubscription();
+      const freshTarget = evaluateScheduleEligibility(expanded, env);
+      if (freshTarget.error) return failure(freshTarget.error, false);
+      if (!freshTarget.eligible) {
+        return { ok: true, action: RECONCILE_ACTION.NOT_ELIGIBLE, reason: freshTarget.reason };
+      }
+      target = freshTarget;
+      discounts = readScheduleDiscounts(expanded, target.periodEnd);
+      if (discounts === null) {
+        logger.error('[billing-schedule] 適用中の割引を確認できません。');
+        return failure('discounts_unverified', true);
+      }
+    }
+    // 作成・更新前の期待値を保持する。API操作で割引が落ちても成功扱いしない。
+    target = { ...target, discounts };
+
     // --- schedule が無い -> 作成 ---
     if (target.scheduleId === null) {
       let createRejected = false;
@@ -337,7 +417,7 @@ export async function ensureLaunchToStandardSchedule(o) {
         logger.error('[billing-schedule] 作成後も subscription に schedule が付いていません。');
         return failure('schedule_not_attached', true);
       }
-      target = refreshed;
+      target = { ...refreshed, discounts };
       if (!createRejected) action = RECONCILE_ACTION.CREATED;
     }
 
@@ -347,34 +427,66 @@ export async function ensureLaunchToStandardSchedule(o) {
       return { ok: true, action };
     }
 
+    // --- 修復直前にも再取得。作成中に追加・消費された割引を古い値で上書きしない。 ---
+    const latestSubscription = await getSubscription();
+    const latestTarget = evaluateScheduleEligibility(latestSubscription, env);
+    if (latestTarget.error) return failure(latestTarget.error, false);
+    if (!latestTarget.eligible) {
+      if (latestTarget.reason === 'not_launch_price'
+          && !hasContinuingDiscounts(latestSubscription, discounts)) {
+        return failure('discounts_changed', true);
+      }
+      return { ok: true, action: RECONCILE_ACTION.NOT_ELIGIBLE, reason: latestTarget.reason };
+    }
+    if (latestTarget.scheduleId !== target.scheduleId) return failure('schedule_changed', true);
+    if (!hasContinuingDiscounts(latestSubscription, discounts)) return failure('discounts_changed', true);
+    discounts = readScheduleDiscounts(latestSubscription, latestTarget.periodEnd);
+    if (discounts === null) return failure('discounts_unverified', true);
+    target = { ...latestTarget, discounts };
+    const params = buildDesiredScheduleParams({
+      launchPriceId: target.launchPriceId,
+      standardPriceId: target.standardPriceId,
+      phaseStart: currentPhaseStart(schedule, target),
+      periodEnd: target.periodEnd,
+      discounts,
+    });
+    // 同じeventの再送でもonce消費などでparamsが変わり得る。内容別のキーで衝突を防ぐ。
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(params)));
+    const fingerprint = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+
     // --- 修復（作成直後の standard phase 追加もここ）---
     await stripe({
       env,
       method: 'POST',
       path: `/v1/subscription_schedules/${target.scheduleId}`,
-      params: buildDesiredScheduleParams({
-        launchPriceId: target.launchPriceId,
-        standardPriceId: target.standardPriceId,
-        phaseStart: currentPhaseStart(schedule, target),
-        periodEnd: target.periodEnd,
-      }),
-      idempotencyKey: scheduleRepairKey(target.scheduleId, eventId),
+      params,
+      idempotencyKey: scheduleRepairKey(target.scheduleId, eventId, fingerprint),
       fetchImpl,
     });
     if (action === RECONCILE_ACTION.NOOP) action = RECONCILE_ACTION.REPAIRED;
 
     // --- 取り直して最終確認 ---
-    const verified = evaluateScheduleEligibility(await getSubscription(), env);
+    const verifiedSubscription = await getSubscription();
+    const verified = evaluateScheduleEligibility(verifiedSubscription, env);
     if (verified.error) return failure(verified.error, false);
     if (!verified.eligible) {
+      // Stripeの更新境界をまたいでも、永久割引の確認を飛ばさない。
+      if (verified.reason === 'not_launch_price'
+          && !hasContinuingDiscounts(verifiedSubscription, discounts)) {
+        return failure('discounts_not_preserved', true);
+      }
       return { ok: true, action: RECONCILE_ACTION.NOT_ELIGIBLE, reason: verified.reason };
     }
     if (verified.scheduleId !== target.scheduleId) {
       logger.error('[billing-schedule] 修復中に schedule が変わりました。');
       return failure('schedule_changed', true);
     }
+    if (!hasContinuingDiscounts(verifiedSubscription, discounts)) {
+      logger.error('[billing-schedule] Subscriptionの継続割引を確認できません。');
+      return failure('discounts_not_preserved', true);
+    }
     const finalSchedule = await getSchedule(verified.scheduleId);
-    if (!hasDesiredStandardPhase(finalSchedule, verified)) {
+    if (!hasDesiredStandardPhase(finalSchedule, { ...verified, discounts })) {
       logger.error('[billing-schedule] 修復後も standard phase を確認できません。');
       return failure('desired_phase_missing', true);
     }
