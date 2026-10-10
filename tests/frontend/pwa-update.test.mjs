@@ -362,10 +362,10 @@ test('更新パネルは role=region + aria-labelledby、ボタンは button 要
   }
 });
 
-test('sw.js の APP_VERSION は 1.4.0、latest-version.json は 1.4.0 / minimumVersion 1.4.0', () => {
-  assert.match(SW, /^const APP_VERSION = '1\.4\.0';/m);
-  assert.equal(LATEST.version, '1.4.0');
-  assert.equal(LATEST.minimumVersion, '1.4.0');
+test('sw.js の APP_VERSION は 1.4.1、latest-version.json は 1.4.1 / minimumVersion 1.4.1', () => {
+  assert.match(SW, /^const APP_VERSION = '1\.4\.1';/m);
+  assert.equal(LATEST.version, '1.4.1');
+  assert.equal(LATEST.minimumVersion, '1.4.1');
 });
 
 test('完全終了後に新しい SW が有効化済み（current === latest、待機なし）なら何も表示しない', () => {
@@ -381,10 +381,10 @@ test('「更新しました」のような新しい通知は追加していな�
 });
 
 // 今回の配信設定と、将来の任意更新の境界を検証する。
-test('配信設定: 1.3.0 は待機SWの有無にかかわらず強制更新し、あとででは閉じない', () => {
-  for (const waiting of [false, true]) {
+test('配信設定: 1.3.0 / 1.4.0 は待機SWの有無にかかわらず強制更新し、あとででは閉じない', () => {
+  for (const [current, waiting] of [['1.3.0', false], ['1.3.0', true], ['1.4.0', false], ['1.4.0', true]]) {
     const ctx = swPage();
-    arrive(ctx, { current: '1.3.0', latest: LATEST.version, minimum: LATEST.minimumVersion, waiting });
+    arrive(ctx, { current, latest: LATEST.version, minimum: LATEST.minimumVersion, waiting });
     const { p } = ctx;
     assert.equal(p.run('updateUiMode'), 'forced');
     assert.equal(p.el('forceUpdateOverlay').style.display, 'flex');
@@ -405,9 +405,9 @@ test('配信設定: 1.3.0 は待機SWの有無にかかわらず強制更新し�
   }
 });
 
-test('配信設定: 1.4.0 は強制更新されず、既に最新版なら通知もreloadもない', () => {
+test('配信設定: 1.4.1 は強制更新されず、既に最新版なら通知もreloadもない', () => {
   const ctx = swPage();
-  arrive(ctx, { current: '1.4.0', latest: LATEST.version, minimum: LATEST.minimumVersion, waiting: false });
+  arrive(ctx, { current: '1.4.1', latest: LATEST.version, minimum: LATEST.minimumVersion, waiting: false });
   assert.equal(ctx.p.run('updateUiMode'), 'none');
   assert.equal(shown(ctx.p), false);
   assert.equal(ctx.p.el('toast').textContent, '');
@@ -417,7 +417,7 @@ test('配信設定: 1.4.0 は強制更新されず、既に最新版なら通知
 
 test('将来の任意更新: minimumVersionを満たす旧版では通常案内とあとでを使える', () => {
   const ctx = swPage();
-  arrive(ctx, { current: '1.4.0', latest: '1.5.0', minimum: LATEST.minimumVersion });
+  arrive(ctx, { current: '1.4.1', latest: '1.5.0', minimum: LATEST.minimumVersion });
   assert.equal(ctx.p.run('updateUiMode'), 'normal');
   assert.equal(shown(ctx.p), true);
   ctx.p.call('dismissUpdate');
@@ -470,7 +470,7 @@ test('独自の再案内タイマー・時刻記録・BFCache用ハンドラー�
 
 test('前面復帰の更新確認は維持し、ページ内のあとで抑止は解除しない', () => {
   const ctx = swPage();
-  arrive(ctx, { current: '1.4.0', latest: '1.5.0', minimum: LATEST.minimumVersion });
+  arrive(ctx, { current: '1.4.1', latest: '1.5.0', minimum: LATEST.minimumVersion });
   ctx.p.call('dismissUpdate');
   const docEvents = {};
   const windowEvents = [];

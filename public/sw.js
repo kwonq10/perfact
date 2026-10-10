@@ -1,4 +1,4 @@
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 const CACHE_NAME = `sukima-${APP_VERSION}`;
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
@@ -13,13 +13,24 @@ self.addEventListener('install', (e) => {
   // 受け取ったときだけ activate へ進む。更新のタイミングを利用者に委ねるため。
 });
 
+function isApiPath(pathname) {
+  return pathname === '/api' || pathname.startsWith('/api/');
+}
+
 self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+
+    // 同じ版のcacheにもAPI応答が残り得る。静的アセットは残してAPIだけ除去する。
+    const cache = await caches.open(CACHE_NAME);
+    const requests = await cache.keys();
+    await Promise.all(requests.filter((request) => {
+      const url = new URL(request.url);
+      return url.origin === self.location.origin && isApiPath(url.pathname);
+    }).map((request) => cache.delete(request)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('message', (e) => {
@@ -46,6 +57,12 @@ self.addEventListener('fetch', (e) => {
   try {
     url = new URL(request.url);
   } catch (err) {
+    return;
+  }
+  // APIはnavigationを含め、保存・参照・offline fallbackのすべてから除外する。
+  // 認証・契約・権限の正は常にサーバー。通信失敗時も古いAPI応答を返さない。
+  if (url.origin === self.location.origin && isApiPath(url.pathname)) {
+    e.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
   if (url.origin === self.location.origin && BYPASS_PATHS.includes(url.pathname)) {

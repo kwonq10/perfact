@@ -2538,8 +2538,7 @@
       // Sukima サーバーセッションの復元（Cookie のみ。ID Token は使わない）
       //   復元できたら timezone を同期し、quota の残数を取りに行く。
       //   どちらも表示のためだけで、失敗しても検索は止めない。
-      restoreSukimaSession().then(() => {
-        updateAuthUi();
+      refreshSukimaSessionUi().then(() => {
         syncQuotaContext();
       });
       // Google Identity Services（本人確認用）の初期化。読み込み待ちを含む。
@@ -2688,6 +2687,27 @@
       // 500 / 502 など。セッションの有無が不明なので状態を書き換えない。
       sukimaSessionCheckFailed = true;
       return 'check_failed';
+    }
+
+    // 起動とCheckoutからの前面復帰で同じ取得処理を使い、同時の通知は1リクエストにまとめる。
+    let sukimaSessionRefreshInFlight = null;
+
+    function refreshSukimaSessionUi() {
+      if (sukimaSessionRefreshInFlight) return sukimaSessionRefreshInFlight;
+      sukimaSessionRefreshInFlight = restoreSukimaSession().then((state) => {
+        updateAuthUi();
+        renderQuotaInfo();
+        return state;
+      }).finally(() => {
+        sukimaSessionRefreshInFlight = null;
+      });
+      return sukimaSessionRefreshInFlight;
+    }
+
+    function refreshSukimaSessionOnReturn() {
+      if (document.visibilityState !== 'visible' || !sukimaAuthenticated) return;
+      // 既知のFree/Proも再確認する。戻り先URLやqueryから権限を推定しない。
+      return refreshSukimaSessionUi();
     }
 
     /** サーバーセッションを失効させる。204 のときだけ ok。 */
@@ -5946,9 +5966,14 @@
       }
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible') return;
+        refreshSukimaSessionOnReturn();
         runUpdateCheck();
       });
-      window.addEventListener('pageshow', runUpdateCheck);
+      window.addEventListener('pageshow', (event) => {
+        // 通常navigationはonloadが取得済み。BFCache復帰だけ追加取得する。
+        if (event.persisted) refreshSukimaSessionOnReturn();
+        runUpdateCheck();
+      });
       window.addEventListener('focus', runUpdateCheck);
     }
 
