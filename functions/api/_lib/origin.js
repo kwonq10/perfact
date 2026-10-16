@@ -19,7 +19,7 @@
 //     ○ Cookie 認証の変更系 POST（/api/auth/logout, 将来の /api/quota/consume）
 //     × GET（/api/auth/me）
 //         ブラウザは GET に Origin を付けないことがあり、状態も変えないため。
-//     × Authorization ヘッダ認証の POST（/api/auth/session）
+//     × Authorization ヘッダ認証の POST（/api/auth/session, /api/auth/google-session）
 //         カスタムヘッダが必須なので form 経由の CSRF が原理的に成立しない。
 //     × Stripe webhook（未実装）
 //         サーバー間 POST で Origin が無い。署名（Stripe-Signature）で検証すべき領域。

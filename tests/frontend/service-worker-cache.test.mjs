@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const SOURCE = fs.readFileSync(new URL('../../public/sw.js', import.meta.url), 'utf8');
 const ORIGIN = 'https://sukimacalendar.com';
-const CURRENT_CACHE = 'sukima-1.4.1';
+const CURRENT_CACHE = 'sukima-1.4.2';
 
 // 実SWを実行し、Cache APIとnetworkの境界を観測する。実通信・ブラウザstorageは使わない。
 function worker() {

@@ -12,7 +12,7 @@ function me(web) {
 function setup({ initialWeb = false, respond = () => jsonResponse(200, me(true)) } = {}) {
   const fetchImpl = makeFetch([
     [(url) => url === '/api/auth/me', respond],
-    [(url) => url === '/latest-version.json', () => jsonResponse(200, { version: '1.4.1', minimumVersion: '1.4.1' })],
+    [(url) => url === '/latest-version.json', () => jsonResponse(200, { version: '1.4.2', minimumVersion: '1.4.2' })],
   ]);
   const page = loadPage({ fetchImpl });
   page.context.__initial = me(initialWeb);

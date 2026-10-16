@@ -1,4 +1,4 @@
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.4.2';
 const CACHE_NAME = `sukima-${APP_VERSION}`;
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 

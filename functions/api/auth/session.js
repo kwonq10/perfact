@@ -167,6 +167,29 @@ export async function handleSession(request, env, deps = {}) {
     return json(500, { error: 'internal_error' });
   }
 
+  return issueSukimaSession(identity, env, { rpc, generateToken, logger, now });
+}
+
+/**
+ * 検証済みの Google identity（sub / email）から Sukima セッションを発行し、
+ * Set-Cookie 付きの 200 応答を返す。
+ *
+ *   ID Token 経路（/api/auth/session）と access token 経路（/api/auth/google-session）の
+ *   共通部分。**identity は必ず呼び出し側で Google に対して検証済みであること。**
+ *
+ * @param {{sub: string, email?: string|null}} identity 検証済みの identity
+ * @param {object} env Cloudflare の context.env
+ * @param {object} [deps] 差し替え可能な依存（rpc / generateToken / logger / now）
+ * @param {object} [extraBody] 200 応答に足す表示用フィールド（秘密を入れないこと）
+ */
+export async function issueSukimaSession(identity, env, deps = {}, extraBody = {}) {
+  const {
+    rpc = callRpc,
+    generateToken = generateSessionToken,
+    logger = console,
+    now,
+  } = deps;
+
   // --- 2. セッションを発行する（衝突時のみ限定的に張り直す） ---
   let rawToken = null;
   let rows = null;
@@ -244,7 +267,7 @@ export async function handleSession(request, env, deps = {}) {
   }
 
   // user_id / google_sub / email / token / token_hash / 有効期限は返さない
-  return json(200, { plan_id: row.plan_id, status: row.status }, { 'Set-Cookie': cookie });
+  return json(200, { ...extraBody, plan_id: row.plan_id, status: row.status }, { 'Set-Cookie': cookie });
 }
 
 /** Cloudflare Pages Functions: POST のエントリポイント */
