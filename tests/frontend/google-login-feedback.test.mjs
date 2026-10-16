@@ -1,21 +1,29 @@
 // =========================================================
-// public/index.html の Google ログイン（本人確認）案内テスト
+// public/index.html の Google ログイン（1 回の Google 操作）テスト
 //
-//   実際の inline script を vm へ読み込み、google.accounts.id はスタブにする。
-//   renderButton に渡された click_listener と initialize に渡された callback を
-//   テストから直接呼び、「無言で戻る／反応しない」経路が無いことを確かめる。
+//   本人確認（Sukima サーバーセッション）と Calendar 閲覧の許可を、
+//   google.accounts.oauth2.initTokenClient の 1 回のポップアップでまとめて行う。
+//   access token はサーバー（/api/auth/google-session）が検証してから使う。
 //
-//   popup 方式では「閉じられた」を受け取れないため、
-//   時間切れは案内文を変えるだけで、認証状態・session・Calendar token には触れない。
+//   実際の inline script を vm へ読み込み、google.accounts.oauth2 はスタブにする。
+//   initTokenClient に渡された callback / error_callback をテストから直接呼ぶ。
 //   fetch はすべてスタブ。Google へも本番 DB へも出ない。
 // =========================================================
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 import { jsonResponse, loadPage, makeFetch } from './page-harness.mjs';
 
-const SESSION_OK = { plan_id: 'free', status: 'active' };
+const CAL_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events.readonly',
+  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+];
+const FULL_SCOPE = ['openid', ...CAL_SCOPES].join(' ');
+const TOKEN = 'ya29.dummy-access-token-for-tests';
+
+const SESSION_OK = { plan_id: 'free', status: 'active', calendar_scopes_granted: true };
 const ME_OK = {
   authenticated: true, plan_id: 'free', status: 'active',
   entitlement: { web: false, extension: false },
@@ -23,291 +31,367 @@ const ME_OK = {
   price_phase: null, amount: null, tax_behavior: null, next_phase_amount: null, grace_until: null,
 };
 
+const flush = async () => { for (let i = 0; i < 10; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+
 /**
- * 状態 D（未ログイン・Calendar 未連携）のページを作り、GIS を初期化する。
- *
- *   session: '/api/auth/session' の応答を返す関数（省略時は 200）
+ * ページを作る。
+ *   state:   'D'（既定）/ 'B' / 'A'
+ *   session: '/api/auth/google-session' の応答を返す関数
+ *   me:      '/api/auth/me' の応答を返す関数
+ *   hasGrantedAllScopes: GIS の判定関数の差し替え（省略時は scope 文字列で判定）
  */
-function setup({ session } = {}) {
+function setup({ state = 'D', session, me, hasGrantedAllScopes } = {}) {
   const fetchImpl = makeFetch([
-    [(u) => u.includes('/api/auth/session'), session || (() => jsonResponse(200, SESSION_OK))],
-    [(u) => u.includes('/api/auth/me'), () => jsonResponse(200, ME_OK)],
+    [(u) => u.includes('/api/auth/google-session'), session || (() => jsonResponse(200, SESSION_OK))],
+    [(u) => u.includes('/api/auth/me'), me || (() => jsonResponse(200, ME_OK))],
     [(u) => u.includes('/api/user/timezone'), () => jsonResponse(200, { ok: true })],
     [(u) => u.includes('/api/quota/status'), () => jsonResponse(200, { quota_enforced: false })],
+    [(u) => u.includes('/users/me/calendarList'), () => jsonResponse(200, { items: [{ id: 'primary' }] })],
   ]);
   const page = loadPage({ fetchImpl });
 
-  const gis = { initConfig: null, buttonConfigs: [], tokenRequests: 0 };
+  const gis = { config: null, requests: [], idCalls: 0 };
+  const oauth2 = {
+    initTokenClient(cfg) {
+      gis.config = cfg;
+      return { requestAccessToken(overrides) { gis.requests.push(overrides || {}); } };
+    },
+    revoke() {},
+  };
+  if (hasGrantedAllScopes) oauth2.hasGrantedAllScopes = hasGrantedAllScopes;
   page.context.google = {
     accounts: {
-      id: {
-        initialize(cfg) { gis.initConfig = cfg; },
-        renderButton(host, cfg) { gis.buttonConfigs.push(cfg); },
-        disableAutoSelect() {},
-        prompt() {},
-      },
-      oauth2: {
-        initTokenClient: () => ({ requestAccessToken() { gis.tokenRequests += 1; } }),
-        revoke() {},
-      },
+      // google.accounts.id は使わないはず。呼ばれたら数える。
+      id: new Proxy({}, { get() { return () => { gis.idCalls += 1; }; } }),
+      oauth2,
     },
   };
 
-  // setTimeout は差し替え、案内の切り替えをテストから任意の時点で起こせるようにする。
-  const timers = [];
-  const realSetTimeout = page.context.setTimeout;
-  page.context.setTimeout = (fn, ms, ...args) => {
-    if (ms === page.run('GSI_PENDING_HINT_MS')) {
-      const timer = { fn, ms, cleared: false };
-      timers.push(timer);
-      return timer;
-    }
-    return realSetTimeout(fn, ms, ...args);
-  };
-  const realClearTimeout = page.context.clearTimeout;
-  page.context.clearTimeout = (h) => {
-    if (h && typeof h === 'object' && 'cleared' in h) { h.cleared = true; return; }
-    return realClearTimeout(h);
-  };
-  const firePendingTimers = () => {
-    for (const tm of timers) if (!tm.cleared) { tm.cleared = true; tm.fn(); }
-  };
-
+  if (state === 'A') {
+    page.run("sukimaAuthenticated = true; accessToken = 'existing-token';");
+  } else if (state === 'B') {
+    page.run('sukimaAuthenticated = true; accessToken = null;');
+  }
   page.el('loginBtn').style.display = 'none';
-  assert.equal(page.call('initGoogleIdentityNow'), true);
   page.call('updateAuthUi');
-
-  const button = () => gis.buttonConfigs[gis.buttonConfigs.length - 1];
-  return { page, fetchImpl, gis, button, timers, firePendingTimers };
+  return { page, fetchImpl, gis };
 }
 
-const status = (page) => page.el('status').textContent;
-const tr = (page, key) => page.call('t', key);
-const sessionCalls = (fetchImpl) => fetchImpl.calls.filter((c) => c.url.includes('/api/auth/session'));
-/** fetch の後続（timezone / quota / me）まで含めて落ち着くのを待つ。 */
-const settle = () => new Promise((r) => setTimeout(r, 20));
+/** Google の callback（成功）を模す。 */
+function grant(gis, overrides = {}) {
+  return gis.config.callback({ access_token: TOKEN, expires_in: 3599, scope: FULL_SCOPE, ...overrides });
+}
+
+const sessionCalls = (fetchImpl) => fetchImpl.calls.filter((c) => c.url.includes('/api/auth/google-session'));
+const display = (page, id) => page.el(id).style.display;
 
 // ---------------------------------------------------------
-// 設定
+// 1. 未ログイン・Calendar 未連携 → Google 操作 1 回で完了
 // ---------------------------------------------------------
 
-test('renderButton に click_listener を渡している（popup 方式のまま）', () => {
-  const { page, gis, button } = setup();
-  assert.equal(typeof button().click_listener, 'function');
-  assert.equal(button().click_listener, page.context.handleGoogleIdentityButtonClick);
-  // redirect 方式へは変えていない
-  assert.equal(button().ux_mode, undefined);
-  assert.equal(button().login_uri, undefined);
-  assert.equal(gis.initConfig.ux_mode, undefined);
-  assert.equal(gis.initConfig.login_uri, undefined);
-  assert.equal(gis.initConfig.callback, page.context.handleGoogleIdentityCredential);
-});
-
-// ---------------------------------------------------------
-// A. Google ボタン押下 → 案内表示
-// ---------------------------------------------------------
-
-test('A: Google ボタンを押すと「Google 画面で操作を完了してください」を表示する', () => {
-  const { page, fetchImpl, button } = setup();
-  button().click_listener();
-
-  assert.equal(status(page), tr(page, 'googleSignInPending'));
-  // 表示だけ。認証状態は変えず、通信もしない
+test('1: 状態 D では Google ボタンは 1 つだけで、文言は「ログインしてカレンダーを連携」', () => {
+  const { page } = setup();
   assert.equal(page.call('getAuthState'), 'D');
-  assert.equal(fetchImpl.calls.length, 0);
-  assert.notEqual(page.el('gsiButton').style.display, 'none');
+  assert.equal(display(page, 'loginSection'), 'block');
+  assert.equal(display(page, 'loginBtn'), '');
+  assert.equal(page.el('loginBtn').textContent, page.call('t', 'signInWithGoogleBtn'));
+  assert.equal(display(page, 'formSection'), 'none');
 });
 
-test('A: 英語表示では英語の案内になる', () => {
-  const { page, button } = setup();
-  page.run("currentLang = 'en';");
-  button().click_listener();
-  assert.equal(status(page), 'Please finish signing in on the Google screen.');
+test('1: クリック 1 回で Google の画面を同期的に 1 回だけ開く（アカウント選択あり）', () => {
+  const { page, gis } = setup();
+  page.call('doLogin');
+  // await を挟まずに開いていること（user activation を失わない）。
+  assert.equal(gis.requests.length, 1);
+  assert.equal(gis.requests[0].prompt, 'select_account');
+  assert.equal(page.el('status').textContent, page.call('t', 'googleSignInPending'));
 });
 
-test('A: callback が来ないまま時間が経つと「完了していません」へ変わるが、状態は変えない', () => {
-  const { page, fetchImpl, button, timers, firePendingTimers } = setup();
-  page.context.localStorage.setItem('gtoken', 'keep-me');
-  button().click_listener();
-  assert.equal(timers.length, 1);
-  assert.equal(timers[0].ms, 30000);
-
-  firePendingTimers();
-
-  assert.equal(status(page), tr(page, 'googleSignInNotCompleted'));
-  // 失敗と断定しない: 自動 logout / 再試行 / session 削除 / Calendar token 操作をしない
-  assert.equal(page.call('getAuthState'), 'D');
-  assert.equal(fetchImpl.calls.length, 0);
-  assert.equal(page.context.localStorage.getItem('gtoken'), 'keep-me');
-  // Google ボタンは再度押せるまま
-  assert.notEqual(page.el('gsiButton').style.display, 'none');
+test('1: Token Client は openid と Calendar の scope だけをまとめて要求する（email は要求しない）', () => {
+  const { page, gis } = setup();
+  page.call('doLogin');
+  const scopes = gis.config.scope.split(' ');
+  assert.deepEqual([...scopes].sort(), ['openid', ...CAL_SCOPES].sort(), '最小 scope');
+  assert.ok(!scopes.includes('email') && !scopes.includes('profile'), 'メールアドレスを取得しない');
+  assert.equal(typeof gis.config.callback, 'function');
+  assert.equal(typeof gis.config.error_callback, 'function', 'キャンセルを受け取れる');
 });
 
-test('A: 押し直すと案内を出し直し、前のタイマーは捨てる', () => {
-  const { page, button, timers } = setup();
-  button().click_listener();
-  button().click_listener();
-  assert.equal(timers.length, 2);
-  assert.equal(timers[0].cleared, true);
-  assert.equal(timers[1].cleared, false);
-  assert.equal(status(page), tr(page, 'googleSignInPending'));
-});
-
-// ---------------------------------------------------------
-// B. credential callback 到達 → 案内解除 → ログイン処理表示
-// ---------------------------------------------------------
-
-test('B: callback が来たら待ちの案内を解除し「ログインしています...」へ進む', async () => {
-  let release;
-  const pending = new Promise((r) => { release = r; });
-  const { page, fetchImpl, gis, button, timers } = setup({
-    session: () => pending.then(() => jsonResponse(200, SESSION_OK)),
-  });
-  button().click_listener();
-
-  gis.initConfig.callback({ credential: 'header.payload.sig' });
-
-  assert.equal(status(page), tr(page, 'signingIn'));
-  assert.equal(page.run('gsiSignInPending'), false);
-  assert.equal(timers[0].cleared, true);
-  assert.equal(sessionCalls(fetchImpl).length, 1);
-
-  release();
-  await settle();
-});
-
-test('B: callback 後にタイマーが走っても案内を上書きしない', async () => {
-  const { page, gis, button, timers } = setup();
-  button().click_listener();
-  const timer = timers[0];
-  gis.initConfig.callback({ credential: 'header.payload.sig' });
-  await settle();
-
-  // clearTimeout 済みだが、仮に発火しても待ち状態ではないので何もしない
-  timer.fn();
-  assert.equal(status(page), '');
-  assert.equal(page.call('getAuthState'), 'B');
-});
-
-// ---------------------------------------------------------
-// C. sukimaAuthBusy 中の callback → 追加送信しない・処理中を表示
-// ---------------------------------------------------------
-
-test('C: busy 中に callback が来ても session を追加送信せず「ログイン処理中」を表示する', () => {
+test('1: 承認 → サーバー検証 → Sukima ログイン済み + Calendar 利用可能（状態 A）', async () => {
   const { page, fetchImpl, gis } = setup();
-  page.run('sukimaAuthBusy = true;');
+  page.call('doLogin');
+  await grant(gis);
+  await flush();
 
-  gis.initConfig.callback({ credential: 'header.payload.sig' });
+  const calls = sessionCalls(fetchImpl);
+  assert.equal(calls.length, 1, 'セッション作成は 1 回');
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer ' + TOKEN);
+  assert.equal(fetchImpl.calls.filter((c) => c.url.includes('/api/auth/session')).length, 0,
+    '旧 ID Token 経路は使わない');
+  assert.equal(page.run('sukimaAuthenticated'), true);
+  assert.equal(page.run('accessToken'), TOKEN);
+  assert.equal(page.context.localStorage.getItem('gtoken'), TOKEN);
+  assert.ok(Number(page.context.localStorage.getItem('gtoken_expiry')) > Date.now());
+  assert.equal(page.call('getAuthState'), 'A');
+  assert.equal(display(page, 'formSection'), 'block');
+  assert.equal(display(page, 'loginSection'), 'none');
+  assert.equal(gis.requests.length, 1, '2 回目の Google 画面を開かない');
+  assert.equal(gis.idCalls, 0, 'google.accounts.id は使わない');
+});
 
-  assert.equal(sessionCalls(fetchImpl).length, 0);
-  assert.equal(status(page), tr(page, 'signInInProgress'));
+test('1: access token は google-session 以外の Sukima API へ送らない', async () => {
+  const { page, fetchImpl, gis } = setup();
+  page.call('doLogin');
+  await grant(gis);
+  await flush();
+  const leaked = fetchImpl.calls.filter((c) => c.url.startsWith('/api/')
+    && !c.url.includes('/api/auth/google-session')
+    && JSON.stringify(c.init || {}).includes(TOKEN));
+  assert.deepEqual(leaked, []);
+});
+
+// ---------------------------------------------------------
+// 2. セッションあり + Calendar token あり → Google UI を出さない
+// ---------------------------------------------------------
+
+test('2: 状態 A では Google ボタンを出さず、Google の画面も開かない', async () => {
+  const { page, gis } = setup({ state: 'A' });
+  assert.equal(display(page, 'loginBtn'), 'none');
+  assert.equal(display(page, 'formSection'), 'block');
+  await flush();
+  assert.equal(gis.requests.length, 0);
+});
+
+// ---------------------------------------------------------
+// 3. セッションあり + Calendar token なし → 二重ログインにしない
+// ---------------------------------------------------------
+
+test('3: 状態 B は同じ 1 つのボタンで、文言は「カレンダーと連携」', () => {
+  const { page } = setup({ state: 'B' });
+  assert.equal(display(page, 'loginBtn'), '');
+  assert.equal(page.el('loginBtn').textContent, page.call('t', 'connectCalendarBtn'));
+  assert.equal(display(page, 'accountSection'), '', 'ログアウト・削除の導線は残す');
+});
+
+test('3: 状態 B ではクリック 1 回 = Google の画面 1 回で、アカウント選択を省く（prompt: \'\'）', async () => {
+  const { page, fetchImpl, gis } = setup({ state: 'B' });
+  page.call('doLogin');
+  assert.equal(gis.requests.length, 1);
+  assert.equal(gis.requests[0].prompt, '');
+  await grant(gis);
+  await flush();
+  assert.equal(page.call('getAuthState'), 'A');
+  assert.equal(sessionCalls(fetchImpl).length, 1, '選んだアカウントでセッションを作り直す');
+  assert.equal(gis.requests.length, 1, '追加の Google 画面は開かない');
+});
+
+test('3: 別アカウントで入り直した場合に前の契約表示（entitlement）を引き継がない', async () => {
+  const { page, gis } = setup({ state: 'B' });
+  page.run('sukimaEntitlement = { web: true, extension: false };');
+  page.call('doLogin');
+  await grant(gis);
+  await flush();
+  // セッションを作り直したら /api/auth/me の値で取り直す。
+  assert.deepEqual(JSON.parse(JSON.stringify(page.run('sukimaEntitlement'))), { web: false, extension: false });
+});
+
+// ---------------------------------------------------------
+// 4 / 5. 不正・期限切れ・別 client_id の token → セッションを作らない
+// ---------------------------------------------------------
+
+test('4: サーバーが 401（不正・期限切れ・別 client_id）なら未ログインのまま、token も保存しない', async () => {
+  const { page, gis } = setup({ session: () => jsonResponse(401, { error: 'invalid_token' }) });
+  page.call('doLogin');
+  await grant(gis);
+  await flush();
+  assert.equal(page.run('sukimaAuthenticated'), false);
+  assert.equal(page.run('accessToken'), null, '本人確認が通らない token は Calendar にも使わない');
+  assert.equal(page.context.localStorage.getItem('gtoken'), null);
   assert.equal(page.call('getAuthState'), 'D');
+  assert.equal(page.el('status').textContent, page.call('t', 'signInFailed'));
+  assert.equal(display(page, 'loginBtn'), '', '再試行できる');
 });
 
-test('C: 1 回目の session 待ちの間に 2 回目の callback が来ても fetch は 1 回だけ', async () => {
-  let release;
-  const pending = new Promise((r) => { release = r; });
-  const { page, fetchImpl, gis } = setup({
-    session: () => pending.then(() => jsonResponse(200, SESSION_OK)),
-  });
-
-  gis.initConfig.callback({ credential: 'first.token.sig' });
-  gis.initConfig.callback({ credential: 'second.token.sig' });
-
-  assert.equal(sessionCalls(fetchImpl).length, 1);
-  assert.equal(status(page), tr(page, 'signInInProgress'));
-
-  release();
-  await settle();
-  assert.equal(sessionCalls(fetchImpl).length, 1);
-  assert.equal(page.call('getAuthState'), 'B');
-  assert.equal(page.run('sukimaAuthBusy'), false);
-});
-
-test('C: busy 中に Google ボタンを押すと「ログイン処理中」を表示し、待ちの案内は始めない', () => {
-  const { page, button, timers } = setup();
-  page.run('sukimaAuthBusy = true;');
-  button().click_listener();
-  assert.equal(status(page), tr(page, 'signInInProgress'));
-  assert.equal(timers.length, 0);
-  assert.equal(page.run('gsiSignInPending'), false);
-});
-
-// ---------------------------------------------------------
-// D. 通常成功 → 既存どおり状態 B
-// ---------------------------------------------------------
-
-test('D: ボタン押下 → callback → session 200 で状態 B（Calendar 連携ボタン表示）', async () => {
-  const { page, fetchImpl, gis, button } = setup();
-  button().click_listener();
-  gis.initConfig.callback({ credential: 'header.payload.sig' });
-  await settle();
-
-  assert.equal(page.call('getAuthState'), 'B');
-  assert.equal(status(page), '');
-  assert.equal(page.el('gsiButton').style.display, 'none');
-  assert.equal(page.el('loginBtn').style.display, '');
-  assert.equal(page.run('sukimaAuthBusy'), false);
-
-  const s = sessionCalls(fetchImpl);
-  assert.equal(s.length, 1);
-  assert.equal(s[0].method, 'POST');
-  assert.equal(s[0].init.headers.Authorization, 'Bearer header.payload.sig');
-});
-
-// ---------------------------------------------------------
-// E. credential 無し → 既存のエラー表示
-// ---------------------------------------------------------
-
-test('E: credential が無ければ既存の「ログインできませんでした」を表示し、送信しない', () => {
-  for (const response of [undefined, {}, { credential: '' }, { credential: 123 }]) {
-    const { page, fetchImpl, gis, button } = setup();
-    button().click_listener();
-    gis.initConfig.callback(response);
-    assert.equal(status(page), tr(page, 'signInFailed'));
-    assert.equal(page.run('gsiSignInPending'), false);
-    assert.equal(fetchImpl.calls.length, 0);
-    assert.equal(page.call('getAuthState'), 'D');
+test('4: サーバー障害（5xx）・通信失敗でも token を保存せず、理由を出す', async () => {
+  for (const [respond, key] of [
+    [() => jsonResponse(503, { error: 'verification_unavailable' }), 'authServiceError'],
+    [async () => { throw new TypeError('Failed to fetch'); }, 'sessionCheckFailed'],
+  ]) {
+    const { page, gis } = setup({ session: respond });
+    page.call('doLogin');
+    await grant(gis);
+    await flush();
+    assert.equal(page.run('sukimaAuthenticated'), false);
+    assert.equal(page.run('accessToken'), null);
+    assert.equal(page.el('status').textContent, page.call('t', key));
   }
 });
 
-test('E: session が 401 なら既存どおり「ログインできませんでした」で状態 D のまま', async () => {
-  const { page, gis } = setup({ session: () => jsonResponse(401, { error: 'invalid_token' }) });
-  gis.initConfig.callback({ credential: 'header.payload.sig' });
-  await settle();
-  assert.equal(status(page), tr(page, 'signInFailed'));
-  assert.equal(page.call('getAuthState'), 'D');
-  assert.equal(page.run('sukimaAuthBusy'), false);
-});
-
-// ---------------------------------------------------------
-// F. Calendar OAuth と通常経路が壊れていない
-// ---------------------------------------------------------
-
-test('F: ログイン成功後、Calendar 連携は利用者のクリックでだけ開く（自動では開かない）', async () => {
-  const { page, gis, button } = setup();
-  button().click_listener();
-  gis.initConfig.callback({ credential: 'header.payload.sig' });
-  await settle();
-  assert.equal(gis.tokenRequests, 0);
-
+test('4: Google が error を返したら送信しない', async () => {
+  const { page, fetchImpl, gis } = setup();
   page.call('doLogin');
-  assert.equal(gis.tokenRequests, 1);
+  await gis.config.callback({ error: 'access_denied' });
+  await flush();
+  assert.equal(sessionCalls(fetchImpl).length, 0);
+  assert.equal(page.el('status').textContent, page.call('t', 'loginFailed'));
 });
 
-test('F: Google ボタンの押下・時間切れは Calendar 認可を要求しない', () => {
-  const { gis, button, firePendingTimers } = setup();
-  button().click_listener();
-  firePendingTimers();
-  assert.equal(gis.tokenRequests, 0);
+// ---------------------------------------------------------
+// 6. 必要 scope 不足 → Calendar 連携成功扱いにしない
+// ---------------------------------------------------------
+
+test('6: サーバーが calendar_scopes_granted: false なら状態 B（token は保存しない）', async () => {
+  const { page, gis } = setup({
+    session: () => jsonResponse(200, { ...SESSION_OK, calendar_scopes_granted: false }),
+  });
+  page.call('doLogin');
+  await grant(gis, { scope: 'openid' });
+  await flush();
+  assert.equal(page.run('sukimaAuthenticated'), true, '本人確認は済んでいる');
+  assert.equal(page.run('accessToken'), null);
+  assert.equal(page.context.localStorage.getItem('gtoken'), null);
+  assert.equal(page.call('getAuthState'), 'B');
+  assert.equal(page.el('status').textContent, page.call('t', 'calendarScopeMissing'));
+  assert.equal(display(page, 'formSection'), 'none');
 });
 
-test('F: ログアウト後に描き直したボタンにも click_listener が付く', async () => {
-  const { page, gis, button } = setup();
-  gis.initConfig.callback({ credential: 'header.payload.sig' });
-  await settle();
-  const before = gis.buttonConfigs.length;
-  page.call('renderGoogleIdentityButton');
-  assert.equal(gis.buttonConfigs.length, before + 1);
-  assert.equal(typeof button().click_listener, 'function');
+test('6: サーバーが付与済みと言っても、GIS の判定で不足なら連携成功扱いにしない', async () => {
+  const { page, gis } = setup({ hasGrantedAllScopes: () => false });
+  page.call('doLogin');
+  await grant(gis);
+  await flush();
+  assert.equal(page.run('accessToken'), null);
+  assert.equal(page.call('getAuthState'), 'B');
+});
+
+test('6: GIS の hasGrantedAllScopes に Calendar の scope を渡している', async () => {
+  const seen = [];
+  const { gis, page } = setup({ hasGrantedAllScopes: (resp, ...scopes) => { seen.push(scopes); return true; } });
+  page.call('doLogin');
+  await grant(gis);
+  await flush();
+  assert.deepEqual(seen[0], CAL_SCOPES);
+});
+
+// ---------------------------------------------------------
+// 7. キャンセル → UI が壊れない
+// ---------------------------------------------------------
+
+test('7: ポップアップを閉じたら案内を出し、状態は変えず、ボタンは押し直せる', () => {
+  const { page, fetchImpl, gis } = setup();
+  page.el('searchBtn').disabled = true;
+  page.call('doLogin');
+  gis.config.error_callback({ type: 'popup_closed' });
+  assert.equal(page.el('status').textContent, page.call('t', 'googleSignInNotCompleted'));
+  assert.equal(page.call('getAuthState'), 'D');
+  assert.equal(display(page, 'loginBtn'), '');
+  assert.equal(page.el('searchBtn').disabled, false);
+  assert.equal(sessionCalls(fetchImpl).length, 0);
+  page.call('doLogin');
+  assert.equal(gis.requests.length, 2, 'もう一度押せば開き直せる');
+});
+
+test('7: ポップアップを開けなかったら許可を促す案内を出す', () => {
+  const { page, gis } = setup();
+  page.call('doLogin');
+  gis.config.error_callback({ type: 'popup_failed_to_open' });
+  assert.equal(page.el('status').textContent, page.call('t', 'googlePopupFailed'));
+});
+
+test('7: 状態 B でキャンセルしても本人確認は落とさない', () => {
+  const { page, gis } = setup({ state: 'B' });
+  page.call('doLogin');
+  gis.config.error_callback({ type: 'popup_closed' });
+  assert.equal(page.run('sukimaAuthenticated'), true);
+  assert.equal(page.call('getAuthState'), 'B');
+});
+
+// ---------------------------------------------------------
+// 二重発火の防止
+// ---------------------------------------------------------
+
+test('セッション作成中に 2 回目の callback が来ても送信は 1 回だけ', async () => {
+  let release;
+  const { page, fetchImpl, gis } = setup({
+    session: () => new Promise((r) => { release = () => r(jsonResponse(200, SESSION_OK)); }),
+  });
+  page.call('doLogin');
+  const first = grant(gis);
+  await Promise.resolve();
+  await grant(gis);
+  assert.equal(page.el('status').textContent, page.call('t', 'signInInProgress'));
+  release();
+  await first;
+  await flush();
+  assert.equal(sessionCalls(fetchImpl).length, 1);
+});
+
+test('処理中にボタンを押しても Google の画面を開かず「ログイン処理中」を出す', () => {
+  const { page, gis } = setup();
+  page.run('sukimaAuthBusy = true;');
+  page.call('doLogin');
+  assert.equal(gis.requests.length, 0);
+  assert.equal(page.el('status').textContent, page.call('t', 'signInInProgress'));
+});
+
+// ---------------------------------------------------------
+// 8. 既存セッション復元（Cookie のみ。Google UI は出さない）
+// ---------------------------------------------------------
+
+test('8: /api/auth/me 200 + 保存済み Calendar token で状態 A に戻り、Google の画面は開かない', async () => {
+  const { page, gis } = setup();
+  page.run("accessToken = 'restored-token';");
+  const r = await page.call('restoreSukimaSession');
+  page.call('updateAuthUi');
+  assert.equal(r, 'authenticated');
+  assert.equal(page.call('getAuthState'), 'A');
+  assert.equal(gis.requests.length, 0);
+});
+
+test('8: /api/auth/me 200 で Calendar token が無ければ状態 B（自動で Google を開かない）', async () => {
+  const { page, gis } = setup();
+  await page.call('restoreSukimaSession');
+  page.call('updateAuthUi');
+  assert.equal(page.call('getAuthState'), 'B');
+  assert.equal(page.el('loginBtn').textContent, page.call('t', 'connectCalendarBtn'));
+  assert.equal(gis.requests.length, 0);
+});
+
+test('8: /api/auth/me 401 なら状態 D のまま、Google の画面は開かない', async () => {
+  const { page, gis } = setup({ me: () => jsonResponse(401, { error: 'unauthenticated' }) });
+  const r = await page.call('restoreSukimaSession');
+  page.call('updateAuthUi');
+  assert.equal(r, 'unauthenticated');
+  assert.equal(page.call('getAuthState'), 'D');
+  assert.equal(gis.requests.length, 0);
+});
+
+// ---------------------------------------------------------
+// 言語と作り（回帰防止）
+// ---------------------------------------------------------
+
+test('英語表示では英語の文言になる', () => {
+  const { page } = setup();
+  page.run("currentLang = 'en';");
+  page.call('updateAuthUi');
+  assert.equal(page.el('loginBtn').textContent, 'Sign in with Google and connect Calendar');
+});
+
+test('新しい文言は ja / en の両方にある', () => {
+  const { page } = setup();
+  for (const lang of ['ja', 'en']) {
+    page.run('currentLang = ' + JSON.stringify(lang) + ';');
+    for (const key of ['signInWithGoogleBtn', 'connectCalendarBtn', 'calendarScopeMissing', 'googlePopupFailed']) {
+      const v = page.call('t', key);
+      assert.ok(typeof v === 'string' && v.length > 0 && v !== key, lang + ':' + key);
+    }
+  }
+});
+
+test('markup: Google 系のボタンは #loginBtn の 1 つだけ（旧 #gsiButton は無い）', () => {
+  const html = fs.readFileSync(new URL('../../public/index.html', import.meta.url), 'utf8');
+  assert.ok(!html.includes('id="gsiButton"'));
+  assert.ok(!html.includes('google.accounts.id'), 'google.accounts.id を使わない');
+  assert.equal((html.match(/id="loginBtn"/g) || []).length, 1);
 });

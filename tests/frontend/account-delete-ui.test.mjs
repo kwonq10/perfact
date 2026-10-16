@@ -217,8 +217,9 @@ test('状態 B: 削除とログアウトは出るが、検索フォームは出�
   assert.equal(page.el('logoutBtn').style.display, '');
   assert.equal(page.el('formSection').style.display, 'none', '検索フォームは出さない');
   assert.equal(page.el('loginSection').style.display, 'block');
-  assert.equal(page.el('loginBtn').style.display, '', 'Calendar 連携ボタンは従来どおり出す');
-  assert.equal(page.el('gsiButton').style.display, 'none', '本人確認済みなので GIS は出さない');
+  assert.equal(page.el('loginBtn').style.display, '', 'Google ボタン（カレンダーと連携）は出す');
+  assert.equal(page.el('loginBtn').textContent, page.call('t', 'connectCalendarBtn'),
+    '本人確認済みなので文言は「カレンダーと連携」');
   assert.notEqual(page.el('loginInfo').textContent, '');
 });
 
@@ -382,7 +383,8 @@ test('成功: Google の連携解除 -> この端末のデータを消去 -> ロ
   goToFinal(page);
   await page.call('confirmAccountDeletion');
   assert.deepEqual(revokeCalls, ['ya29.dummy-token-for-tests']);
-  assert.equal(autoSelectCalls.length, 1);
+  // 本人確認は 1 回の Google 操作（Token Client）に統合し、google.accounts.id は使わない。
+  assert.equal(autoSelectCalls.length, 0, 'google.accounts.id を呼ばない');
   assert.deepEqual(idbCalls, ['sukima-settings']);
   assert.equal(ls.length, 0, 'localStorage を消す');
   assert.equal(ss.length, 0, 'sessionStorage を消す');

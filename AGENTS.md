@@ -62,7 +62,7 @@ Netlify は現在の production ホストではありません。
 ### preview 環境
 
 preview には secret が未設定です。production と同等には動作しません。
-（GOOGLE_CLIENT_IDS が未設定のとき、/api/auth/session は 500 server_misconfigured を返す実装です）
+（GOOGLE_CLIENT_IDS が未設定のとき、/api/auth/session と /api/auth/google-session は 500 server_misconfigured を返す実装です）
 
 ## Google OAuth
 

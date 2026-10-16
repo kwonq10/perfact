@@ -219,12 +219,13 @@ test('401 で tokenClient を捨てても、クリック時に作り直して認
   assert.deepEqual(reauth, ['init'], 'initTokenClient から作り直して認可を要求する');
 });
 
-test('本人確認が済んでいなければ、連携ボタンを押しても Calendar 認可は始めない', () => {
+test('本人確認が済んでいなくても、Google ボタン 1 回で Google の画面を 1 回だけ開く', () => {
+  // 本人確認と Calendar 連携は同じ 1 回の Google 操作で行う（2 段階にしない）。
   const { page, reauth } = setup();
-  page.run('sukimaAuthenticated = false;');
+  page.run('sukimaAuthenticated = false; accessToken = null;');
 
   page.call('doLogin');
-  assert.deepEqual(reauth, [], 'Calendar の認可より本人確認が先');
+  assert.equal(reauth.length, 1, 'クリック 1 回につき Google の画面は 1 回');
 });
 
 // ---------------------------------------------------------
