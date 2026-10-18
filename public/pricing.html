@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>料金プラン｜スキマ</title>
   <meta name="description" content="スキマの料金プラン。Web Pro は月額300円（税込）から。現在、有料プランは日本国内向けに提供しています。">
-  <meta name="theme-color" content="#4f8ef7">
+  <meta name="theme-color" content="#071f4a">
   <link rel="apple-touch-icon" href="/icon-192.png">
 
   <!--
@@ -40,133 +40,196 @@
   -->
 
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f0f4f8;
-      color: #1a1a2e;
-      line-height: 1.7;
-      padding: 24px 16px 56px;
+    :root {
+      --navy: #071f4a;
+      --navy-2: #0c2a5e;
+      --navy-3: #123a78;
+      --gold: #e4a624;
+      --gold-2: #f0b93c;
+      --gold-ink: #7a5205;
+      --gold-wash: #fdf4e1;
+      --pale: #f3f6fb;
+      --text: #0b1f40;
+      --muted: #4a5a75;
+      --line: #dfe6f1;
     }
 
-    .wrap { max-width: 960px; margin: 0 auto; }
+    body {
+      font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', 'Yu Gothic', Meiryo, 'Segoe UI', sans-serif;
+      background: var(--pale);
+      color: var(--text);
+      line-height: 1.75;
+      overflow-wrap: anywhere;
+      -webkit-text-size-adjust: 100%;
+    }
 
-    .head { text-align: center; margin-bottom: 8px; }
-    .head img { width: 56px; height: 56px; border-radius: 12px; }
-    h1 { font-size: 24px; font-weight: 600; margin: 12px 0 8px; }
-    .lead { font-size: 14px; color: #555; }
+    a { color: var(--navy-3); }
+    :focus-visible { outline: 3px solid var(--navy-3); outline-offset: 2px; }
+
+    .topbar { background: var(--navy); }
+    .topbar-in { max-width: 960px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; min-height: 52px; }
+    .mark { color: #fff; font-size: 16px; font-weight: 800; letter-spacing: 0.06em; text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
+    .mark::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); margin-right: 9px; }
+    .topbar a.top-link { color: #d6e1f5; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
+    .topbar a.top-link:hover { color: #fff; text-decoration: underline; }
+    .topbar :focus-visible { outline-color: #fff; }
+
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 56px; }
+
+    .head { margin-bottom: 8px; }
+    h1 { font-size: clamp(24px, 5.4vw, 32px); font-weight: 800; color: var(--navy); line-height: 1.4; margin-bottom: 8px; }
+    .lead { font-size: 15px; color: var(--muted); max-width: 40em; }
 
     .jp-only {
-      max-width: 640px;
-      margin: 20px auto 28px;
-      background: #eef4ff;
-      border: 1px solid #d6e4ff;
-      border-radius: 10px;
-      padding: 12px 16px;
+      margin: 16px 0 24px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--gold);
+      border-radius: 8px;
+      padding: 10px 14px;
       font-size: 13px;
-      color: #33456b;
-      text-align: center;
+      color: var(--muted);
     }
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
       margin-bottom: 32px;
     }
+    @media (min-width: 640px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
     .card {
       background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-      padding: 24px 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
     }
 
-    .card.featured { border: 2px solid #4f8ef7; }
+    .card.featured { border: 2px solid var(--navy); box-shadow: 0 10px 26px rgba(7, 31, 74, 0.12); }
+    /* 準備中のプランは主役の 2 枚より控えめに */
+    .card[data-plan="extension_pro"], .card[data-plan="all_pro"] { background: transparent; padding: 16px 20px; }
 
-    .plan-name { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .plan-name { font-size: 16px; font-weight: 800; color: var(--navy); margin-bottom: 4px; }
 
     .badge {
       display: inline-block;
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 700;
       border-radius: 999px;
-      padding: 2px 10px;
-      margin-bottom: 10px;
+      padding: 0 10px;
+      margin-bottom: 6px;
+      align-self: flex-start;
     }
-    .badge-launch { background: #fff2d6; color: #8a5a00; }
-    .badge-soon { background: #eceff4; color: #667085; }
+    .badge-launch { background: var(--gold-wash); border: 1px solid #ecd39a; color: var(--gold-ink); }
+    .badge-soon { background: #eceff4; color: #5a6578; }
 
-    .price { font-size: 26px; font-weight: 700; margin-bottom: 2px; }
-    .price small { font-size: 13px; font-weight: 500; color: #555; }
-    .price-note { font-size: 12px; color: #777; margin-bottom: 14px; }
+    .price { font-size: 30px; font-weight: 800; color: var(--navy); line-height: 1.3; margin-bottom: 2px; }
+    .price small { font-size: 14px; font-weight: 700; color: var(--muted); }
+    .price-note { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.65; }
 
-    ul { list-style: none; margin-bottom: 18px; }
-    li { font-size: 13px; color: #444; padding-left: 18px; position: relative; margin-bottom: 6px; }
-    li::before { content: "・"; position: absolute; left: 2px; color: #4f8ef7; }
+    ul { list-style: none; margin-bottom: 16px; }
+    li { font-size: 14px; color: var(--text); padding-left: 22px; position: relative; margin-bottom: 6px; line-height: 1.6; }
+    li::before {
+      content: ""; position: absolute; left: 3px; top: 6px; width: 10px; height: 5px;
+      border-left: 2.5px solid var(--navy-3); border-bottom: 2.5px solid var(--navy-3); transform: rotate(-45deg);
+    }
+
+    .price-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 13px; line-height: 1.55; }
+    .price-table caption { text-align: left; font-size: 12px; font-weight: 700; color: var(--muted); padding-bottom: 4px; }
+    .price-table th, .price-table td { border-top: 1px solid var(--line); padding: 7px 0; vertical-align: top; text-align: left; }
+    .price-table th { font-weight: 600; color: var(--text); padding-right: 10px; width: 60%; }
+    .price-table td { font-weight: 800; color: var(--navy); font-size: 15px; }
+    .hl { display: inline-block; }
+    .pt-then { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 
     .card-foot { margin-top: auto; }
 
     .soon-label {
       display: block;
       text-align: center;
-      font-size: 13px;
-      color: #667085;
-      background: #f4f6fa;
-      border-radius: 8px;
+      font-size: 14px;
+      color: #5a6578;
+      background: #eef1f6;
+      border-radius: 10px;
       padding: 10px;
     }
+    a.soon-label { font-weight: 700; text-decoration: none; }
+
+    .go-free, .go-buy {
+      display: flex; align-items: center; justify-content: center; min-height: 48px;
+      border-radius: 10px; font-size: 15px; font-weight: 800; text-decoration: none; text-align: center; padding: 10px 14px;
+    }
+    .go-free { background: #fff; color: var(--navy); border: 2px solid var(--navy); }
+    .go-free:hover { background: var(--pale); }
+    .go-buy { background: var(--navy); color: #fff; }
+    .go-buy:hover { background: var(--navy-2); }
+    /* 操作への反応は控えめに（価格表示は動かさない） */
+    .go-free, .go-buy, .btn, .btn-manage { transition: background 0.15s ease, transform 0.12s ease; }
+    .go-free:active, .go-buy:active, .btn:active:not(:disabled), .btn-manage:active:not(:disabled) { transform: scale(0.985); }
+    .go-free:focus-visible, .go-buy:focus-visible { outline: 3px solid var(--navy-3); outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) {
+      .go-free, .go-buy, .btn, .btn-manage { transition: none; }
+      .go-free:active, .go-buy:active, .btn:active:not(:disabled), .btn-manage:active:not(:disabled) { transform: none; }
+    }
+    .card-hint { font-size: 12px; color: var(--muted); text-align: center; margin-top: 6px; }
 
     .buy {
       background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-      padding: 24px 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 20px;
       max-width: 640px;
       margin: 0 auto;
+      scroll-margin-top: 16px;
     }
 
-    h2 { font-size: 18px; font-weight: 600; margin-bottom: 14px; }
+    h2 { font-size: 19px; font-weight: 800; color: var(--navy); margin-bottom: 14px; }
+
+    .buy-pre { font-size: 14px; color: var(--muted); margin: -6px 0 14px; }
 
     .terms-summary {
-      background: #f8fafc;
-      border: 1px solid #e3e9f0;
+      background: var(--pale);
+      border: 1px solid var(--line);
       border-radius: 10px;
-      padding: 14px 16px;
+      padding: 14px 16px 6px;
       margin-bottom: 18px;
     }
-    .terms-summary li { font-size: 13px; color: #333; }
+    .terms-summary li { font-size: 14px; }
 
     .check { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
-    .check input { margin-top: 4px; width: 18px; height: 18px; flex: none; }
-    .check label { font-size: 14px; color: #333; }
+    .check input { margin-top: 4px; width: 20px; height: 20px; flex: none; accent-color: var(--navy); }
+    .check label { font-size: 15px; color: var(--text); }
 
     .btn {
       display: block;
       width: 100%;
+      min-height: 54px;
       padding: 14px;
-      background: #4f8ef7;
-      color: #fff;
+      background: var(--gold);
+      color: var(--navy);
       border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: 600;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 800;
+      font-family: inherit;
       cursor: pointer;
       margin-top: 6px;
     }
-    .btn:hover:not(:disabled) { background: #3a7de8; }
-    .btn:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
-    .btn:disabled { background: #b9c6d8; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { background: var(--gold-2); }
+    .btn:focus-visible { outline: 3px solid var(--navy-3); outline-offset: 2px; }
+    .btn:disabled { background: #d5dce7; color: #5a6578; cursor: not-allowed; }
 
     .err {
       background: #fdecec;
       border: 1px solid #f5c2c2;
       border-radius: 10px;
       padding: 12px 14px;
-      font-size: 13px;
+      font-size: 14px;
       color: #8a1f1f;
       margin-bottom: 14px;
     }
@@ -177,8 +240,8 @@
       border-radius: 10px;
       padding: 12px 14px;
       font-size: 14px;
-      color: #24663f;
-      font-weight: 600;
+      color: #1d5a36;
+      font-weight: 700;
       text-align: center;
       margin-bottom: 14px;
     }
@@ -186,58 +249,63 @@
     .manage-row { text-align: center; margin-bottom: 14px; }
     .btn-manage {
       background: #fff;
-      color: #4f8ef7;
-      border: 1px solid #4f8ef7;
+      color: var(--navy);
+      border: 2px solid var(--navy);
       border-radius: 10px;
       padding: 12px 20px;
-      font-size: 14px;
-      font-weight: 600;
+      min-height: 48px;
+      font-size: 15px;
+      font-weight: 700;
       cursor: pointer;
       font-family: inherit;
     }
-    .btn-manage:hover:not(:disabled) { background: #f2f7ff; }
-    .btn-manage:disabled { color: #b9c6d8; border-color: #d5dee9; cursor: not-allowed; }
-    .btn-manage:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+    .btn-manage:hover:not(:disabled) { background: var(--pale); }
+    .btn-manage:disabled { color: #8a95a8; border-color: #d5dee9; cursor: not-allowed; }
+    .btn-manage:focus-visible { outline: 3px solid var(--navy-3); outline-offset: 2px; }
 
-    .legal { font-size: 13px; color: #666; margin-top: 16px; text-align: center; }
-    a { color: #4f8ef7; }
+    .legal { font-size: 13px; color: var(--muted); margin-top: 16px; text-align: center; }
 
     /* FAQ。**新しい契約条件をここで作らない。**
        記載内容は Subscription Terms / 特商法表記 / billing-config と一致させる。 */
     .faq {
       background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-      padding: 24px 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 20px;
       max-width: 640px;
       margin: 24px auto 0;
     }
     .faq dt {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1a1a2e;
-      margin-top: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--navy);
+      margin-top: 18px;
     }
     .faq dt:first-of-type { margin-top: 0; }
-    .faq dd { font-size: 13px; color: #555; margin-top: 6px; }
-    .faq-note { font-size: 12px; color: #777; margin-top: 20px; }
+    .faq dd { font-size: 14px; color: var(--muted); margin-top: 4px; }
+    .faq-note { font-size: 13px; color: var(--muted); margin-top: 20px; }
 
-    .back { display: block; text-align: center; margin-top: 28px; font-size: 14px; }
+    .back { display: block; text-align: center; margin-top: 28px; font-size: 15px; font-weight: 700; }
 
     @media (max-width: 380px) {
-      h1 { font-size: 20px; }
-      .card, .buy { padding: 20px 16px; }
+      .card, .buy, .faq { padding: 18px 14px; }
     }
   </style>
 </head>
 
 <body>
+  <div class="topbar">
+    <div class="topbar-in">
+      <a class="mark" href="/">スキマ</a>
+      <a class="top-link" href="/about/">スキマとは</a>
+    </div>
+  </div>
+
   <div class="wrap">
 
     <div class="head">
-      <img src="/icon-192.png" alt="" width="56" height="56">
       <h1>料金プラン</h1>
-      <p class="lead">スキマは無料でお使いいただけます。もっと使いたい方向けに有料プランをご用意しています。</p>
+      <p class="lead">スキマは無料でお使いいただけます（空き時間検索は週3回まで）。検索を無制限にしたい方向けに、有料プランをご用意しています。</p>
     </div>
 
     <p class="jp-only" id="jpOnlyNotice">現在、有料プランは日本国内向けに提供しています。お支払いは日本円のみです。</p>
@@ -254,7 +322,8 @@
           <li>基本機能はすべて利用可能</li>
         </ul>
         <div class="card-foot">
-          <span class="soon-label">登録不要でご利用中</span>
+          <a href="/" class="go-free" data-cta="pricing-free">無料で空き時間を探す</a>
+          <p class="card-hint">Googleアカウントで始められます</p>
         </div>
       </div>
 
@@ -262,14 +331,21 @@
         <p class="plan-name">Web Pro</p>
         <span class="badge badge-launch">ローンチ価格</span>
         <p class="price">¥300<small>／月（税込）</small></p>
-        <p class="price-note">2026年12月31日までにご契約された方の価格です。2027年に入って最初の更新日から、通常価格の¥500／月（税込）になります。</p>
+        <p class="price-note">ローンチ価格です。2027年からの料金は下の表のとおりです（通常価格 ¥500／月・税込）。</p>
+        <table class="price-table">
+          <caption>お申し込みの時期と月額料金（税込）</caption>
+          <tbody>
+            <tr><th scope="row"><span class="hl">2026年12月31日までに</span><span class="hl">お申し込み</span></th><td>¥300<span class="pt-then"><span class="hl">2027年に入って</span><span class="hl">最初の更新日から ¥500</span></span></td></tr>
+            <tr><th scope="row"><span class="hl">2027年1月1日以降に</span><span class="hl">お申し込み</span></th><td>¥500</td></tr>
+          </tbody>
+        </table>
         <ul>
           <li>Web版の空き時間検索が無制限</li>
           <li>背景画像の位置調整</li>
-          <li>ホワイトレンジ調整</li>
+          <li>白くする範囲（ホワイトレンジ）の調整</li>
         </ul>
         <div class="card-foot">
-          <a href="#buy" class="soon-label" style="color:#4f8ef7;">下のフォームからお申し込み</a>
+          <a href="#buy" class="go-buy">お申し込みへ進む</a>
         </div>
       </div>
 
@@ -303,6 +379,7 @@
 
     <section class="buy" id="buy" aria-label="Web Pro のお申し込み">
       <h2>Web Pro のお申し込み</h2>
+      <p class="buy-pre">お申し込みには、スキマへのGoogleログインが必要です。まだの方は、先に<a href="/">スキマ</a>でログインしてください。</p>
 
       <div class="terms-summary">
         <ul>
@@ -349,13 +426,22 @@
       <h2>よくあるご質問</h2>
       <dl>
         <dt>Web Pro はいくらですか？</dt>
-        <dd>2026年12月31日までにご契約を開始された方は ¥300／月（税込）です。2027年に入って最初の更新日から、通常価格の ¥500／月（税込）になります。</dd>
+        <dd>2026年12月31日までにご契約を開始された方は ¥300／月（税込）です。2027年に入って最初の更新日から、通常価格の ¥500／月（税込）になります。2027年1月1日以降のお申し込み（再契約を含む）は ¥500／月（税込）です。</dd>
 
         <dt>無料プランのままでも使えますか？</dt>
         <dd>はい。無料プランでは空き時間検索を週3回までご利用いただけます。この回数は Web 版と拡張機能で共通の枠です。</dd>
 
         <dt>いつでも解約できますか？</dt>
         <dd>はい。次回更新日の前までにお手続きいただければ解約できます。解約後も、お支払い済みの契約期間の末日まではご利用いただけます。</dd>
+
+        <dt>無料の回数を使い切ると、自動で課金されますか？</dt>
+        <dd>いいえ。その週の検索ができなくなるだけで、自動で有料プランに切り替わることはありません。Web Pro は、このページで18歳以上の確認と規約への同意をしてお申し込みいただいた場合にだけ始まります。</dd>
+
+        <dt>Googleカレンダーの予定を書き換えることはありますか？</dt>
+        <dd>ありません。スキマが使うのは予定とカレンダー一覧を読み取る権限だけで、予定を書き込む・変更する・削除する処理はありません。検索結果の「予定を追加」は、Googleカレンダーの予定作成画面を開くだけです。詳しくは<a href="/privacy.html">プライバシーポリシー</a>をご確認ください。</dd>
+
+        <dt>背景画像は無料プランでも設定できますか？</dt>
+        <dd>はい。背景画像の設定は無料プランでもご利用いただけます（位置と白くする範囲は標準のまま表示されます）。位置の調整と、白くする範囲（ホワイトレンジ）の調整が Web Pro の機能です。</dd>
 
         <dt>無料トライアルはありますか？</dt>
         <dd>ありません。お申し込み時点から有料の契約が始まります。</dd>

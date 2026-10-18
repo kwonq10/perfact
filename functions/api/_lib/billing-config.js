@@ -703,7 +703,7 @@ export function validateEnvPriceIds(env) {
 //      3. Terms ページ（ja / en）の版表記を同じ値に合わせる
 //      4. validateSubscriptionTermsConfig() が ok を返すことを確認する
 //
-//    **1〜4 を実施し、版 2026-09-09 で公開済み。**
+//    **1〜4 を実施し、版 2026-09-09 で公開済み。2026-10-18 に版を更新。**
 //    次に版を上げるときも同じ 4 手順を踏むこと（config だけ直すと ja / en の
 //    版表記とずれ、tests/frontend/terms-page.test.mjs が落ちる）。
 // =========================================================
@@ -739,7 +739,7 @@ export const TERMS_VERSION_PATTERN = /^\d{4}-\d{2}-\d{2}(?:-\d+)?$/;
 /**
  * **Subscription Terms の設定。ここが単一の正。**
  *
- * **現在は published（版 2026-09-09）。**
+ * **現在は published（版 2026-10-18。施行日 2026-10-18）。**
  * getCurrentSubscriptionTermsVersion() はこの版を返し、
  * consent API はこの版だけを RPC へ渡す（client からは受け取らない）。
  *
@@ -752,7 +752,9 @@ export const TERMS_VERSION_PATTERN = /^\d{4}-\d{2}-\d{2}(?:-\d+)?$/;
  */
 export const SUBSCRIPTION_TERMS_CONFIG = Object.freeze({
   status: 'published',
-  version: '2026-09-09',
+  // 料金条件（解約後の再契約）の変更に伴う新しい版。施行日 2026-10-18。
+  // 前の版: 2026-09-09（過去の同意記録はこの版のまま残る）
+  version: '2026-10-18',
   locales: SUBSCRIPTION_TERMS_LOCALES,
 });
 

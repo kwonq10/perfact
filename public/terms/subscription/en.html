@@ -13,7 +13,7 @@
     ============================================================
     Subscription Terms (English)
 
-      **The body is final and published as version 2026-09-09.**
+      **The body is final and published as version 2026-09-09. Updated to version 2026-10-18 (pricing for re-subscription after cancellation).**
 
       Page identity:
         /terms              -> public/terms.html
@@ -30,7 +30,7 @@
       Version and last-updated date:
         The single source of truth is SUBSCRIPTION_TERMS_CONFIG in
         functions/api/_lib/billing-config.js (section 12).
-        It is now status='published' / version='2026-09-09', and **both pages
+        It is now status='published' / version='2026-10-18', and **both pages
         show that same version.** When the version changes, update the config,
         this page and the Japanese page together.
 
@@ -262,7 +262,8 @@
       <ul>
         <li>The launch price is a limited-time price for subscriptions started on or before December 31, 2026</li>
         <li>If you are subscribed at the launch price, your subscription moves to the standard price on <strong>your own first renewal date in 2027</strong></li>
-        <li>Subscriptions started on or after January 1, 2027, and subscriptions started again after a cancellation, use the standard price</li>
+        <li>If you subscribe again after a cancellation on or before December 31, 2026, the launch price also applies, and your subscription moves to the standard price on your own first renewal date in 2027, as described above</li>
+        <li>Subscriptions started on or after January 1, 2027, whether new or after a cancellation, use the standard price</li>
       </ul>
       <p>The move from the launch price to the standard price is set out in advance in this section. It is not a price change under Section 12.</p>
       <p><strong>Where subscriptions are available</strong></p>
@@ -406,7 +407,8 @@
       tests/frontend/terms-page.test.mjs fails if the two pages and the config
       ever disagree.
     -->
-    <p class="updated">Version: 2026-09-09 / Last updated: September 9, 2026</p>
+    <!-- Same version/date as the config. Previous version: 2026-09-09 -->
+    <p class="updated">Version: 2026-10-18 / Last updated: October 18, 2026</p>
 
     <p class="back-link"><a href="/">&larr; Back to the Sukima home page</a></p>
 
