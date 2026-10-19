@@ -3,6 +3,32 @@
 
 <head>
   <meta charset="UTF-8">
+  <!--
+    決済の戻り先 URL（?session_id=...）から session_id を外す。
+    **ページ内のどのスクリプトよりも先に、同期で実行すること。**
+    Google のタグや、配信時に挿入される解析スクリプト（body の末尾に
+    type="module" で入る）が URL を読む前に消すため。
+    session_id は表示にも権限の判定にも使わない。計測 API へ渡して
+    サーバーで確かめるためだけに、このタブの sessionStorage へ 1 時間だけ置く
+    （public/assets/ads-measurement.js が対象外・送信後・期限切れで削除する）。
+  -->
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        if (!params.has('session_id')) return;
+        var sid = params.get('session_id');
+        if (/^cs_(live|test)_[A-Za-z0-9]{1,250}$/.test(sid)) {
+          try {
+            window.sessionStorage.setItem('sukima_ads_checkout', JSON.stringify({
+              sid: sid, exp: Date.now() + 3600000, attempts: 0
+            }));
+          } catch (e) { /* 保存できなくても URL は消す */ }
+        }
+        window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+      } catch (e) { /* 何もしない */ }
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- 決済の戻り先。検索結果に出す意味が無いので索引させない。 -->
   <meta name="robots" content="noindex">
@@ -27,11 +53,20 @@
         までしか書かない。**確定表現を書かないこと。**
 
       このページに置かないもの（意図的）:
-        - JavaScript（query parameter を読まない。session_id / plan / paid /
-          user_id / customer_id を表示や判定の根拠にしない）
-        - 外部リソース
-        - 契約状態の表示（API を叩かない。ポーリングもしない）
-        - Stripe の内部 ID / 金額 / メールアドレス
+        - query parameter（session_id / plan / paid / user_id / customer_id）を
+          表示や権限の判定の根拠にするコード
+        - 静的な外部リソース（Google のタグは、利用者が許可した場合だけ
+          ads-measurement.js が動的に読み込む）
+        - 契約状態の表示（Pro になったかどうかを表示しない）
+        - Stripe の内部 ID / 金額 / メールアドレスの表示
+
+      JavaScript は広告の効果測定のためだけに置く（2026-10-18 追加）:
+        - head の inline script: URL から session_id を外して sessionStorage へ移す
+        - /assets/ads-measurement.js: 許可された場合だけ、サーバー
+          （/api/billing/conversion）が初回の有料契約と確認したときに
+          コンバージョンを 1 件送る。問い合わせは回数と時間に上限がある。
+        - **計測は権限を変更しない。** entitlement の正は従来どおり webhook -> DB。
+          計測が動かなくても、このページの表示とリンクはそのまま使える。
 
       文言は日本語が主。英語は補足の 1 文だけを静的に置いてある
       （Checkout の locale が en の利用者向け。i18n 基盤は作らない）。
@@ -154,7 +189,10 @@
     <a href="/" class="btn">スキマに戻る</a>
 
     <p class="note" style="margin-top: 20px; margin-bottom: 0;">お支払いや解約の条件は<a href="/terms/subscription">サブスクリプション利用規約</a>に定めています。</p>
+
+    <p class="note" style="margin-top: 12px; margin-bottom: 0;"><a href="/privacy/ads-measurement">広告の効果測定の設定</a></p>
   </main>
+  <script src="/assets/ads-measurement.js" data-page="success" defer></script>
 </body>
 
 </html>

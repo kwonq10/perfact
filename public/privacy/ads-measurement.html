@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>広告の効果測定の設定｜スキマ</title>
+  <meta name="theme-color" content="#4f8ef7">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!--
+    ============================================================
+    広告の効果測定（Google広告）の設定ページ
+
+      URL: /privacy/ads-measurement
+      このページ自体は Google のタグを読み込まない。
+      選択はこのブラウザの localStorage（sukima_ads_consent）にだけ保存する。
+      動作は /assets/ads-measurement.js（data-page="settings"）が行う。
+      文言は privacy.html の「広告の効果測定（Google広告）」と一致させること。
+    ============================================================
+  -->
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      background: #f0f4f8;
+      color: #1a1a2e;
+      line-height: 1.8;
+      padding: 32px 16px 48px;
+    }
+
+    main { max-width: 680px; margin: 0 auto; }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      padding: 28px 24px;
+      margin-bottom: 20px;
+    }
+
+    h1 { font-size: 22px; margin-bottom: 16px; line-height: 1.5; }
+    h2 { font-size: 16px; margin-bottom: 10px; }
+    p { font-size: 14px; color: #444; margin-bottom: 12px; }
+    ul { font-size: 14px; color: #444; margin: 0 0 12px 1.4em; }
+    li { margin-bottom: 4px; }
+    a { color: #2f6fd6; }
+
+    .status {
+      background: #eef4ff;
+      border: 1px solid #d6e4ff;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-weight: 600;
+      color: #1a1a2e;
+    }
+
+    .actions { display: flex; gap: 12px; margin: 16px 0 8px; }
+
+    /* 「許可する」「許可しない」は同じ見た目・同じ大きさ（どちらかを目立たせない） */
+    .choice {
+      flex: 1 1 0;
+      min-height: 48px;
+      padding: 12px;
+      border: 1px solid #4f5b70;
+      border-radius: 10px;
+      background: #fff;
+      color: #1a1a2e;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .choice:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+
+    .note { font-size: 13px; color: #666; }
+  </style>
+</head>
+
+<body>
+  <main>
+    <div class="card">
+      <h1>広告の効果測定の設定</h1>
+      <p>スキマは、Google広告をきっかけに有料プランの初回のお支払いが行われたかを測るため、紹介ページと有料プランの決済完了後のページで、Google LLCが提供するGoogleのタグを読み込むことがあります。</p>
+      <p>Googleのタグを読み込むのは、このブラウザで「許可する」を選んだ場合だけです。まだ選んでいない場合や「許可しない」を選んだ場合は読み込みません。許可しなくても、スキマの利用やお支払いには影響しません。</p>
+
+      <p class="status" id="adsConsentStatus" aria-live="polite">現在の設定を確認しています。</p>
+
+      <div class="actions">
+        <button type="button" class="choice" id="adsGrant">許可する</button>
+        <button type="button" class="choice" id="adsDeny">許可しない</button>
+      </div>
+
+      <p class="note" id="adsGpcNote" hidden>このブラウザではGlobal Privacy Controlが有効になっているため、設定にかかわらずGoogleのタグを読み込みません。</p>
+      <p class="note" id="adsStorageNote" hidden>このブラウザでは設定を保存できないため、Googleのタグを読み込みません。</p>
+      <p class="note">設定はこのブラウザにだけ保存されます。別のブラウザや端末では、それぞれで選んでください。設定はいつでも変更できます。</p>
+    </div>
+
+    <div class="card">
+      <h2>許可した場合</h2>
+      <ul>
+        <li>日本からのアクセスに限り、紹介ページ（/about/）と決済完了後のページでGoogleのタグを読み込みます。予定の検索・表示を行うアプリの画面や料金ページでは読み込みません。</li>
+        <li>広告クリックの情報を保存するため、Googleのタグがこのサイトのドメインに Cookie（_gcl_aw、_gcl_au など）を保存することがあります。</li>
+        <li>Googleへ送信される情報や利用目的は、<a href="/privacy#ads-measurement">プライバシーポリシーの「広告の効果測定（Google広告）」</a>に記載しています。リマーケティングや広告のパーソナライズには使わない設定にしています。</li>
+      </ul>
+
+      <h2>許可しない場合・あとから許可を取り消した場合</h2>
+      <ul>
+        <li>Googleのタグを読み込まず、Googleのタグによる通信は行いません。</li>
+        <li>許可を取り消すと、以後はGoogleのタグを読み込みません。開いているページですでに読み込まれていたタグには、以後の送信をしないよう指示し、このサイトのドメインにある Google広告の Cookie（_gcl_ で始まるもの）を削除します。読み込み済みのタグは、そのページを閉じるか再読み込みすると無くなります。</li>
+        <li>この設定で止まるのはGoogle広告のタグだけです。ログインや決済など、スキマのその他の機能に伴う通信には影響しません。</li>
+      </ul>
+    </div>
+
+    <p class="note"><a href="/privacy">プライバシーポリシー</a> ／ <a href="/about/">スキマの紹介ページ</a> ／ <a href="/">スキマを使う</a></p>
+  </main>
+  <script src="/assets/ads-measurement.js" data-page="settings" defer></script>
+</body>
+
+</html>

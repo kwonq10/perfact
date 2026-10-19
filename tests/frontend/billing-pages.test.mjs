@@ -8,10 +8,13 @@
 //   このテストが守るもの:
 //     - **success ページが entitlement を確定させないこと。**
 //       Pro の正は webhook -> DB。ここに来ただけで「Pro になった」と書かない
-//     - **query parameter を信用しないこと。**
-//       JS が無いので session_id / plan / paid / user_id を読む経路が存在しない
+//     - **query parameter を表示や権限の判定に使わないこと。**
+//       success の JS は広告の効果測定のためだけにある（2026-10-18）:
+//         head の inline script が session_id を URL から外して sessionStorage へ移し、
+//         /assets/ads-measurement.js がサーバーへ確認を依頼する。表示は変えない。
+//       cancel は従来どおり JS を持たない
 //     - Stripe の内部 ID / PII / secret を 1 つも表示しないこと
-//     - JS / 外部リソースを持ち込んでいないこと
+//     - 静的な外部リソースを持ち込んでいないこと
 //     - **checkout API が向けている URL と実ファイルが一致すること**
 //       （checkout.js の SUCCESS_PATH / CANCEL_PATH を正とする）
 // =========================================================
@@ -37,6 +40,15 @@ const visibleText = (html) => {
   const body = stripComments(html).split('<body>')[1] || '';
   return body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 };
+
+/** <script>...</script> を取り除く（静的な外部リソースの検査用）。 */
+const stripScripts = (html) => html.replace(/<script\b[\s\S]*?<\/script>/g, '');
+
+/** success の inline script（head にある 1 つ目）の中身。 */
+const successInline = (() => {
+  const m = stripComments(success).match(/<script>([\s\S]*?)<\/script>/);
+  return m ? m[1] : '';
+})();
 
 const successNoComments = stripComments(success);
 const cancelNoComments = stripComments(cancel);
@@ -106,20 +118,51 @@ test('決済の戻り先なので検索索引に載せない', () => {
 
 // --- 2. JS / 外部リソース / query parameter ---
 
-test('JavaScript を持たない（query parameter を読む経路が無い）', () => {
-  for (const page of PAGES) {
-    assert.equal(page.html.includes('<script'), false, page.name);
-    assert.equal(/\son(click|load|error|change|submit|input)=/i.test(page.html), false, page.name);
-    assert.equal(page.html.includes('javascript:'), false, page.name);
+test('cancel は JavaScript を持たない', () => {
+  assert.equal(cancel.includes('<script'), false);
+  assert.equal(/\son(click|load|error|change|submit|input)=/i.test(cancel), false);
+  assert.equal(cancel.includes('javascript:'), false);
+});
+
+test('success の script は計測用の 2 つだけ（head の inline と ads-measurement.js）', () => {
+  const scripts = successNoComments.match(/<script\b[^>]*>/g) || [];
+  assert.equal(scripts.length, 2);
+  assert.equal(scripts[0], '<script>');
+  assert.equal(scripts[1], '<script src="/assets/ads-measurement.js" data-page="success" defer>');
+  assert.equal(/\son(click|load|error|change|submit|input)=/i.test(success), false);
+  assert.equal(success.includes('javascript:'), false);
+});
+
+test('success の inline script は head にあり、他のどの script より先に実行される', () => {
+  const head = successNoComments.split('</head>')[0];
+  const inlineAt = head.indexOf('<script>');
+  assert.ok(inlineAt !== -1, 'inline script が head に無い');
+  // head の中で最初の script であり、外部 script や style より前にある。
+  assert.equal(head.indexOf('<script'), inlineAt);
+  assert.ok(inlineAt < head.indexOf('<style>'));
+});
+
+test('success の inline script は session_id を URL から外すだけで、表示や判定に使わない', () => {
+  assert.match(successInline, /history\.replaceState\(/);
+  assert.match(successInline, /window\.location\.pathname \+ window\.location\.hash/);
+  assert.match(successInline, /sessionStorage\.setItem\('sukima_ads_checkout'/);
+  // 保持期限は 1 時間。
+  assert.match(successInline, /Date\.now\(\) \+ 3600000/);
+  // DOM を書き換えない・他の parameter を読まない。
+  for (const api of ['document.', 'innerHTML', 'textContent', 'localStorage', 'fetch(',
+                     'paid', 'plan', 'customer', 'user_id']) {
+    assert.equal(successInline.includes(api), false, api);
   }
 });
 
-test('query parameter を読むコードが 1 つも無い', () => {
-  for (const page of PAGES) {
-    for (const api of ['location.search', 'URLSearchParams', 'window.location',
-                       'document.URL', 'innerHTML', 'document.write']) {
-      assert.equal(page.html.includes(api), false, page.name + ': ' + api);
-    }
+test('query parameter を読むコードは success の inline script にしか無い', () => {
+  assert.equal(stripScripts(successNoComments).includes('URLSearchParams'), false);
+  for (const api of ['location.search', 'URLSearchParams', 'window.location',
+                     'document.URL', 'innerHTML', 'document.write']) {
+    assert.equal(cancel.includes(api), false, 'cancel: ' + api);
+  }
+  for (const api of ['document.URL', 'innerHTML', 'document.write']) {
+    assert.equal(success.includes(api), false, 'success: ' + api);
   }
 });
 
@@ -133,18 +176,24 @@ test('query parameter 名を表示や判定に使っていない', () => {
   }
 });
 
-test('外部リソースを読み込まない（自己完結した静的ページ）', () => {
+test('静的な外部リソースを読み込まない（Google のタグは許可後に動的に読み込む）', () => {
   for (const page of PAGES) {
-    assert.equal(/<link[^>]+rel="stylesheet"/i.test(page.noComments), false, page.name);
-    assert.equal(/<(script|iframe|source|video|audio|object|embed)\b/i.test(page.noComments),
+    const html = stripScripts(page.noComments);
+    assert.equal(/<link[^>]+rel="stylesheet"/i.test(html), false, page.name);
+    assert.equal(/<(script|iframe|source|video|audio|object|embed)\b/i.test(html),
       false, page.name);
-    assert.equal(/@import|url\(\s*https?:/i.test(page.noComments), false, page.name);
+    assert.equal(/@import|url\(\s*https?:/i.test(html), false, page.name);
     assert.equal(page.noComments.includes('https://'), false, page.name + ': 外部 URL');
+    assert.equal(page.noComments.includes('googletagmanager'), false, page.name);
     // 画像は同一オリジンのアプリアイコンだけ
-    const imgs = page.noComments.match(/<img[^>]*>/g) || [];
+    const imgs = html.match(/<img[^>]*>/g) || [];
     assert.equal(imgs.length, 1, page.name);
     assert.match(imgs[0], /src="\/icon-192\.png"/, page.name);
   }
+});
+
+test('success に広告の効果測定の設定へのリンクがある', () => {
+  assert.match(success, /<a href="\/privacy\/ads-measurement">広告の効果測定の設定<\/a>/);
 });
 
 test('フォームや入力欄を持たない（掲示専用）', () => {
@@ -244,10 +293,20 @@ test('cancel: 存在しない Pricing ページへ誘導しない', () => {
 
 test('Stripe の内部 ID や secret を表示しない', () => {
   for (const page of PAGES) {
+    // success の inline script は session_id の形（cs_live_ / cs_test_）を検査するため
+    // 'cs_(live|test)_' を含む。それ以外の場所には ID の接頭辞を書かない。
+    const html = page.name === 'success'
+      ? page.html.replace(successInline, '')
+      : page.html;
     for (const prefix of ['cus_', 'sub_', 'cs_', 'price_', 'sk_', 'pk_', 'whsec_',
                           'checkout.stripe.com']) {
-      assert.equal(page.html.includes(prefix), false, page.name + ': ' + prefix);
+      assert.equal(html.includes(prefix), false, page.name + ': ' + prefix);
     }
+  }
+  // inline script に具体的な ID は無い（正規表現の形だけ）。
+  assert.equal(/cs_(live|test)_[A-Za-z0-9]{8,}/.test(successInline), false);
+  for (const prefix of ['cus_', 'sub_', 'price_', 'sk_', 'pk_', 'whsec_']) {
+    assert.equal(successInline.includes(prefix), false, 'inline: ' + prefix);
   }
 });
 

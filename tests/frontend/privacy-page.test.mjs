@@ -20,6 +20,11 @@
 //     - 紹介ページの背景動画（自サイト配信。外部の動画配信へ通信しない）と、
 //       本サービス自身の Cookie / Google のログインの仕組みの区別
 //     - アカウント削除後に保持する記録（承認済みの文言）
+//
+//   2026-10-18 広告の効果測定（5 節で固定）:
+//     - Google のタグは利用者が「許可する」を選んだ場合だけ読み込むこと
+//     - 対象ページ・送信する情報・送信しない情報・利用目的・Cookie・取り消し方法
+//     - 「Google のタグだけを止める」設定を「すべての外部通信が止まる」と書かないこと
 // =========================================================
 
 import test from 'node:test';
@@ -102,10 +107,54 @@ test('Limited Use の宣言と読み取り専用スコープの記述が残っ�
   assert.match(privacy, /カレンダーへの書き込み・編集・削除は一切行いません/);
 });
 
-test('第三者提供・広告・AI 学習をしない宣言が残っている', () => {
-  assert.match(privacy, /第三者に販売・提供・共有することは一切ありません/);
+test('販売・第三者提供・広告・AI 学習をしない宣言が残っている', () => {
+  assert.match(privacy, /第三者に販売することは一切ありません/);
+  assert.match(privacy, /第三者に提供・共有することは一切ありません/);
   assert.match(privacy, /広告配信に使用することは一切ありません/);
   assert.match(privacy, /AIモデルの学習に使用することは一切ありません/);
+});
+
+test('Googleユーザーデータは販売せず、処理の委託以外で提供・共有せず、広告目的（広告の効果測定を含む）に使わない', () => {
+  assert.match(privacy,
+    /取得したGoogleユーザーデータ（「取得するGoogleユーザーデータ」に記載した情報）を第三者に販売することは一切ありません。下記の「サービス提供に必要な処理の委託」を除き、第三者に提供・共有することは一切ありません。/);
+  assert.match(privacy, /取得したGoogleユーザーデータを広告配信に使用することは一切ありません。/);
+  assert.match(privacy, /広告の効果測定を含め、広告を目的とした利用は行いません。/);
+  assert.match(privacy, /Stripeでの決済や広告の効果測定のために、Googleユーザーデータを送信することはありません。/);
+  // 保護措置の節も同じ範囲（処理の委託のみ例外）にそろえる
+  assert.match(privacy,
+    /<li>取得したGoogleユーザーデータを第三者に販売しません。「情報の保存・共有について」に記載したサービス提供に必要な処理の委託を除き、第三者と共有せず、提供しません。<\/li>/);
+});
+
+test('第三者に取り扱わせる・送信する場合を、処理の委託・Stripe・許可した場合の広告計測の 3 つに区別して書いている', () => {
+  assert.match(privacy, /Googleユーザーデータ以外の取得した情報も、第三者に販売することはありません。/);
+  assert.match(privacy, /第三者に取り扱わせる、または第三者へ送信するのは、次の場合に限ります。/);
+  for (const label of ['サービス提供に必要な処理の委託', 'Stripeでの決済に必要な送信', 'ユーザーが許可した場合のGoogle広告の効果測定']) {
+    assert.ok(privacy.includes('<li><strong>' + label + '</strong>'), '区分が無い: ' + label);
+  }
+  assert.match(privacy, /Googleユーザーデータ以外の情報を広告を目的として使用するのは、ユーザーが許可した場合の広告の効果測定に限ります。/);
+  // 対象を限定しない旧文（広告計測・処理の委託と矛盾する）に戻していない
+  assert.equal(privacy.includes('<p>取得した情報を第三者に販売・提供・共有することは一切ありません。</p>'), false);
+  assert.equal(privacy.includes('<p>取得した情報を広告配信に使用することは一切ありません。</p>'), false);
+  assert.equal(privacy.includes('<li>取得したGoogleユーザーデータを第三者に販売、共有、または提供しません。</li>'), false);
+});
+
+test('処理の委託先はサービス名だけを書き、保存しない通信中の情報も対象に含めている', () => {
+  assert.match(privacy, /Webページの配信とサーバー側の処理をCloudflareに、データベースをSupabaseに委託しています。/);
+  // 「サーバーに保存する情報」だけに狭めない（Cloudflare は保存しない通信内容も処理する）
+  assert.match(privacy, /Cloudflareは、ユーザーのブラウザと本サービスのサーバーとの間の通信を処理します。/);
+  assert.match(privacy, /サーバーに保存しない情報も含まれます。/);
+  assert.match(privacy, /その読み書き・照合のために本サービスのサーバーから送る値を処理します。/);
+  // カレンダー情報はサーバーを経由しない（実装: ブラウザから googleapis.com へ直接取得）
+  assert.match(privacy, /Googleカレンダーの予定情報・カレンダー一覧は、ユーザーのブラウザとGoogleの間で直接やり取りし、本サービスのサーバーを経由しないため、これらの委託先へは送信しません。/);
+  // 未確認の法人名は書かない
+  assert.equal(/Cloudflare, Inc\.|Supabase, Inc\.|Supabase Inc\./.test(privacy), false);
+});
+
+test('広告の効果測定の節で、Googleユーザーデータを送らないことを明記している', () => {
+  const start = privacy.indexOf('id="ads-measurement"');
+  assert.ok(start > 0);
+  const section = privacy.slice(start, privacy.indexOf('</div>', start));
+  assert.match(section, /「取得するGoogleユーザーデータ」に記載した情報は、いずれも送信しません。/);
 });
 
 test('カレンダーデータをサーバーに保存しない宣言を弱めていない', () => {
@@ -121,8 +170,9 @@ test('日本語のみのページで、英語版を作っていない', () => {
   assert.equal(fs.existsSync(new URL('../../public/privacy/en.html', import.meta.url)), false);
 });
 
-test('最終更新日が 2026-10-18 改定後の日付になっている', () => {
-  assert.match(privacy, /最終更新日：2026年10月18日/);
+// 公開日が 2026-10-19 以外になる場合は、公開直前に実際の日付へ合わせること。
+test('最終更新日が 2026-10-19 改定後の日付になっている', () => {
+  assert.match(privacy, /最終更新日：2026年10月19日/);
 });
 
 
@@ -139,8 +189,11 @@ test('ログイン状態の維持に Cookie を使うと書いてある', () => 
   assert.match(privacy, /ログイン状態の維持のためにCookieを使用します/);
 });
 
-test('分析・広告目的の Cookie を使わない宣言は残っている', () => {
-  assert.match(privacy, /分析・広告目的のCookieを使用しません/);
+test('分析・広告目的の Cookie は、広告の効果測定を許可した場合のもの以外に使わないと書いてある', () => {
+  assert.match(privacy, /ユーザーが広告の効果測定を許可した場合に限り/);
+  assert.match(privacy, /これら以外に、分析・広告目的のCookieは使用しません/);
+  // 無条件に「使用しません」と読める旧表現は残さない（実装と食い違うため）。
+  assert.equal(privacy.includes('本サービスは分析・広告目的のCookieを使用しません'), false);
 });
 
 test('ローカルストレージの用途が書いてある（localStorage / IndexedDB）', () => {
@@ -255,4 +308,94 @@ test('保持期間を「未定」と書いていない', () => {
 test('terms.html 側に Stripe の記述を足していない（変更していない）', () => {
   assert.equal(terms.includes('決済について（Stripe）'), false);
   assert.equal(terms.includes('stripe.com/jp/privacy'), false);
+});
+
+
+// =========================================================
+// 5. 広告の効果測定（Google広告）
+//
+//   実装（public/assets/ads-measurement.js / functions/api/ads/tag-config.js /
+//   functions/api/billing/conversion.js）と一致していることを固定する。
+// =========================================================
+
+const settingsPage = fs.readFileSync(
+  new URL('../../public/privacy/ads-measurement.html', import.meta.url), 'utf8');
+
+const adsSection = (() => {
+  const at = privacy.indexOf('<div class="card" id="ads-measurement">');
+  assert.ok(at !== -1, '広告の効果測定の節が無い');
+  return privacy.slice(at, privacy.indexOf('</div>', at));
+})();
+
+test('広告の効果測定の節があり、設定ページへリンクしている', () => {
+  assert.match(adsSection, /<h2>広告の効果測定（Google広告）<\/h2>/);
+  assert.match(adsSection, /<a href="\/privacy\/ads-measurement">広告の効果測定の設定<\/a>/);
+});
+
+test('許可した場合だけ読み込み、未選択・拒否・保存不可・国外・GPC では読み込まないと書いてある', () => {
+  assert.match(adsSection, /「許可する」を選んだ場合だけ読み込みます/);
+  for (const phrase of ['まだ選んでいない場合', '「許可しない」を選んだ場合',
+                        '設定をブラウザに保存できない場合', '日本国外または国が分からないアクセス',
+                        'Global Privacy Controlが有効な場合']) {
+    assert.ok(adsSection.includes(phrase), phrase);
+  }
+  assert.match(adsSection, /許可しなくても、本サービスの利用やお支払いに影響はありません/);
+});
+
+test('対象ページは紹介ページと決済完了後のページだけで、アプリ画面では読み込まない', () => {
+  assert.match(adsSection, /紹介ページ（\/about\/）と、有料プランの決済完了後のページ（\/billing\/success）のみ/);
+  assert.match(adsSection, /予定の検索・表示を行うアプリの画面、料金ページ、設定ページでは読み込みません/);
+});
+
+test('Google へ送る情報と送らない情報を書いている', () => {
+  assert.match(adsSection, /決済の識別子を取り除いたもの/);
+  assert.match(adsSection, /初回のお支払い金額（日本円・税込・割引後）/);
+  assert.match(adsSection, /個人を特定できない形に変換した取引の識別子/);
+  for (const word of ['Googleカレンダーの予定情報', 'カレンダーID', '検索条件・検索結果',
+                      'メールアドレス', 'Googleが発行するユーザーID', 'カード情報']) {
+    assert.ok(adsSection.includes(word), '送信しない情報: ' + word);
+  }
+});
+
+test('リマーケティングとパーソナライズに使わないと書いている', () => {
+  assert.match(adsSection, /リマーケティング/);
+  assert.match(adsSection, /広告のパーソナライズには使用しない設定/);
+});
+
+test('取り消しで止まるのは Google 広告のタグだけで、すべての通信が止まるとは書かない', () => {
+  assert.match(adsSection, /この設定で止まるのはGoogle広告のタグだけ/);
+  for (const page of [privacy, settingsPage]) {
+    assert.equal(/すべての(外部)?通信(が|を)止/.test(page), false);
+    assert.equal(page.includes('一切の通信を行いません'), false);
+  }
+  assert.match(settingsPage, /この設定で止まるのはGoogle広告のタグだけです/);
+});
+
+test('Google の外部リンクに安全属性が付いている', () => {
+  for (const href of ['https://policies.google.com/privacy',
+                      'https://policies.google.com/technologies/partner-sites']) {
+    const at = adsSection.indexOf('<a href="' + href + '"');
+    assert.ok(at !== -1, href);
+    const tag = adsSection.slice(at, adsSection.indexOf('>', at) + 1);
+    assert.match(tag, /target="_blank"/);
+    assert.match(tag, /rel="noopener noreferrer"/);
+  }
+});
+
+test('ブラウザへの保存情報に、計測の設定・送信済みの記録・決済の識別子が書いてある', () => {
+  assert.match(privacy, /<strong>広告の効果測定の設定<\/strong>（「許可する」「許可しない」の選択と、選んだ日時。localStorage）/);
+  assert.match(privacy, /<strong>広告の効果測定で送信済みの取引の記録<\/strong>/);
+  assert.match(privacy, /<strong>決済完了後のページで受け取った決済の識別子<\/strong>（sessionStorage。最長1時間で破棄）/);
+});
+
+test('設定ページ: 許可・拒否を同じ見た目で並べ、ページ自体はタグを読み込まない', () => {
+  const grant = settingsPage.match(/<button[^>]*id="adsGrant"[^>]*>/);
+  const deny = settingsPage.match(/<button[^>]*id="adsDeny"[^>]*>/);
+  assert.ok(grant && deny);
+  assert.equal(grant[0].replace('adsGrant', 'X'), deny[0].replace('adsDeny', 'X'));
+  const scripts = settingsPage.match(/<script[^>]*>/g) ?? [];
+  assert.deepEqual(scripts, ['<script src="/assets/ads-measurement.js" data-page="settings" defer>']);
+  assert.equal(settingsPage.includes('googletagmanager'), false);
+  assert.match(settingsPage, /<meta charset="UTF-8">/);
+  assert.match(settingsPage, /<html lang="ja">/);
 });
