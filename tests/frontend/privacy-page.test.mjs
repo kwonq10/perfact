@@ -170,9 +170,9 @@ test('日本語のみのページで、英語版を作っていない', () => {
   assert.equal(fs.existsSync(new URL('../../public/privacy/en.html', import.meta.url)), false);
 });
 
-// 公開日が 2026-10-19 以外になる場合は、公開直前に実際の日付へ合わせること。
-test('最終更新日が 2026-10-19 改定後の日付になっている', () => {
-  assert.match(privacy, /最終更新日：2026年10月19日/);
+// 公開日が 2026-10-20 以外になる場合は、公開直前に実際の日付へ合わせること。
+test('最終更新日が 2026-10-20 改定後の日付になっている', () => {
+  assert.match(privacy, /最終更新日：2026年10月20日/);
 });
 
 
@@ -349,6 +349,8 @@ test('対象ページは紹介ページと決済完了後のページだけで�
 
 test('Google へ送る情報と送らない情報を書いている', () => {
   assert.match(adsSection, /決済の識別子を取り除いたもの/);
+  // 実測（2026-10-20）: Google タグはページのタイトル（dt）も送る
+  assert.match(adsSection, /決済の識別子を取り除いたもの）、ページのタイトル、参照元/);
   assert.match(adsSection, /初回のお支払い金額（日本円・税込・割引後）/);
   assert.match(adsSection, /個人を特定できない形に変換した取引の識別子/);
   for (const word of ['Googleカレンダーの予定情報', 'カレンダーID', '検索条件・検索結果',
